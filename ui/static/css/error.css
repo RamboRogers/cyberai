@@ -1,0 +1,81 @@
+.error-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    text-align: center;
+    padding: 20px;
+}
+
+.error-code {
+    font-size: 120px;
+    color: var(--primary-color);
+    text-shadow: 0 0 10px var(--primary-color);
+    margin-bottom: 20px;
+    font-weight: bold;
+}
+
+.error-message {
+    font-size: 24px;
+    color: var(--text-color);
+    margin-bottom: 20px;
+}
+
+.error-details {
+    color: var(--secondary-color);
+    margin-bottom: 30px;
+    max-width: 600px;
+}
+
+.error-details ul {
+    text-align: left;
+    display: inline-block;
+}
+
+.home-button {
+    background-color: transparent;
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+    padding: 10px 20px;
+    cursor: pointer;
+    font-family: 'CyberTerminal', 'Courier New', monospace;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: inline-block;
+    margin-top: 20px;
+}
+
+.home-button:hover {
+    background-color: rgba(0, 255, 65, 0.2);
+    box-shadow: 0 0 10px var(--primary-color);
+}
+
+.glitch {
+    animation: glitch 1s linear infinite;
+}
+
+@keyframes glitch {
+    2%, 64% {
+        transform: translate(2px, 0) skew(0);
+    }
+    4%, 60% {
+        transform: translate(-2px, 0) skew(0);
+    }
+    62% {
+        transform: translate(0, 0) skew(5deg);
+    }
+}
+
+.terminal-text {
+    color: var(--primary-color);
+    font-family: 'CyberTerminal', 'Courier New', monospace;
+    text-align: left;
+    margin: 20px 0;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--primary-color);
+    width: 100%;
+    max-width: 500px;
+    white-space: pre-wrap;
+}

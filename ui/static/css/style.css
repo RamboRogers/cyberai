@@ -1,0 +1,1067 @@
+/* CyberAI Terminal Interface Styles */
+:root {
+    --bg-color: #0f0f0f;
+    --text-color: #ffffff;
+    --accent-color: #00ff66; /* Cyberpunk green */
+    --secondary-color: #00cc66;
+    --tertiary-color: #007744;
+    --grid-color: rgba(0, 255, 102, 0.05);
+    --sidebar-bg: #111111;
+    --chat-bg: #161616;
+    --input-bg: #121212;
+    --status-available: #00ff66;
+    --status-busy: #ffaa00;
+    --status-offline: #ff0066;
+    --glow-color: rgba(0, 255, 102, 0.3); /* Subtle glow */
+}
+
+/* Base Styles */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Tinos', serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    line-height: 1.3;
+    overflow: hidden;
+    position: relative;
+    height: 100vh;
+    text-shadow: 0 0 2px var(--glow-color); /* Subtle text glow */
+}
+
+/* Grid Overlay */
+.grid-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image:
+        linear-gradient(var(--grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 20px 20px;
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* Header */
+.header {
+    background-color: var(--bg-color);
+    color: var(--accent-color);
+    text-align: center;
+    border-bottom: 1px solid var(--accent-color);
+    padding: 10px 0;
+    font-weight: bold;
+    font-size: 1.2em;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.header h1 {
+    display: inline-block;
+    margin: 0;
+    padding: 0;
+    font-size: 1.5em;
+}
+
+.blinking-cursor {
+    animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* Main Container */
+.container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 200px;
+    min-width: 180px;
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--accent-color);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.title {
+    color: var(--accent-color);
+    margin-top: 15px;
+    margin-bottom: 5px;
+    font-weight: bold;
+    font-size: 0.9em;
+    border-bottom: 1px solid rgba(0, 255, 102, 0.2);
+    padding-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.purge-btn {
+    background: none;
+    border: none;
+    color: var(--status-offline);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    line-height: 1;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.purge-btn:hover {
+    background-color: rgba(255, 0, 102, 0.2);
+    color: #ff3377;
+}
+
+.purge-btn svg {
+    stroke: currentColor;
+    display: block;
+}
+
+.chats-list, .models-list, .agents-list {
+    margin-bottom: 15px;
+    overflow-y: auto;
+}
+
+.chat-item, .model-item {
+    padding: 8px;
+    margin: 5px 0;
+    cursor: pointer;
+    border-radius: 2px;
+    font-size: 0.9em;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: relative;
+    padding-left: 25px;
+}
+
+.chat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-right: 8px;
+}
+
+.chat-item:hover, .model-item:hover {
+    background-color: rgba(0, 255, 102, 0.1);
+}
+
+.chat-item.active, .model-item.active {
+    background-color: rgba(0, 255, 102, 0.15);
+    border-left: 3px solid var(--accent-color);
+}
+
+.chat-item.new-chat-button {
+    color: var(--accent-color);
+    border: 1px dashed rgba(0, 255, 102, 0.3);
+    text-align: center;
+}
+
+.status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 7px;
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.status-available {
+    background-color: var(--status-available);
+    box-shadow: 0 0 5px var(--status-available);
+}
+
+.status-busy {
+    background-color: var(--status-busy);
+    box-shadow: 0 0 5px var(--status-busy);
+}
+
+.status-offline {
+    background-color: var(--status-offline);
+    box-shadow: 0 0 5px var(--status-offline);
+}
+
+.user-section {
+    margin-top: auto;
+    border-top: 1px solid rgba(0, 255, 102, 0.2);
+    padding-top: 15px;
+    flex-shrink: 0;
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.user-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: var(--tertiary-color);
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    font-weight: bold;
+    font-size: 0.8em;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.user-info {
+    flex-grow: 1;
+}
+
+.user-name {
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.user-role {
+    font-size: 0.8em;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Style for Admin Link and Logout Button */
+.admin-link,
+.logout-btn {
+    background: none;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: background-color 0.2s, color 0.2s;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.admin-link:hover,
+.logout-btn:hover {
+    background-color: rgba(0, 255, 102, 0.15);
+    color: var(--accent-color);
+}
+
+.admin-link svg,
+.logout-btn svg {
+    stroke: currentColor;
+    width: 16px;
+    height: 16px;
+}
+
+.logout-btn {
+    margin-left: -2px; /* Add negative margin to counteract gap */
+}
+
+/* Chat Container */
+.chat-container {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--chat-bg);
+    height: 100vh;
+}
+
+.chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--accent-color);
+    background-color: var(--sidebar-bg);
+    height: 35px;
+}
+
+.chat-title {
+    font-weight: bold;
+    color: var(--accent-color);
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-title:hover {
+    text-decoration: underline;
+}
+
+.chat-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.chat-actions button {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 3px;
+    transition: background-color 0.2s;
+}
+
+.chat-actions button:hover {
+    background-color: rgba(0, 255, 102, 0.1);
+}
+
+.chat-actions button svg {
+    stroke: var(--accent-color);
+}
+
+.chat-history {
+    flex-grow: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.message {
+    padding: 10px 15px;
+    border-radius: 3px;
+    max-width: 90%;
+    position: relative;
+    animation: fadeIn 0.4s ease-out, subtleShimmer 5s ease-in-out infinite alternate;
+    align-self: flex-start;
+    margin-bottom: 15px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes subtleShimmer {
+    0%, 100% { box-shadow: 0 0 3px rgba(0, 255, 102, 0.1); }
+    50% { box-shadow: 0 0 6px rgba(0, 255, 102, 0.25); }
+}
+
+.user-message {
+    background-color: rgba(0, 255, 102, 0.1);
+    border-left: 3px solid var(--accent-color);
+}
+
+.bot-message {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-left: 3px solid #00aaff;
+}
+
+.timestamp {
+    font-size: 0.7em;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 5px;
+    text-align: right;
+}
+
+.content {
+    margin-bottom: 5px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    line-height: 1.1;
+}
+
+.content p {
+    margin: 0;
+    padding: 0;
+}
+
+.content code {
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: Consolas, Monaco, 'Andale Mono', monospace;
+    font-size: 0.85em;
+}
+
+.content pre {
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 8px;
+    border-radius: 3px;
+    overflow-x: auto;
+    margin: 5px 0;
+    border-left: 3px solid var(--accent-color);
+}
+
+.content pre code {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 0;
+    font-size: 0.85em;
+}
+
+.content blockquote {
+    border-left: 3px solid var(--accent-color);
+    margin: 5px 0;
+    padding-left: 10px;
+    color: rgba(255, 255, 255, 0.8);
+    font-style: italic;
+}
+
+.content a {
+    color: var(--accent-color);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--accent-color);
+}
+
+.content a:hover {
+    border-bottom: 1px solid var(--accent-color);
+}
+
+.content ul, .content ol {
+    margin-left: 20px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+    padding-left: 5px;
+}
+
+.content li {
+    margin: 0;
+    padding: 0;
+    margin-bottom: 0;
+    line-height: 1.1;
+}
+
+.content table {
+    border-collapse: collapse;
+    margin: 10px 0;
+    width: 100%;
+}
+
+.content table th, .content table td {
+    border: 1px solid rgba(0, 255, 102, 0.3);
+    padding: 5px 8px;
+    text-align: left;
+}
+
+.content table th {
+    background-color: rgba(0, 255, 102, 0.1);
+}
+
+/* Input Container */
+.input-container {
+    display: flex;
+    padding: 8px;
+    border-top: 1px solid var(--accent-color);
+    background-color: var(--input-bg);
+}
+
+/* Combined input[type="text"] styles */
+input[type="text"],
+.input-container input {
+    flex-grow: 1;
+    background-color: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(0, 255, 102, 0.3);
+    color: var(--text-color);
+    padding: 10px 15px;
+    font-family: 'Tinos', serif;
+    font-size: 1em;
+    outline: none;
+    border-radius: 3px;
+    transition: border-color 0.3s;
+}
+
+input[type="text"]:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 5px rgba(0, 255, 102, 0.5);
+}
+
+input[type="text"]::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+button {
+    background-color: var(--tertiary-color);
+    color: var(--text-color);
+    border: none;
+    padding: 10px 20px;
+    margin-left: 10px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    font-size: 1em;
+    border-radius: 3px;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: var(--secondary-color);
+}
+
+/* Loading State */
+.model-item.loading .status-indicator {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 0.5; }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        max-height: 50vh;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chat-container {
+        height: 50vh;
+        min-height: 300px;
+    }
+
+    /* Make chat list and model list scrollable separately */
+    .chats-list, .models-list {
+        max-height: 35vh;
+        overflow-y: auto;
+        padding-right: 5px;
+    }
+
+    /* Add bottom padding to ensure last items are visible when scrolling */
+    .chats-list .chat-item:last-child,
+    .models-list .model-item:last-child {
+        margin-bottom: 10px;
+    }
+
+    /* Make the user section stay visible */
+    .user-section {
+        position: sticky;
+        bottom: 0;
+        background-color: var(--sidebar-bg);
+        padding-bottom: 5px;
+        margin-top: 10px;
+        z-index: 10;
+    }
+
+    /* Add a toggle for sidebar sections on mobile */
+    .title {
+        cursor: pointer;
+        padding: 8px 0;
+    }
+
+    .title::after {
+        content: '▼';
+        float: right;
+        transition: transform 0.3s;
+    }
+
+    /* Optional: Add a class that can be toggled with JS for collapsing sections */
+    .collapsed .title::after {
+        transform: rotate(-90deg);
+    }
+
+    /* Add some padding to chat actions for easier tap targets */
+    .chat-actions button {
+        padding: 8px;
+    }
+}
+
+/* Title text inside chat item */
+.chat-title-text {
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Chat delete button */
+.chat-delete-btn {
+    opacity: 0;
+    color: var(--status-offline);
+    margin-left: 8px;
+    font-size: 1.1em;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.chat-delete-btn:hover {
+    background-color: rgba(255, 0, 102, 0.2);
+}
+
+/* Show delete button on hover */
+.chat-item:hover .chat-delete-btn {
+    opacity: 1;
+}
+
+/* Delete confirmation modal */
+.delete-confirmation {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+}
+
+.delete-confirmation.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.delete-confirmation-content {
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--accent-color);
+    border-radius: 4px;
+    padding: 20px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 0 15px rgba(0, 255, 102, 0.3);
+    transform: translateY(20px);
+    transition: transform 0.3s;
+    animation: glowPulse 2s infinite alternate;
+}
+
+.delete-confirmation.visible .delete-confirmation-content {
+    transform: translateY(0);
+}
+
+.delete-title {
+    font-size: 1.2em;
+    color: var(--accent-color);
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    border-bottom: 1px solid rgba(0, 255, 102, 0.3);
+    padding-bottom: 10px;
+}
+
+.delete-message {
+    margin-bottom: 20px;
+    color: var(--text-color);
+}
+
+.delete-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.cancel-btn, .delete-btn {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+
+.cancel-btn {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-color);
+}
+
+.cancel-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.delete-btn {
+    background-color: var(--status-offline);
+    color: white;
+}
+
+.delete-btn:hover {
+    background-color: #ff3377;
+    box-shadow: 0 0 8px rgba(255, 0, 102, 0.5);
+}
+
+@keyframes glowPulse {
+    from {
+        box-shadow: 0 0 5px rgba(0, 255, 102, 0.3);
+    }
+    to {
+        box-shadow: 0 0 15px rgba(0, 255, 102, 0.5);
+    }
+}
+
+/* Add styles for model info in message cards */
+.message .model-info {
+    font-size: 10px;
+    color: rgba(0, 255, 0, 0.7);
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.message .timestamp {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 5px;
+}
+
+.message .timestamp-text {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* Add Thinking Indicator Styles */
+.thinking-indicator {
+    display: none;
+    align-self: flex-start;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-left: 3px solid #00aaff;
+    padding: 10px 15px;
+    border-radius: 3px;
+    margin-bottom: 15px;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.thinking-indicator span {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: var(--accent-color);
+    border-radius: 50%;
+    animation: thinking-blink 1.4s infinite both;
+}
+
+.thinking-indicator span:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.thinking-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.thinking-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes thinking-blink {
+    0% { opacity: 0.2; }
+    20% { opacity: 1; }
+    100% { opacity: 0.2; }
+}
+
+/* Thinking content styling */
+.thinking-content {
+    font-size: 0.9em;
+    margin-top: 12px;
+    margin-bottom: 8px;
+    padding: 12px;
+    border: 1px solid rgba(0, 255, 102, 0.4);
+    border-radius: 5px;
+    background-color: rgba(0, 0, 0, 0.7);
+    position: relative;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) inset;
+}
+
+/* Thinking label */
+.thinking-label {
+    font-size: 0.75em;
+    font-weight: bold;
+    color: var(--accent-color);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid rgba(0, 255, 102, 0.3);
+}
+
+/* Thinking icon */
+.thinking-icon {
+    margin-right: 4px;
+    font-size: 1.1em;
+    position: relative;
+    top: 1px;
+    display: inline-block;
+    animation: spin 8s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Thinking content text */
+.thinking-content-text {
+    color: rgba(0, 255, 102, 0.9);
+    font-style: italic;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    line-height: 1.1;
+}
+
+/* Style code blocks inside thinking differently */
+.thinking-content-text code {
+    background-color: rgba(40, 40, 40, 0.6);
+    color: rgba(255, 255, 255, 0.7);
+    padding: 1px 4px;
+}
+
+.thinking-content-text pre {
+    background-color: rgba(40, 40, 40, 0.4);
+    border-left: 2px solid rgba(255, 255, 255, 0.2);
+    padding: 8px;
+    margin: 5px 0;
+    overflow-x: auto;
+    border-radius: 3px;
+}
+
+.thinking-content-text ul,
+.thinking-content-text ol {
+    margin-left: 20px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+    padding-left: 5px;
+}
+
+.thinking-content-text li {
+    margin: 0;
+    padding: 0;
+    margin-bottom: 0;
+    line-height: 1.1;
+}
+
+.thinking-content-text blockquote {
+    border-left: 2px solid rgba(255, 255, 255, 0.2);
+    margin: 5px 0;
+    padding-left: 10px;
+    font-style: italic;
+}
+
+/* Add a pulse animation for updated messages */
+@keyframes pulseHighlight {
+    0% { box-shadow: 0 0 1px var(--accent-color); }
+    50% { box-shadow: 0 0 5px var(--accent-color); }
+    100% { box-shadow: 0 0 1px var(--accent-color); }
+}
+
+/* Class to trigger pulse animation */
+.message.message-updated {
+    animation: fadeIn 0.4s ease-out, pulseHighlight 0.6s ease-in-out;
+}
+
+/* Message Footer Styling */
+.message-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 5px;
+    border-top: 1px solid rgba(0, 255, 102, 0.1);
+}
+
+.message .timestamp {
+    flex-grow: 1;
+    margin-top: 0;
+    text-align: left;
+}
+
+.token-count {
+    font-size: 0.7em;
+    color: rgba(0, 255, 102, 0.6);
+    margin-left: 10px;
+    white-space: nowrap;
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    padding: 3px 5px;
+    margin-left: 5px;
+    border-radius: 3px;
+    transition: background-color 0.2s, color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-btn:hover {
+    background-color: rgba(0, 255, 102, 0.15);
+    color: var(--accent-color);
+}
+
+.action-btn svg {
+    stroke: currentColor;
+}
+
+/* Specific button classes if needed for positioning/spacing */
+.copy-prompt-btn {
+    /* Inherits styles from .action-btn */
+    /* Add specific overrides here if necessary */
+}
+
+.copy-text-btn {
+    /* Inherits styles from .action-btn */
+}
+
+.copy-markdown-btn {
+    /* Inherits styles from .action-btn */
+}
+
+/* Style for finalized message visual cue */
+.message.message-finalized {
+    border-left-color: var(--status-available);
+    transition: border-left-color 0.5s ease-in-out;
+}
+
+/* --- Notification Styles --- */
+#notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050; /* High z-index to be on top */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+@keyframes notificationFadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.notification-tile {
+    background-color: rgba(0, 255, 102, 0.85); /* Accent color background */
+    color: var(--bg-color); /* Dark text for contrast */
+    padding: 12px 18px; /* Increased padding */
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.2); /* Subtle border */
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2), 0 0 5px var(--glow-color);
+    font-size: 0.9em;
+    opacity: 0;
+    transform: translateX(100%); /* Start off-screen */
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+    max-width: 320px; /* Slightly wider */
+    cursor: pointer; /* Allow clicking to dismiss */
+    text-shadow: none; /* Disable body text-shadow */
+    position: relative; /* For pseudo-element icon */
+    overflow: hidden; /* Hide overflow for slide effect */
+    display: flex; /* Align icon and text */
+    align-items: center;
+}
+
+.notification-tile::before {
+    /* Icon placeholder */
+    content: '✓'; /* Default success icon */
+    font-weight: bold;
+    margin-right: 8px;
+    font-size: 1.1em;
+    animation: notificationFadeIn 0.3s ease-out 0.2s backwards; /* Fade in icon slightly delayed */
+}
+
+.notification-tile.visible {
+    opacity: 1;
+    transform: translateX(0); /* Slide in */
+}
+
+.notification-tile.error {
+    background-color: rgba(255, 0, 102, 0.85); /* Red for errors */
+    color: var(--text-color);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+.notification-tile.error::before {
+    content: '!'; /* Error icon */
+}
+
+.notification-tile.info {
+    background-color: rgba(57, 255, 20, 0.85); /* Use --secondary-color (brighter green) */
+    color: var(--bg-color); /* Keep dark text for contrast */
+    border-color: rgba(0, 0, 0, 0.2);
+}
+.notification-tile.info::before {
+    content: 'i'; /* Info icon */
+    font-style: italic;
+}
+
+.notification-tile span {
+    /* Fade in text content */
+    display: inline-block;
+    animation: notificationFadeIn 0.3s ease-out 0.3s backwards;
+}
+
+/* --- End Notification Styles --- */
+
+@keyframes send-pulse {
+    0% {
+        border-color: var(--accent-color);
+        box-shadow: 0 0 5px rgba(0, 255, 102, 0.5);
+    }
+    50% {
+        border-color: #fff; /* Flash white */
+        box-shadow: 0 0 15px rgba(0, 255, 102, 0.8), 0 0 5px rgba(255, 255, 255, 0.5); /* Brighter glow */
+        transform: scale(1.01); /* Slight scale */
+    }
+    100% {
+        border-color: var(--accent-color);
+        box-shadow: 0 0 5px rgba(0, 255, 102, 0.5);
+        transform: scale(1);
+    }
+}
+
+.input-container input.input-sending {
+    animation: send-pulse 0.3s ease-out;
+}
+
+.models-list {
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow-y: scroll;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-color) var(--bg-color);
+    padding-bottom: 5px;
+}
+
+.models-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.models-list::-webkit-scrollbar-track {
+    background: var(--bg-color);
+}
+
+.models-list::-webkit-scrollbar-thumb {
+    background-color: var(--accent-color);
+    border-radius: 3px;
+    border: 1px solid var(--bg-color);
+}

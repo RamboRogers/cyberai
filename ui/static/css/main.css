@@ -1,0 +1,311 @@
+/* Main CSS for CyberAI with Cyberpunk Theme */
+:root {
+    --primary-bg: #121212;
+    --secondary-bg: #1a1a1a;
+    --primary-color: #00FF41; /* Cyberpunk Green */
+    --secondary-color: #39FF14; /* Bright Green */
+    --accent-color: #4DEEEA; /* Neon Blue */
+    --danger-color: #FF073A; /* Neon Red */
+    --success-color: #00C853; /* Neon Green */
+    --success-hover-color: #00E676; /* Lighter Neon Green */
+    --info-color: #00ADB5; /* Teal */
+    --info-hover-color: #00DBEA; /* Lighter Teal */
+    --disabled-bg-color: #333333; /* Dark Gray */
+    --disabled-text-color: #666666; /* Medium Gray */
+    --text-color: #FFFFFF;
+    --dark-text: #121212;
+    --border-color: #333333;
+    --border-color-subtle: #222222;
+    --shadow-color: rgba(0, 255, 65, 0.2);
+}
+
+/* Reset and Base Styles */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+    font-family: 'Source Code Pro', monospace;
+    background-color: var(--primary-bg);
+    color: var(--text-color);
+    line-height: 1.6;
+    scroll-behavior: smooth;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--primary-color);
+    font-weight: 600;
+    text-shadow: 0 0 5px var(--shadow-color);
+}
+
+h1 {
+    font-size: 2.2rem;
+}
+
+h2 {
+    font-size: 1.8rem;
+}
+
+h3 {
+    font-size: 1.5rem;
+}
+
+a {
+    color: var(--accent-color);
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+a:hover {
+    color: var(--primary-color);
+    text-shadow: 0 0 5px var(--shadow-color);
+}
+
+/* Terminal Cursor Effect */
+.cursor-blink::after {
+    content: '|';
+    color: var(--primary-color);
+    animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--primary-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
+}
+
+/* Utility Classes */
+.container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.text-primary {
+    color: var(--primary-color);
+}
+
+.text-secondary {
+    color: var(--secondary-color);
+}
+
+.text-accent {
+    color: var(--accent-color);
+}
+
+.text-danger {
+    color: var(--danger-color);
+}
+
+.text-center {
+    text-align: center;
+}
+
+.mt-1 { margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }
+.mt-3 { margin-top: 1.5rem; }
+.mt-4 { margin-top: 2rem; }
+.mb-1 { margin-bottom: 0.5rem; }
+.mb-2 { margin-bottom: 1rem; }
+.mb-3 { margin-bottom: 1.5rem; }
+.mb-4 { margin-bottom: 2rem; }
+
+/* Loading Animation */
+.loading {
+    display: inline-block;
+    position: relative;
+    width: 64px;
+    height: 64px;
+}
+
+.loading div {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    animation: loading 1.2s linear infinite;
+}
+
+.loading div:nth-child(1) {
+    animation-delay: 0s;
+    top: 29px;
+    left: 53px;
+}
+
+.loading div:nth-child(2) {
+    animation-delay: -0.1s;
+    top: 18px;
+    left: 50px;
+}
+
+.loading div:nth-child(3) {
+    animation-delay: -0.2s;
+    top: 9px;
+    left: 41px;
+}
+
+.loading div:nth-child(4) {
+    animation-delay: -0.3s;
+    top: 6px;
+    left: 29px;
+}
+
+.loading div:nth-child(5) {
+    animation-delay: -0.4s;
+    top: 9px;
+    left: 18px;
+}
+
+.loading div:nth-child(6) {
+    animation-delay: -0.5s;
+    top: 18px;
+    left: 9px;
+}
+
+.loading div:nth-child(7) {
+    animation-delay: -0.6s;
+    top: 29px;
+    left: 6px;
+}
+
+.loading div:nth-child(8) {
+    animation-delay: -0.7s;
+    top: 41px;
+    left: 9px;
+}
+
+@keyframes loading {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0;
+    }
+}
+
+/* Cyberpunk-style box */
+.cyber-box {
+    border: 1px solid var(--border-color);
+    background-color: var(--secondary-bg);
+    box-shadow: 0 0 15px var(--shadow-color);
+    border-radius: 5px;
+    padding: 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.cyber-box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--primary-color), transparent);
+    animation: cyber-scan 2s linear infinite;
+}
+
+@keyframes cyber-scan {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* Alert Messages */
+.alert {
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 5px;
+    border-left: 5px solid transparent;
+}
+
+.alert-success {
+    background-color: rgba(0, 255, 65, 0.1);
+    border-left-color: var(--primary-color);
+}
+
+.alert-error {
+    background-color: rgba(255, 7, 58, 0.1);
+    border-left-color: var(--danger-color);
+}
+
+.alert-info {
+    background-color: rgba(77, 238, 234, 0.1);
+    border-left-color: var(--accent-color);
+}
+
+/* Forms and Buttons */
+button, input, select, textarea {
+    font-family: 'Source Code Pro', monospace;
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+    .hide-mobile {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    h1 {
+        font-size: 1.8rem;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+    }
+
+    h3 {
+        font-size: 1.2rem;
+    }
+}
+
+/* Basic Layout Components */
+header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+main {
+    flex: 1;
+}
+
+footer {
+    padding: 1rem;
+    text-align: center;
+    font-size: 0.8rem;
+    border-top: 1px solid var(--border-color);
+}

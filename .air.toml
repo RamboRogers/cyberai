@@ -1,0 +1,37 @@
+# .air.toml - Air configuration file
+
+# Working directory
+root = "."
+
+# Temporary directory for builds
+tmp_dir = "tmp"
+
+[build]
+# Command to build the application
+cmd = "go build -o ./tmp/cyberai ./cmd/cyberai"
+
+# Binary file to run
+bin = "tmp/cyberai"
+
+# Watch these directories for changes
+include_dir = ["cmd", "server", "ui"]
+
+# Ignore these directories/files
+exclude_dir = ["tmp", "data", ".git", ".idea", ".vscode"]
+
+# Watch these file extensions
+include_ext = ["go", "html", "css", "js"]
+
+# Log file for air output
+log = "air.log"
+
+# Delay before restarting after a file change (in ms)
+delay = 1000
+
+[log]
+# Show log time
+time = true
+
+[misc]
+# Delete tmp directory on exit
+clean_on_exit = true

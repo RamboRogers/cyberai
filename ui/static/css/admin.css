@@ -1,0 +1,983 @@
+/* Admin Panel Styles with Cyberpunk Theme */
+:root {
+    --bg-color: #0f0f0f; /* Renamed from --primary-bg */
+    --secondary-bg: #1A1A1A;
+    --accent-color: #00ff66; /* Updated value */
+    --secondary-color: #00cc66; /* Updated value */
+    --tertiary-color: #007744; /* Added */
+    --glow-color: rgba(0, 255, 102, 0.3); /* Renamed from --shadow-color */
+    --danger-color: #FF073A;
+    --info-color: #00E5FF;
+    --success-color: var(--accent-color); /* Use main accent for success */
+    --warning-color: #FFF700;
+    --text-color: #ffffff;
+    --text-secondary-color: #B0B0B0;
+    --border-color: #282828;
+    --border-color-subtle: #1F1F1F;
+    --shadow-color: rgba(0, 255, 65, 0.3);
+    --shadow-color-subtle: rgba(0, 0, 0, 0.4);
+    --modal-bg: rgba(10, 10, 10, 0.95);
+    --disabled-bg-color: #404040;
+    --disabled-text-color: #777777;
+    --dark-text: #111111;
+    --light-text: #EEEEEE;
+    --font-mono: 'Source Code Pro', monospace;
+
+    /* Hover variants - Adjusted for consistency */
+    --primary-hover-color: #39FF14; /* Use brighter green for primary hover */
+    --secondary-hover-color: #5FFF3B;
+    --accent-hover-color: var(--secondary-color); /* Use secondary for accent hover */
+    --danger-hover-color: #FF4D6E;
+    --info-hover-color: #40FFFF;
+    --success-hover-color: var(--secondary-color); /* Use secondary for success hover */
+    --warning-hover-color: #FFFF50;
+}
+
+/* Main layout */
+.admin-panel {
+    background-color: var(--bg-color); /* Use aligned variable */
+    color: var(--text-color);
+    min-height: 100vh;
+    font-family: 'Tinos', serif; /* Changed default font */
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    background-color: var(--secondary-bg); /* Keep admin distinct header bg */
+    padding: 1rem;
+    border-bottom: 1px solid var(--accent-color); /* Use aligned variable */
+    box-shadow: 0 0 15px var(--glow-color); /* Use aligned variable */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 {
+    color: var(--accent-color); /* Use aligned variable */
+    margin: 0;
+    font-size: 1.8rem;
+    text-shadow: 0 0 5px var(--glow-color); /* Use aligned variable */
+    font-family: 'Tinos', serif; /* Ensure header uses Tinos */
+}
+
+.nav-links {
+    display: flex;
+    gap: 1rem;
+}
+
+.nav-link {
+    color: var(--text-color);
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border: 1px solid transparent;
+    transition: all 0.3s ease;
+    font-family: 'Tinos', serif; /* Ensure nav links use Tinos */
+}
+
+.nav-link:hover, .nav-link.active {
+    color: var(--accent-color); /* Use aligned variable */
+    border-color: var(--accent-color); /* Use aligned variable */
+    box-shadow: 0 0 10px var(--glow-color); /* Use aligned variable */
+}
+
+main {
+    flex: 1;
+    padding: 2rem;
+    overflow-y: auto;
+}
+
+footer {
+    padding: 1rem;
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--secondary-bg); /* Keep admin distinct footer bg */
+    color: var(--text-color);
+    font-size: 0.8rem;
+}
+
+/* Admin sections */
+.admin-section {
+    background-color: var(--secondary-bg); /* Keep admin distinct section bg */
+    border: 1px solid var(--border-color);
+    box-shadow: 0 0 15px var(--glow-color); /* Use aligned variable */
+    border-radius: 5px;
+    margin-bottom: 2rem;
+    overflow: hidden;
+}
+
+.panel-header {
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.panel-header h2 {
+    color: var(--accent-color); /* Use aligned variable */
+    margin: 0;
+    text-shadow: 0 0 5px var(--glow-color); /* Use aligned variable */
+    font-family: 'Tinos', serif; /* Ensure panel headers use Tinos */
+}
+
+/* Header actions for buttons and imports */
+.header-actions {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.import-section {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+#ollama-import-url {
+    width: 250px;
+}
+
+/* Model list styling - Improved */
+.model-list-container {
+    padding: 1rem;
+}
+
+.model-filter {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.model-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.25rem;
+}
+
+.model-card {
+    background-color: var(--bg-color); /* Align card background */
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    transition: all 0.3s ease;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    height: 100%;
+    min-height: 260px;
+}
+
+.model-card:hover {
+    border-color: var(--accent-color); /* Use aligned variable */
+    box-shadow: 0 0 20px var(--glow-color), 0 0 10px var(--glow-color) inset; /* Use aligned variable */
+    transform: translateY(-3px);
+}
+
+.model-card h3 {
+    margin: 0;
+    padding-bottom: 0.75rem;
+    color: var(--accent-color); /* Use aligned variable */
+    border-bottom: 1px solid var(--border-color);
+    font-size: 1.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 0 5px var(--glow-color); /* Use aligned variable */
+    font-family: 'Tinos', serif; /* Ensure card titles use Tinos */
+}
+
+.model-card .model-provider {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    border-radius: 4px;
+    background-color: var(--secondary-bg);
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    font-family: 'Source Code Pro', monospace; /* Keep mono for badges */
+}
+
+.model-card .model-provider.openai {
+    border: 1px solid var(--accent-color); /* Use aligned variable */
+    color: var(--accent-color); /* Use aligned variable */
+    background-color: rgba(0, 255, 102, 0.1); /* Use aligned variable */
+    box-shadow: 0 0 8px var(--glow-color); /* Use aligned variable */
+}
+
+.model-card .model-provider.ollama {
+    border: 1px solid var(--secondary-color); /* Use aligned variable */
+    color: var(--secondary-color); /* Use aligned variable */
+    background-color: rgba(0, 204, 102, 0.1); /* Use aligned variable */
+    box-shadow: 0 0 8px rgba(0, 204, 102, 0.3); /* Use aligned variable */
+}
+
+.model-card .model-provider.anthropic {
+    border: 1px solid var(--text-color);
+    color: var(--text-color);
+    background-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+}
+
+.model-card-details {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    flex: 1;
+}
+
+.model-card-details p {
+    margin: 0.5rem 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px dotted rgba(51, 51, 51, 0.5);
+    padding-bottom: 0.4rem;
+}
+
+.model-card-details p:last-child {
+    border-bottom: none;
+}
+
+.model-card-details span {
+    color: var(--accent-color); /* Use aligned variable */
+    font-family: 'Source Code Pro', monospace; /* Keep mono for details */
+    max-width: 65%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+    word-break: break-word;
+}
+
+/* Improve model ID display */
+.model-card-details p.model-id-container {
+    display: block;
+    position: relative;
+}
+
+.model-card-details p.model-id-container .model-id-label {
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.model-card-details p.model-id-container .model-id-value {
+    display: block;
+    position: relative;
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 0.4rem;
+    border-radius: 3px;
+    border: 1px solid var(--border-color);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    max-height: 2.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    white-space: normal;
+    word-break: break-all;
+    color: var(--accent-color); /* Use aligned variable */
+    font-family: 'Source Code Pro', monospace; /* Keep mono for code */
+}
+
+.model-card-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: auto;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+    justify-content: flex-end;
+}
+
+/* Enhanced status badges */
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+    font-family: 'Source Code Pro', monospace; /* Keep mono */
+}
+
+.status-badge.active {
+    background-color: rgba(0, 255, 102, 0.15); /* Use aligned variable */
+    color: var(--success-color); /* Use aligned variable */
+    border: 1px solid var(--success-color); /* Use aligned variable */
+    box-shadow: 0 0 8px var(--glow-color); /* Use aligned variable */
+    text-shadow: 0 0 5px var(--glow-color); /* Use aligned variable */
+}
+
+.status-badge.inactive {
+    background-color: rgba(255, 7, 58, 0.15);
+    color: var(--danger-color);
+    border: 1px solid var(--danger-color);
+    box-shadow: 0 0 8px rgba(255, 7, 58, 0.3);
+    text-shadow: 0 0 5px rgba(255, 7, 58, 0.5);
+}
+
+/* Loading indicator */
+.loading-indicator {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-color);
+    font-style: italic;
+    grid-column: 1 / -1;
+}
+
+/* Form controls */
+.cyber-input, .cyber-select, .cyber-textarea {
+    background-color: rgba(0, 0, 0, 0.3); /* Align with style.css input */
+    color: var(--text-color);
+    border: 1px solid rgba(0, 255, 102, 0.3); /* Align with style.css input */
+    padding: 10px 15px; /* Align with style.css input */
+    font-family: 'Source Code Pro', monospace; /* Keep mono for inputs */
+    width: 100%;
+    border-radius: 3px;
+    transition: border-color 0.3s, box-shadow 0.3s; /* Align transition */
+}
+
+.cyber-input:focus, .cyber-select:focus, .cyber-textarea:focus {
+    border-color: var(--accent-color); /* Align with style.css input focus */
+    box-shadow: 0 0 5px var(--glow-color); /* Align with style.css input focus */
+    outline: none;
+}
+
+.cyber-range {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 8px;
+    background: var(--border-color);
+    border-radius: 5px;
+    outline: none;
+}
+
+.cyber-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    background: var(--accent-color); /* Use aligned variable */
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 5px var(--glow-color); /* Use aligned variable */
+}
+
+.cyber-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.cyber-checkbox input {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border: 1px solid rgba(0, 255, 102, 0.3); /* Align border */
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+    position: relative;
+    background-color: rgba(0, 0, 0, 0.3); /* Align background */
+}
+
+.cyber-checkbox input:checked {
+    border-color: var(--accent-color); /* Use aligned variable */
+    background-color: rgba(0, 255, 102, 0.1); /* Use aligned variable */
+}
+
+.cyber-checkbox input:checked::after {
+    content: '✓';
+    font-size: 14px;
+    color: var(--accent-color); /* Use aligned variable */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Cyber Button Alignment */
+.cyber-btn {
+    background-color: var(--tertiary-color); /* Align with style.css button */
+    color: var(--text-color);
+    border: 1px solid var(--tertiary-color); /* Match background initially */
+    padding: 10px 20px; /* Align with style.css button */
+    cursor: pointer;
+    font-family: 'Source Code Pro', monospace; /* Keep mono for buttons */
+    font-weight: bold;
+    font-size: 1em;
+    transition: background-color 0.3s, border-color 0.3s; /* Align transition */
+    border-radius: 3px;
+}
+
+.cyber-btn:hover {
+    background-color: var(--secondary-color); /* Align with style.css button hover */
+    border-color: var(--secondary-color); /* Match hover background */
+    box-shadow: none; /* Remove default shadow */
+}
+
+.cyber-btn.primary {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    color: var(--bg-color); /* Dark text on bright green */
+}
+
+.cyber-btn.primary:hover {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
+.cyber-btn.secondary {
+    /* Use default style */
+}
+
+.cyber-btn.danger {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+    color: white;
+}
+
+.cyber-btn.danger:hover {
+    background-color: var(--danger-hover-color);
+    border-color: var(--danger-hover-color);
+}
+
+.cyber-btn.info {
+    background-color: var(--info-color);
+    border-color: var(--info-color);
+    color: var(--bg-color); /* Dark text on info */
+}
+
+.cyber-btn.info:hover {
+    background-color: var(--info-hover-color);
+    border-color: var(--info-hover-color);
+}
+
+.cyber-btn.sync-btn {
+    /* Keep specific sync style if desired, or align with primary/secondary */
+    background-color: var(--success-color);
+    border-color: var(--success-color);
+    color: var(--bg-color);
+}
+
+.cyber-btn.sync-btn:hover {
+    background-color: var(--success-hover-color);
+    border-color: var(--success-hover-color);
+}
+
+/* Form layout */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--accent-color); /* Use aligned variable */
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.provider-fields {
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 1rem;
+    margin: 1rem 0;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Modal styling */
+.modal {
+    display: none; /* Controlled by JS */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--modal-bg);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+}
+
+.modal.active {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.3s ease;
+}
+
+.modal-content {
+    background-color: var(--secondary-bg); /* Keep admin distinct modal bg */
+    border: 1px solid var(--border-color);
+    box-shadow: 0 0 20px var(--glow-color); /* Use aligned variable */
+    border-radius: 5px;
+    max-width: 600px;
+    width: 90%;
+    margin: 2rem;
+    animation: modal-fade 0.3s ease;
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+}
+
+@keyframes modal-fade {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    color: var(--accent-color); /* Use aligned variable */
+    margin: 0;
+    font-family: 'Tinos', serif; /* Ensure modal title uses Tinos */
+}
+
+.modal-body {
+    padding: 1rem;
+}
+
+.close {
+    color: var(--text-color);
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.close:hover {
+    color: var(--accent-color); /* Use aligned variable */
+}
+
+/* Tab navigation */
+.admin-tabs {
+    display: flex;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+}
+
+.tab-button {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    padding: 0.75rem 1.5rem;
+    font-family: 'Tinos', serif; /* Changed tab font */
+    font-size: 1rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.tab-button:hover {
+    color: var(--accent-color); /* Use aligned variable */
+}
+
+.tab-button.active {
+    color: var(--accent-color); /* Use aligned variable */
+    border-bottom-color: var(--accent-color); /* Use aligned variable */
+    box-shadow: 0 5px 10px -5px var(--glow-color); /* Use aligned variable */
+}
+
+.tab-content {
+    display: none;
+    animation: fade-in 0.3s ease;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* User management styles */
+.user-list-container {
+    padding: 1rem;
+}
+
+.user-filter {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.user-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
+.user-card {
+    background-color: var(--bg-color); /* Align card background */
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.user-card:hover {
+    border-color: var(--accent-color); /* Use aligned variable */
+    box-shadow: 0 0 10px var(--glow-color); /* Use aligned variable */
+}
+
+.user-card h3 {
+    margin: 0;
+    padding-bottom: 0.5rem;
+    color: var(--accent-color); /* Use aligned variable */
+    border-bottom: 1px solid var(--border-color);
+    font-family: 'Tinos', serif; /* Ensure card titles use Tinos */
+}
+
+.user-card .role-badge {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-family: 'Source Code Pro', monospace; /* Keep mono for badges */
+}
+
+.user-card .role-badge.admin {
+    border: 1px solid var(--accent-color); /* Use aligned variable */
+    color: var(--accent-color); /* Use aligned variable */
+    background-color: rgba(0, 255, 102, 0.1); /* Use aligned variable */
+}
+
+.user-card .role-badge.user {
+    /* Maybe align with secondary color? */
+    border: 1px solid var(--secondary-color);
+    color: var(--secondary-color);
+    background-color: rgba(0, 204, 102, 0.1);
+}
+
+.user-card-details {
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.user-card-details span {
+    color: var(--accent-color); /* Use aligned variable */
+    font-family: 'Source Code Pro', monospace; /* Keep mono for details */
+}
+
+.user-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    justify-content: flex-end;
+}
+
+/* Role management styles */
+.role-list-container {
+    padding: 1rem;
+}
+
+.role-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
+.role-card {
+    background-color: var(--bg-color); /* Align card background */
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 1rem;
+    transition: all 0.3s ease;
+}
+
+.role-card:hover {
+    border-color: var(--accent-color); /* Use aligned variable */
+    box-shadow: 0 0 10px var(--glow-color); /* Use aligned variable */
+}
+
+.role-card h3 {
+    margin: 0;
+    padding-bottom: 0.5rem;
+    color: var(--accent-color); /* Use aligned variable */
+    border-bottom: 1px solid var(--border-color);
+    font-family: 'Tinos', serif; /* Ensure card titles use Tinos */
+}
+
+.role-card p {
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.role-users {
+    margin-top: 1rem;
+}
+
+.role-users-title {
+    color: var(--accent-color); /* Use aligned variable */
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.role-users-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.user-chip {
+    background-color: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 15px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    font-family: 'Source Code Pro', monospace; /* Keep mono for chips */
+}
+
+/* Form row for side-by-side fields */
+.form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+/* Field hint text */
+.field-hint {
+    font-size: 0.8rem;
+    color: #888;
+    margin-top: 0.25rem;
+    margin-bottom: 0;
+}
+
+/* Temperature N/A Checkbox Positioning */
+.temperature-na-checkbox {
+    display: inline-flex; /* Align with label */
+    margin-left: 1rem;
+    font-size: 0.8em;
+    position: relative;
+    top: -2px; /* Slight adjustment */
+}
+
+#temperature-controls {
+    margin-top: 0.5rem; /* Add some space below label/checkbox */
+    transition: opacity 0.3s ease;
+}
+
+#temperature-controls > input,
+#temperature-controls > output {
+    transition: opacity 0.3s ease;
+}
+
+/* Input with Preset Buttons Styling */
+.input-with-presets {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.input-with-presets .cyber-input {
+    flex-grow: 1;
+}
+
+.preset-buttons {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.preset-buttons .preset-btn {
+    padding: 5px 10px; /* Smaller padding */
+    font-size: 0.8em; /* Smaller font */
+    min-width: auto; /* Allow button to shrink */
+    background-color: var(--secondary-bg); /* Use secondary bg for subtle look */
+    border-color: var(--border-color);
+}
+
+.preset-buttons .preset-btn:hover {
+    background-color: var(--tertiary-color);
+    border-color: var(--border-color-subtle);
+}
+
+/* Provider list styling */
+.provider-list-container {
+    padding: 1rem;
+}
+
+.provider-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1rem;
+}
+
+/* Provider Card Styles */
+.provider-card {
+    background-color: var(--bg-color); /* Align card background */
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+    position: relative;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.provider-card:hover {
+    border-color: var(--accent-color); /* Use aligned variable */
+    box-shadow: 0 0 20px var(--glow-color), 0 0 10px var(--glow-color) inset; /* Use aligned variable */
+    transform: translateY(-3px);
+}
+
+.provider-card h3 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    color: var(--accent-color); /* Use aligned variable */
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.75rem;
+    font-size: 1.2rem;
+    text-shadow: 0 0 5px var(--glow-color); /* Use aligned variable */
+    font-family: 'Tinos', serif; /* Ensure card titles use Tinos */
+}
+
+/* Provider type badges with unique styling per provider */
+.provider-type-badge {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    background-color: var(--secondary-bg);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    font-family: 'Source Code Pro', monospace; /* Keep mono for badges */
+}
+
+.provider-type-badge.ollama {
+    border: 1px solid var(--secondary-color); /* Use aligned variable */
+    color: var(--secondary-color); /* Use aligned variable */
+    background-color: rgba(0, 204, 102, 0.1); /* Use aligned variable */
+    box-shadow: 0 0 8px rgba(0, 204, 102, 0.3); /* Use aligned variable */
+}
+
+.provider-type-badge.openai {
+    border: 1px solid var(--accent-color); /* Use aligned variable */
+    color: var(--accent-color); /* Use aligned variable */
+    background-color: rgba(0, 255, 102, 0.1); /* Use aligned variable */
+    box-shadow: 0 0 8px var(--glow-color); /* Use aligned variable */
+}
+
+.provider-type-badge.anthropic {
+    border: 1px solid var(--text-color);
+    color: var(--text-color);
+    background-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+}
+
+.provider-details {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+    flex: 1;
+}
+
+.provider-details p {
+    margin: 0.5rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px dotted rgba(51, 51, 51, 0.5);
+    padding-bottom: 0.4rem;
+}
+
+.provider-details p:last-child {
+    border-bottom: none;
+}
+
+.provider-details span {
+    color: var(--accent-color); /* Use aligned variable */
+    font-family: 'Source Code Pro', monospace; /* Keep mono for details */
+    max-width: 65%;
+    text-align: right;
+    word-break: break-word;
+}
+
+/* Provider Card Actions */
+.provider-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+/* Ensure modals have consistent layout */
+#provider-modal .modal-body,
+#model-modal .modal-body,
+#user-modal .modal-body {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* Remove cyber button animations */
+.model-card .cyber-btn:hover::after {
+    content: none;
+    animation: none;
+}
+
+/* Provider Card Actions Alignment */
+.provider-card-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: auto;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+    flex-wrap: wrap;
+}
+
+.provider-card-actions .cyber-btn {
+    min-width: 110px;
+    text-align: center;
+    padding: 10px 15px; /* Adjusted padding */
+    font-weight: bold;
+}
+
+.notification {
+    /* Style defined in admin.js now */
+}
