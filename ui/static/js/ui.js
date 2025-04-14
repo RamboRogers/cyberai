@@ -831,7 +831,7 @@ function setupEventListeners() {
              showConfirmationDialog(
                 'Purge All Chats?',
                 'Are you sure you want to permanently delete ALL your chats? This cannot be undone.',
-                (confirmationEl) => confirmPurgeAllChats(confirmationEl) // API call in api.js
+                (confirmationEl) => confirmPurgeChats(confirmationEl) // API call in api.js
             );
         });
     }
