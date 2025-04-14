@@ -55,61 +55,52 @@ function selectModel(modelId) {
 }
 
 /**
+ * Initiates the process for starting a new chat.
+ */
+function startNewChat() {
+    console.log("New Chat button clicked.");
+    prepareNewChat(); // Calls the function in api.js to reset UI/state
+}
+
+/**
  * Initializes the chat application: sets up event listeners, fetches initial data.
  */
 function initChat() {
-    // Event listeners for UI elements
-    if (sendButton) {
-        sendButton.addEventListener('click', sendMessage); // Calls function in api.js
-    }
-    if (messageInput) {
-        messageInput.addEventListener('keyup', function(event) {
-            if (event.key === 'Enter') {
-                sendMessage(); // Calls function in api.js
-            }
-        });
-    }
-    if (newChatButton) {
-        newChatButton.addEventListener('click', prepareNewChat); // Calls function in api.js
-    }
-    if (regenerateButton) {
-        regenerateButton.addEventListener('click', regenerateLastMessage); // Calls function in api.js
-    }
-    if (chatTitle) {
-        chatTitle.addEventListener('dblclick', function() {
-            const currentTitle = this.textContent;
-            const newTitle = prompt('Enter new chat title:', currentTitle);
-            if (newTitle && newTitle.trim() !== '' && newTitle !== currentTitle) {
-                this.textContent = newTitle; // Optimistic UI update
-                updateChatTitle(currentChatId, newTitle); // Calls function in api.js
-            }
-        });
-    }
-    // Add listener for the new purge button
-    const purgeChatsButton = document.getElementById('purge-chats-button');
-    if (purgeChatsButton) {
-        purgeChatsButton.addEventListener('click', () => {
-             showConfirmationDialog(
-                'Purge All Chats?',
-                'Are you absolutely sure you want to delete ALL your chats? This action cannot be undone.',
-                confirmPurgeChats // Pass the API call function from api.js
-            );
-        });
-    }
+	// Event listeners for UI elements
+	if (sendButton) {
+		sendButton.addEventListener('click', sendMessage); // Calls function in api.js
+	}
+	if (messageInput) {
+		messageInput.addEventListener('keyup', function(event) {
+			if (event.key === 'Enter') {
+				sendMessage(); // Calls function in api.js
+			}
+		});
+	}
+	if (newChatButton) {
+		newChatButton.addEventListener('click', prepareNewChat); // Calls function in api.js
+	}
+	if (regenerateButton) {
+		regenerateButton.addEventListener('click', regenerateLastMessage); // Calls function in api.js
+	}
+	if (chatTitle) {
+		chatTitle.addEventListener('dblclick', function() {
+			const currentTitle = this.textContent;
+			const newTitle = prompt('Enter new chat title:', currentTitle);
+			if (newTitle && newTitle.trim() !== '' && newTitle !== currentTitle) {
+				this.textContent = newTitle; // Optimistic UI update
+				updateChatTitle(currentChatId, newTitle); // Calls function in api.js
+			}
+		});
+	}
+	// Set up event listeners defined in ui.js
+	setupEventListeners(); // Call the function from ui.js
 
-    // Add listener for the logout button
-    const logoutButton = document.getElementById('logout-button');
-    if (logoutButton) {
-        logoutButton.addEventListener('click', () => {
-            window.location.href = '/logout'; // Redirect to logout endpoint
-        });
-    }
+	// Fetch initial data (user info, models, chats)
+	fetchCurrentUser(); // Function assumed in api.js
+	connect(); // Connect WebSocket (function assumed in websocket.js)
 
-    // Fetch initial data (user info, models, chats)
-    fetchCurrentUser(); // Function assumed in api.js
-    connect(); // Connect WebSocket (function assumed in websocket.js)
-
-    console.log('Chat initialized.');
+	console.log('Chat initialized.');
 }
 
 // --- Start application ---

@@ -18,6 +18,44 @@ This document outlines the available API endpoints for the CyberAI platform.
         }
         ```
 
+## Authentication
+
+*Note: These endpoints are handled outside the standard `/api` base path.*
+
+*   **`POST /login`**
+    *   **Implementation**: `server/auth/auth.go` (Login function)
+    *   Description: Authenticates a user based on username and password. Creates a session cookie upon success.
+    *   Request Body (`application/json`):
+        ```json
+        {
+          "username": "user's username",
+          "password": "user's password"
+        }
+        ```
+    *   Success Response (`200 OK`, `application/json`):
+        ```json
+        {
+          "message": "Login successful"
+        }
+        ```
+    *   Failure Responses:
+        *   `400 Bad Request`: Invalid request body.
+        *   `401 Unauthorized`: Invalid username or password, or inactive account.
+        *   `500 Internal Server Error`: Session initialization or other server error.
+
+*   **`POST /logout`** (or `GET /logout`, depending on client implementation)
+    *   **Implementation**: `server/auth/auth.go` (Logout function)
+    *   Description: Clears the user's session cookie, effectively logging them out.
+    *   Request Body: None expected.
+    *   Success Response (`200 OK`, `application/json`):
+        ```json
+        {
+          "message": "Logout successful"
+        }
+        ```
+    *   Failure Responses:
+        *   `500 Internal Server Error`: Error saving the session to clear the cookie (logout likely still functionally completes for the user).
+
 ## WebSocket
 
 *   **`GET /ws`**
@@ -347,8 +385,18 @@ Authentication/Authorization: *TODO: All admin routes should require administrat
     *   **Implementation**: `server/handlers/admin_handlers.go`
     *   Description: Updates an existing user's details. Password update is handled separately if needed (currently not implemented in this structure, potentially requires dedicated endpoint or specific field). *Note: Current implementation doesn't explicitly handle password changes via this PUT request.*
     *   Path Parameter: `{id}` - The integer ID of the user to update.
-    *   Request Body (`application/json`): User object with fields to update (matching structure from `POST /api/admin/users` but password field ignored/handled differently).
-    *   Response Body (`application/json`): The updated User object (password excluded).
+    *   Request Body (`application/json`): Flat User object (subset of `models.User` fields).
+        ```json
+        {
+          "username": "updateduser",
+          "email": "updated@example.com",
+          "first_name": "Updated",
+          "last_name": "User Name",
+          "role_id": 2,
+          "is_active": true
+        }
+        ```
+    *   Response Body (`application/json`): The updated User object (password excluded, includes full Role details).
     *   Status Codes:
         *   `200 OK`: Success.
         *   `400 Bad Request`: Invalid user ID format or invalid request body.
@@ -365,6 +413,23 @@ Authentication/Authorization: *TODO: All admin routes should require administrat
         *   `400 Bad Request`: Invalid user ID format.
         *   `404 Not Found`: User with the given ID does not exist.
         *   `500 Internal Server Error`: Failed to deactivate user.
+
+*   **`POST /api/admin/users/{id}/password`**
+    *   **Implementation**: `server/handlers/admin_handlers.go` (SetUserPasswordAdmin function)
+    *   Description: Forcefully sets a new password for the specified user. Requires admin privileges.
+    *   Path Parameter: `{id}` - The integer ID of the user whose password is being set.
+    *   Request Body (`application/json`):
+        ```json
+        {
+          "password": "newSecretPassword123"
+        }
+        ```
+    *   Response Body: None.
+    *   Status Codes:
+        *   `204 No Content`: Success.
+        *   `400 Bad Request`: Invalid user ID format, missing password, or password too short.
+        *   `404 Not Found`: User with the given ID does not exist.
+        *   `500 Internal Server Error`: Failed to hash password or update database.
 
 
 ### Roles

@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/gorilla/websocket v1.5.3
 	github.com/openai/openai-go v0.1.0-beta.9
 	golang.org/x/crypto v0.37.0

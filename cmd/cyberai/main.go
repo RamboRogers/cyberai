@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/sessions"
+	"github.com/ramborogers/cyberai/server/auth"
 	"github.com/ramborogers/cyberai/server/db"
 	"github.com/ramborogers/cyberai/server/handlers"
 	"github.com/ramborogers/cyberai/server/llm"
@@ -26,9 +29,16 @@ import (
 	"github.com/ramborogers/cyberai/ui"
 )
 
+var (
+	// Store for session management
+	cookieStore *sessions.CookieStore
+)
+
 const (
-	DefaultPort = "8080"
-	BannerText  = "\033[32m" + `
+	DefaultPort       = "8080"
+	DefaultSessionKey = "default-dev-session-key-replace-me!" // Replace in production!
+	SessionName       = "cyberai-session"
+	BannerText        = "\033[32m" + `
  █████╗ ██╗   ██╗██████╗ ███████╗██████╗  █████╗ ██╗
 ██╔══██╗╚██╗ ██╔╝██╔══██╗██╔════╝██╔══██╗██╔══██╗██║
 ██║  ╚═╝ ╚████╔╝ ██████╔╝█████╗  ██████╔╝███████║██║
@@ -141,17 +151,47 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 // -- End Logging Middleware --
 
+// initSessionStore initializes the cookie store for session management
+func initSessionStore() {
+	// Get session key from environment variable
+	sessionKey := os.Getenv("SESSION_KEY")
+	if sessionKey == "" {
+		log.Printf("WARNING: SESSION_KEY environment variable not set. Using default insecure key. SET THIS IN PRODUCTION!")
+		sessionKey = DefaultSessionKey
+	} else if len(sessionKey) < 32 {
+		log.Printf("WARNING: SESSION_KEY is less than 32 bytes (%d bytes). Consider using a longer key.", len(sessionKey))
+	}
+
+	// Ensure the key length is appropriate if a default wasn't used,
+	// though CookieStore handles different key lengths.
+	// Using a key derived potentially from a random source if needed,
+	// but here we just use the provided/default key directly.
+	// It's better to generate a strong key externally and set it via env var.
+
+	// Initialize the cookie store
+	cookieStore = sessions.NewCookieStore([]byte(sessionKey))
+
+	// Configure session options (optional but recommended)
+	cookieStore.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   86400 * 7, // 7 days
+		HttpOnly: true,      // Prevent client-side script access
+		Secure:   false,     // Set to true if using HTTPS
+		SameSite: http.SameSiteLaxMode,
+	}
+
+	// Register types that will be stored in the session.
+	// We need to register basic types like int for the user ID.
+	gob.Register(0) // Register int type (specifically 0, but registers int generally)
+}
+
 func main() {
 	// Log startup information
 	log.Printf("Starting CyberAI Server")
 	log.Printf("OS: %s, Architecture: %s", runtime.GOOS, runtime.GOARCH)
 
-	// Check for development mode environment variable
-	devMode := os.Getenv("DEV_MODE")
-	if devMode == "true" || devMode == "1" || devMode == "" {
-		// Enable development mode by default or if explicitly set
-		middleware.SetDevMode(true)
-	}
+	// Initialize session store early
+	initSessionStore()
 
 	// Create a new WebSocket hub
 	log.Println("Creating WebSocket hub")
@@ -174,7 +214,7 @@ func main() {
 	connectorService := llm.NewConnectorService(modelService, providerService, chatService, agentService)
 
 	// Create and start HTTP server
-	server := setupServer(hub, database, modelService, chatService, connectorService)
+	server := setupServer(hub, database, modelService, chatService, connectorService, cookieStore)
 
 	// Get port, defaulting to 8080 if not specified
 	port := os.Getenv("PORT")
@@ -264,7 +304,7 @@ func serveFileFromFS(fsys fs.FS, fileName string, w http.ResponseWriter, r *http
 	http.ServeContent(w, r, stat.Name(), stat.ModTime(), seeker)
 }
 
-func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService, chatService *models.ChatService, connectorService *llm.ConnectorService) *http.Server {
+func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService, chatService *models.ChatService, connectorService *llm.ConnectorService, store *sessions.CookieStore) *http.Server {
 	// Create router
 	mux := http.NewServeMux()
 
@@ -279,6 +319,7 @@ func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService
 
 	// Initialize services needed by handlers
 	userService := models.NewUserService(database)
+	authHandlers := auth.NewAuthHandlers(store, userService)
 
 	// Create handlers
 	adminHandlers := handlers.NewAdminHandlers(database, templatesFS)
@@ -290,7 +331,10 @@ func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService
 	// Define Middleware
 	// For development, we use TempAdminAuthMiddleware for all user routes.
 	// In production, you'd have different middleware chains (e.g., requireAdmin, requireUser).
-	authMiddleware := middleware.TempAdminAuthMiddleware
+	// authMiddleware := middleware.TempAdminAuthMiddleware
+	// NEW Middleware will be defined here using the store
+	sessionAuth := middleware.SessionAuthMiddleware(store, userService)
+	adminRequired := middleware.AdminRequiredMiddleware(store, userService)
 
 	// Custom 404 handler using embedded file
 	notFoundHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -323,13 +367,34 @@ func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService
 
 	// --- Register API Routes ---
 
-	// Admin API routes (No user auth middleware needed here, assuming admin-specific auth is handled internally or via separate middleware if complex)
-	adminHandlers.RegisterAdminRoutes(mux)
+	// Admin API routes (Protected by adminRequired middleware)
+	// We wrap the registration function with the middleware
+	adminMux := http.NewServeMux()
+	// Pass the adminRequired middleware to the registration function
+	adminHandlers.RegisterAdminRoutes(adminMux, adminRequired)
 
-	// User API routes (Protected by authMiddleware)
-	modelHandlers.RegisterUserRoutes(mux, authMiddleware)
-	chatHandlers.RegisterUserRoutes(mux, authMiddleware)
-	userHandlers.RegisterUserSelfRoutes(mux, authMiddleware)
+	// Explicitly handle the GET /admin route for the page, protected by middleware
+	mux.Handle("GET /admin", adminRequired(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serveFileFromFS(templatesFS, "admin.html", w, r) // Serve the admin page directly
+	})))
+
+	// Attach the adminMux handlers under the /api/admin/ prefix, as per API.md
+	mux.Handle("/api/admin/", adminRequired(http.StripPrefix("/api/admin", adminMux))) // NOTE: Using StripPrefix
+
+	// User API routes (Protected by sessionAuth middleware)
+	userApiMux := http.NewServeMux()
+	modelHandlers.RegisterUserRoutes(userApiMux, sessionAuth) // Pass middleware to handler registration if needed, or wrap here
+	chatHandlers.RegisterUserRoutes(userApiMux, sessionAuth)  // Pass middleware to handler registration if needed, or wrap here
+	// userHandlers.RegisterUserSelfRoutes(userApiMux, sessionAuth) // REMOVE - Register /api/user/me directly below
+	// Handle API base paths with the user mux protected by sessionAuth
+	// mux.Handle("/api/users/", sessionAuth(userApiMux)) // REMOVE - No longer needed if /api/user/me is separate
+	mux.Handle("/api/chats", sessionAuth(userApiMux)) // Assuming chat routes start with /api/chats
+	mux.Handle("/api/chats/", sessionAuth(userApiMux))
+	mux.Handle("/api/models", sessionAuth(userApiMux)) // Assuming model routes start with /api/models
+	mux.Handle("/api/models/", sessionAuth(userApiMux))
+
+	// Register the /api/user/me route directly and apply sessionAuth middleware
+	mux.Handle("GET /api/user/me", sessionAuth(http.HandlerFunc(userHandlers.GetCurrentUser)))
 
 	// Register API endpoint for basic info (Public - No auth middleware)
 	mux.HandleFunc("/api/info", func(w http.ResponseWriter, r *http.Request) {
@@ -338,19 +403,48 @@ func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService
 		w.Write([]byte(`{"name": "CyberAI", "version": "0.1.0", "status": "development"}`))
 	})
 
-	// Register WebSocket handler on the separate mux to bypass middleware issues
-	// This handler will be exposed directly, not through the main mux with middleware
+	// Register WebSocket handler on the separate mux
+	// Authentication needs to happen during the upgrade request
 	wsMux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		ws.ServeWS(hub, w, r)
+		// Check session before upgrading
+		session, err := store.Get(r, middleware.SessionName)
+		if err != nil || session.Values[string(middleware.UserIDContextKey)] == nil {
+			log.Printf("WebSocket: Unauthorized access attempt - No valid session")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		userID, ok := session.Values[string(middleware.UserIDContextKey)].(int)
+		if !ok || userID <= 0 {
+			log.Printf("WebSocket: Unauthorized access attempt - Invalid user ID in session")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		// Add userID to context for the WS handler (though ServeWS might need direct passing)
+		ctx := context.WithValue(r.Context(), middleware.UserIDContextKey, userID)
+		log.Printf("WebSocket: Authorized access for User ID: %d", userID)
+		ws.ServeWS(hub, w, r.WithContext(ctx)) // Pass context
 	})
 
 	// --- End API Routes ---
+
+	// --- Add Login/Logout routes ---
+	// GET /login serves the login page
+	mux.HandleFunc("GET /login", func(w http.ResponseWriter, r *http.Request) {
+		serveFileFromFS(templatesFS, "login.html", w, r)
+	})
+	// POST /login handles the login submission
+	mux.HandleFunc("POST /login", authHandlers.Login)
+	// /logout can be GET or POST based on frontend implementation
+	mux.HandleFunc("/logout", authHandlers.Logout)
 
 	// Main handler for root and other paths - this is the catch-all handler
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			// Serve index.html directly from the templates filesystem
-			serveFileFromFS(templatesFS, "index.html", w, r)
+			// TODO: This route should be protected by SessionAuthMiddleware - APPLYING NOW
+			sessionAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				serveFileFromFS(templatesFS, "index.html", w, r)
+			})).ServeHTTP(w, r)
 		} else {
 			notFoundHandler(w, r)
 		}

@@ -71,6 +71,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const userSearch = document.getElementById('user-search');
     const roleFilter = document.getElementById('role-filter');
     const userActiveOnlyCheckbox = document.getElementById('user-active-only');
+    const changePasswordBtn = document.getElementById('change-password-btn'); // Added
+
+    // DOM Elements - Change Password Modal
+    const changePasswordModal = document.getElementById('change-password-modal');
+    const changePasswordForm = document.getElementById('change-password-form');
+    const changePasswordUserIdInput = document.getElementById('change-password-user-id');
+    const changePasswordModalTitle = document.getElementById('change-password-modal-title');
+    const newPasswordInput = document.getElementById('new-password');
+    const confirmPasswordInput = document.getElementById('confirm-password');
+    const changePasswordCancelBtn = document.getElementById('change-password-cancel-btn');
+    const changePasswordCloseBtns = document.querySelectorAll('.change-password-close');
 
     // DOM Elements - Roles Tab
     const roleList = document.getElementById('role-list');
@@ -152,6 +163,26 @@ document.addEventListener('DOMContentLoaded', function() {
     roleFilter.addEventListener('change', filterUsers);
     userActiveOnlyCheckbox.addEventListener('change', filterUsers);
 
+    // Listener for Change Password button within User Edit modal
+    if (changePasswordBtn) {
+        changePasswordBtn.addEventListener('click', () => {
+            const userId = document.getElementById('user-id').value;
+            const username = document.getElementById('username').value;
+            if (userId) {
+                openChangePasswordModal(userId, username);
+            }
+        });
+    }
+
+    // Event Listeners - Change Password Modal
+    if (changePasswordForm) {
+        changePasswordForm.addEventListener('submit', handleChangePasswordSubmit);
+    }
+    if (changePasswordCancelBtn) {
+        changePasswordCancelBtn.addEventListener('click', closeChangePasswordModal);
+    }
+    changePasswordCloseBtns.forEach(btn => btn.addEventListener('click', closeChangePasswordModal));
+
     // Event Listeners - Confirmation Modal
     confirmCancelBtn.addEventListener('click', closeConfirmModal);
     confirmCloseBtn.addEventListener('click', closeConfirmModal);
@@ -179,18 +210,104 @@ document.addEventListener('DOMContentLoaded', function() {
         providerTypeSelect.addEventListener('change', toggleProviderConditionalFields);
     }
 
-    // Initial Load
-    loadProviders();
-    loadModels();
-    loadUsers();
-    loadRoles();
+    // Initial Load - Use Promise.all to wait for all loads before hiding main indicator
+    function initialLoad() {
+        showLoading(); // Show main loader
+        Promise.all([
+            // Modify loading functions to return their fetch promise
+            loadProvidersPromise(),
+            loadModelsPromise(),
+            loadUsersPromise(),
+            loadRolesPromise()
+        ])
+        .then(() => {
+            console.log("Initial data load complete.");
+            // Any setup that depends on all data being loaded can go here
+        })
+        .catch(error => {
+            console.error("Error during initial data load:", error);
+            showError("Failed to load initial admin data. Please refresh.");
+            // Optionally hide loading even on error, or leave it showing
+        })
+        .finally(() => {
+            hideLoading(); // Hide main loader once all promises settle
+        });
+    }
+
+    // --- Modified Load Functions to Return Promises ---
+
+    function loadProvidersPromise() {
+        // No showLoading/hideLoading here, handled by initialLoad
+        return fetch('/api/admin/providers')
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to load providers');
+                return response.json();
+            })
+            .then(providers => {
+                const providerArray = Array.isArray(providers) ? providers : [];
+                renderProviders(providerArray);
+                populateModelProviderDropdown(providerArray); // For model modal
+                populateModelFilterDropdown(providerArray);   // For model list filter
+                // Do not call hideLoading here
+            }); // Catch is handled by Promise.all
+    }
+
+     function loadModelsPromise() {
+        // No showLoading/hideLoading here
+        return fetch('/api/admin/models')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load models');
+                }
+                return response.json();
+            })
+            .then(models => {
+                renderModels(Array.isArray(models) ? models : []);
+                 // Do not call hideLoading here
+            }); // Catch is handled by Promise.all
+    }
+
+    function loadUsersPromise() {
+        // No showLoading/hideLoading here
+        return fetch('/api/admin/users')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load users');
+                }
+                return response.json();
+            })
+            .then(users => {
+                renderUsers(Array.isArray(users) ? users : []);
+                populateRoleFilter(Array.isArray(users) ? users : []);
+                 // Do not call hideLoading here
+            }); // Catch is handled by Promise.all
+    }
+
+     function loadRolesPromise() {
+        // No showLoading/hideLoading here
+        return fetch('/api/admin/roles')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load roles');
+                }
+                return response.json();
+            })
+            .then(roles => {
+                renderRoles(Array.isArray(roles) ? roles : []);
+                populateRoleSelectOptions(Array.isArray(roles) ? roles : []);
+                 // Do not call hideLoading here
+            }); // Catch is handled by Promise.all
+    }
+
+    // --- Call Initial Load ---
+    initialLoad();
 
     // Functions
     function loadModels() {
         showLoading();
         console.log("[loadModels] Starting fetch..."); // Log start
 
-        fetch('/api/admin/models')
+        fetch('/api/admin/models') // CORRECTED PATH
             .then(response => {
                 console.log(`[loadModels] Received response status: ${response.status}`); // Log status
                 if (!response.ok) {
@@ -320,7 +437,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function fetchModelDetails(modelId) {
         showLoading();
-        fetch(`/api/admin/models/${modelId}`)
+        fetch(`/api/admin/models/${modelId}`) // CORRECTED PATH
             .then(response => {
                 if (!response.ok) {
                     throw new Error('Failed to fetch model details');
@@ -382,41 +499,29 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // --- Determine action and model ID locally --- START
-        let determinedAction = 'add'; // Default to 'add'
-        let modelIdForSubmit = null;
-        const modelIdElement = document.getElementById('model-id');
-
-        if (modelIdElement && modelIdElement.value) {
-            // If the hidden ID field has a value, it's an edit
-            determinedAction = 'edit';
-            modelIdForSubmit = modelIdElement.value;
-        } else if (modelIdElement && !modelIdElement.value && currentAction === 'edit'){
-            // Edge case: If the ID field is empty but we *thought* it was an edit (global currentAction)
-            // This indicates an unexpected state. Log error and stop.
-            console.error("Form state error: Edit action indicated, but model ID is missing in the form.");
-            showError("Cannot save model: Form state error.");
-            return;
-        }
-        // If modelIdElement.value is empty and currentAction wasn't 'edit', we proceed as 'add'
+        const modelId = document.getElementById('model-id').value;
+        const action = modelId ? 'update' : 'add';
         // --- Determine action and model ID locally --- END
 
-        console.log(`Determined action: ${determinedAction}, Model ID: ${modelIdForSubmit}`);
-
-        // Pass the *determined* action context to the validation function
-        if (!validateModelData(modelData, determinedAction)) {
+        if (!validateModelData(modelData, action)) {
+            console.log("Model validation failed.");
             return;
         }
 
-        // Use determinedAction and modelIdForSubmit for branching logic
-        if (determinedAction === 'add') {
-            addNewModel(modelData);
-        } else if (determinedAction === 'edit' && modelIdForSubmit) {
-            updateModel(modelIdForSubmit, modelData);
-        } else {
-            // This block should now be truly unreachable if the logic above is sound
-            console.error("CRITICAL ERROR: Invalid state reached in handleModelFormSubmit", determinedAction, modelIdForSubmit);
-            showError("Cannot save model: Critical internal error.");
-        }
+        const apiCall = action === 'add'
+            ? addNewModel(modelData)
+            : updateModel(modelId, modelData);
+
+        apiCall
+            .then(() => {
+                showSuccess(`Model ${action === 'add' ? 'added' : 'updated'} successfully.`);
+                closeModelModal();
+                loadModels(); // Refresh list
+            })
+            .catch(error => {
+                console.error(`Error ${action} model:`, error);
+                showError(`Failed to ${action} model: ${error.message}`);
+            });
     }
 
     function buildModelData() {
@@ -483,8 +588,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function addNewModel(modelData) {
         showLoading();
-
-        fetch('/api/admin/models', {
+        return fetch('/api/admin/models', { // CORRECTED PATH
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -499,11 +603,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return response.json();
             })
-            .then(newModel => {
-                showSuccess(`Model "${newModel.name}" added successfully`);
-                closeModelModal();
-                loadModels();
-            })
             .catch(error => {
                 showError(error.message);
             })
@@ -514,13 +613,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateModel(modelId, modelData) {
         showLoading();
-
-        // If API key is empty, remove it from the payload (don't update)
-        if (!modelData.api_key) {
-            delete modelData.api_key;
-        }
-
-        fetch(`/api/admin/models/${modelId}`, {
+        return fetch(`/api/admin/models/${modelId}`, { // CORRECTED PATH
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
@@ -534,11 +627,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 }
                 return response.json();
-            })
-            .then(updatedModel => {
-                showSuccess(`Model "${updatedModel.name}" updated successfully`);
-                closeModelModal();
-                loadModels();
             })
             .catch(error => {
                 showError(error.message);
@@ -558,8 +646,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function performDeleteModel(modelId) {
         showLoading();
-
-        fetch(`/api/admin/models/${modelId}`, {
+        return fetch(`/api/admin/models/${modelId}`, { // CORRECTED PATH
             method: 'DELETE'
         })
             .then(response => {
@@ -683,9 +770,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Users Tab Functions ---
     function loadUsers() {
-        showUserLoading();
-
-        fetch('/api/admin/users')
+        showLoading(); // Use general loader
+        fetch('/api/admin/users') // CORRECTED PATH
             .then(response => {
                 if (!response.ok) {
                     throw new Error('Failed to load users');
@@ -701,7 +787,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 showError(error.message);
             })
             .finally(() => {
-                hideUserLoading();
+                hideLoading(); // Use general loader
             });
     }
 
@@ -810,9 +896,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchUserDetails(userId) {
-        showUserLoading();
-
-        fetch(`/api/admin/users/${userId}`)
+        showLoading();
+        fetch(`/api/admin/users/${userId}`) // CORRECTED PATH
             .then(response => {
                 if (!response.ok) {
                     throw new Error('Failed to fetch user details');
@@ -821,86 +906,105 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(user => {
                 populateUserForm(user);
-                hideUserLoading();
+                hideLoading();
             })
             .catch(error => {
                 console.error('Error fetching user details:', error);
                 showError('Failed to load user details: ' + error.message);
-                hideUserLoading();
+                hideLoading();
             });
     }
 
     function populateUserForm(user) {
-        // Load roles dropdown first if needed
-        loadRoles(() => {
-            // Populate the form with user data
-            document.getElementById('user-id').value = user.id;
-            document.getElementById('username').value = user.username;
-            document.getElementById('email').value = user.email;
-            document.getElementById('first-name').value = user.first_name || '';
-            document.getElementById('last-name').value = user.last_name || '';
+        console.log("[populateUserForm] Populating form for user:", user);
+        // Populate the form with user data directly
+        document.getElementById('user-id').value = user.id;
+        document.getElementById('username').value = user.username;
+        document.getElementById('email').value = user.email;
+        document.getElementById('first-name').value = user.first_name || '';
+        document.getElementById('last-name').value = user.last_name || '';
 
-            // Set role dropdown
-            const roleSelect = document.getElementById('role-id');
-            if (roleSelect && user.role_id) {
-                roleSelect.value = user.role_id;
-            }
+        // Set role dropdown
+        const roleSelect = document.getElementById('role-id');
+        if (roleSelect && user.role_id) {
+             console.log(`[populateUserForm] Setting role ID to: ${user.role_id}`);
+             roleSelect.value = user.role_id;
+             // Verify the value was set
+             if (roleSelect.value != user.role_id) {
+                 console.warn(`[populateUserForm] Role ID ${user.role_id} not found in dropdown. Available options:`, Array.from(roleSelect.options).map(opt => opt.value));
+             }
+        } else if (!roleSelect) {
+             console.error("[populateUserForm] Role select dropdown not found!");
+        } else if (!user.role_id) {
+             console.warn("[populateUserForm] User data missing role_id.");
+        }
 
-            // Set active checkbox
-            const activeCheckbox = document.getElementById('user-is-active');
-            if (activeCheckbox) {
-                activeCheckbox.checked = user.is_active;
-            }
+        // Set active checkbox
+        const activeCheckbox = document.getElementById('user-is-active');
+        if (activeCheckbox) {
+            activeCheckbox.checked = user.is_active;
+        }
 
-            // Clear password field - we don't receive the password in the response
-            const passwordField = document.getElementById('password');
-            if (passwordField) {
-                passwordField.value = '';
-            }
-        });
+        // Clear password field - we don't receive the password in the response
+        const passwordField = document.getElementById('password');
+        if (passwordField) {
+            passwordField.value = '';
+        }
+        console.log("[populateUserForm] Form population complete.");
     }
 
     function handleUserFormSubmit(event) {
         event.preventDefault();
 
-        const userData = buildUserData();
-        if (!userData) {
+        const userDetails = buildUserData(); // Gets flat user details { username: ..., email: ... }
+        if (!userDetails) {
             console.warn("buildUserData returned null, aborting form submission.");
-            return;
+            return; // Stop if data building failed
         }
 
-        if (!validateUserData(userData)) {
-            return;
+        const userId = document.getElementById('user-id').value;
+        const action = userId ? 'update' : 'add';
+        const isNewUser = (action === 'add');
+
+        // Pass isNewUser flag for context, though password check is now below
+        if (!validateUserData(userDetails, isNewUser)) {
+            console.log("User data validation failed");
+            return; // Stop if validation fails
         }
 
-        // --- Determine action and user ID locally --- START
-        let determinedAction = 'add'; // Default to 'add'
-        let userIdForSubmit = null;
-        const userIdElement = document.getElementById('user-id');
-
-        if (userIdElement && userIdElement.value) {
-            // If the hidden ID field has a value, it's an edit
-            determinedAction = 'edit';
-            userIdForSubmit = userIdElement.value;
-        }
-        // --- Determine action and user ID locally --- END
-
-        console.log(`Determined user action: ${determinedAction}, User ID: ${userIdForSubmit}`);
-
-        if (determinedAction === 'add') {
-            addNewUser(userData);
-        } else if (determinedAction === 'edit' && userIdForSubmit) {
-            updateUser(userIdForSubmit, userData);
+        let apiCall;
+        if (action === 'add') {
+            const passwordInput = document.getElementById('password');
+            if (!passwordInput || !passwordInput.value) {
+                showError("Password is required for new users.");
+                return;
+            }
+            // Construct the nested object ONLY for the add call
+            const payloadForAdd = {
+                user: userDetails, // The flat user object
+                password: passwordInput.value
+            };
+            apiCall = addNewUser(payloadForAdd);
         } else {
-            console.error("CRITICAL ERROR: Invalid state reached in handleUserFormSubmit", determinedAction, userIdForSubmit);
-            showError("Cannot save user: Critical internal error.");
+            // For update, just pass the flat userDetails object
+            // The backend UpdateUser handler expects the flat structure
+            apiCall = updateUser(userId, userDetails);
         }
+
+        apiCall.then(() => {
+            showSuccess(`User ${action} successfully.`);
+            closeUserModal();
+            loadUsers(); // Reload the user list after success
+        }).catch(error => {
+            // No need to hide loading here, it's handled in addNewUser/updateUser finally blocks
+            showError(`Error ${action} user: ${error.message}`);
+        });
     }
 
     function buildUserData() {
         const usernameElement = document.getElementById('username');
         const emailElement = document.getElementById('email');
-        const passwordElement = document.getElementById('password');
+        // Password element is NOT needed here anymore
         const firstNameElement = document.getElementById('first-name');
         const lastNameElement = document.getElementById('last-name');
         const roleIdElement = document.getElementById('role-id');
@@ -913,70 +1017,63 @@ document.addEventListener('DOMContentLoaded', function() {
             return null;
         }
 
-        // Build user data
-        const userData = {
-            user: {
-                username: usernameElement.value,
-                email: emailElement.value,
-                role_id: parseInt(roleIdElement.value),
-                is_active: isActiveElement ? isActiveElement.checked : true
-            }
+        // Build the FLAT user data object (no outer 'user' key)
+        const userDetails = {
+            username: usernameElement.value,
+            email: emailElement.value,
+            role_id: parseInt(roleIdElement.value),
+            is_active: isActiveElement ? isActiveElement.checked : true
+            // Note: ID is handled separately in submit/update functions
         };
 
         // Add optional fields if they exist and have values
         if (firstNameElement && firstNameElement.value) {
-            userData.user.first_name = firstNameElement.value;
+            userDetails.first_name = firstNameElement.value;
         }
 
         if (lastNameElement && lastNameElement.value) {
-            userData.user.last_name = lastNameElement.value;
+            userDetails.last_name = lastNameElement.value;
         }
 
-        // Only include password if it's provided (required for new users, optional for edits)
-        if (passwordElement && passwordElement.value) {
-            userData.password = passwordElement.value;
-        }
+        // DO NOT add password here
 
-        return userData;
+        return userDetails; // Return the flat user details object
     }
 
-    function validateUserData(userData) {
-        if (!userData.user.username || userData.user.username.trim() === '') {
+    function validateUserData(userData, isNewUser) { // Added isNewUser flag
+        // Now validates the flat structure
+        if (!userData.username || userData.username.trim() === '') {
             showError('Username is required.');
             return false;
         }
 
-        if (!userData.user.email || userData.user.email.trim() === '') {
+        if (!userData.email || userData.email.trim() === '') {
             showError('Email is required.');
             return false;
         }
 
-        if (!userData.user.role_id) {
+        if (!userData.role_id) {
             showError('Please select a role.');
             return false;
         }
 
-        // Check for password on new users only
-        const userIdElement = document.getElementById('user-id');
-        const isNewUser = !userIdElement || !userIdElement.value;
-
-        if (isNewUser && (!userData.password || userData.password.trim() === '')) {
-            showError('Password is required for new users.');
-            return false;
-        }
+        // Password validation is now handled separately in handleUserFormSubmit for 'add'
+        // if (isNewUser && (!userData.password || userData.password.trim() === '')) {
+        //     showError('Password is required for new users.');
+        //     return false;
+        // }
 
         return true;
     }
 
-    function addNewUser(userData) {
+    function addNewUser(userRequestData) { // Expects { user: { ... }, password: "..." }
         showLoading();
-
-        fetch('/api/admin/users', {
+        return fetch('/api/admin/users', { // CORRECTED PATH
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(userData)
+            body: JSON.stringify(userRequestData)
         })
             .then(response => {
                 if (!response.ok) {
@@ -984,42 +1081,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return response.json();
             })
-            .then(() => {
-                closeUserModal();
-                showSuccess('User created successfully');
-                loadUsers(); // Reload the user list
-            })
             .catch(error => {
-                showError(`Error creating user: ${error.message}`);
+                showError(error.message);
             })
             .finally(() => {
                 hideLoading();
             });
     }
 
-    function updateUser(userId, userData) {
+    function updateUser(userId, userDetails) { // Expects flat user details { username: ..., email: ... }
         showLoading();
-
-        fetch(`/api/admin/users/${userId}`, {
+        // Note: Password should not be in userDetails for update
+        return fetch(`/api/admin/users/${userId}`, { // CORRECTED PATH
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(userData)
+            body: JSON.stringify(userDetails) // Send the flat structure
         })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Failed to update user');
+                    // Try to parse error response
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Failed to update user');
+                    }).catch(() => {
+                         // Fallback if error response is not JSON
+                        throw new Error(`Failed to update user (${response.status})`);
+                    });
                 }
-                return response.json();
-            })
-            .then(() => {
-                closeUserModal();
-                showSuccess('User updated successfully');
-                loadUsers(); // Reload the user list
+                return response.json(); // Success response
             })
             .catch(error => {
-                showError(`Error updating user: ${error.message}`);
+                 showError(error.message); // Show error from API or fetch
+                 throw error; // Re-throw to be caught by handleUserFormSubmit if needed
             })
             .finally(() => {
                 hideLoading();
@@ -1038,8 +1132,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function performDeleteUser(userId) {
         showLoading();
-
-        fetch(`/api/admin/users/${userId}`, {
+        // Note: This actually deactivates the user
+        return fetch(`/api/admin/users/${userId}`, { // CORRECTED PATH
             method: 'DELETE'
         })
             .then(response => {
@@ -1098,22 +1192,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function showUserLoading() {
-        userList.innerHTML = '<div class="loading-indicator">Loading users...</div>';
-    }
-
-    function hideUserLoading() {
-        const loadingIndicator = userList.querySelector('.loading-indicator');
-        if (loadingIndicator) {
-            loadingIndicator.remove();
-        }
-    }
-
     // --- Roles Tab Functions ---
     function loadRoles() {
-        showRoleLoading();
-
-        fetch('/api/admin/roles')
+        showLoading(); // Use general loader
+        fetch('/api/admin/roles') // CORRECTED PATH
             .then(response => {
                 if (!response.ok) {
                     throw new Error('Failed to load roles');
@@ -1129,7 +1211,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 showError(error.message);
             })
             .finally(() => {
-                hideRoleLoading();
+                hideLoading(); // Use general loader
             });
     }
 
@@ -1165,7 +1247,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function loadUsersForRole(roleId) {
-        fetch(`/api/admin/roles/${roleId}/users`)
+        // Don't show main loader here, just update inline
+        const loadingIndicator = document.querySelector(`#role-users-${roleId}`)?.previousElementSibling;
+        if (loadingIndicator && loadingIndicator.classList.contains('role-users-loading')) {
+             loadingIndicator.style.display = 'block'; // Show inline loader
+        }
+
+        fetch(`/api/admin/roles/${roleId}/users`) // CORRECTED PATH
             .then(response => {
                 if (!response.ok) {
                     // If response is not ok, don't try to parse JSON, throw error directly
@@ -1189,9 +1277,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .finally(() => {
-                // Remove loading indicator
-                const loadingIndicator = document.querySelector(`#role-users-${roleId}`)?.previousElementSibling;
-                if (loadingIndicator && loadingIndicator.classList.contains('role-users-loading')) {
+                // Remove inline loading indicator
+                 if (loadingIndicator && loadingIndicator.classList.contains('role-users-loading')) {
                     loadingIndicator.remove();
                 }
             });
@@ -1230,17 +1317,6 @@ document.addEventListener('DOMContentLoaded', function() {
             option.textContent = role.name;
             roleSelect.appendChild(option);
         });
-    }
-
-    function showRoleLoading() {
-        roleList.innerHTML = '<div class="loading-indicator">Loading roles...</div>';
-    }
-
-    function hideRoleLoading() {
-        const loadingIndicator = roleList.querySelector('.loading-indicator');
-        if (loadingIndicator) {
-            loadingIndicator.remove();
-        }
     }
 
     // --- Confirmation and Notification Functions ---
@@ -1567,8 +1643,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentProviderId = null; // Track provider being edited
 
     function loadProviders() {
-        showProviderLoading();
-        fetch('/api/admin/providers')
+        showLoading(); // Use general loader
+        fetch('/api/admin/providers') // CORRECTED PATH
             .then(response => {
                 if (!response.ok) throw new Error('Failed to load providers');
                 return response.json();
@@ -1580,7 +1656,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 populateModelFilterDropdown(providerArray);   // For model list filter
             })
             .catch(error => showError(error.message))
-            .finally(hideProviderLoading);
+            .finally(() => {
+                 hideLoading(); // Use general loader
+            });
     }
 
     function renderProviders(providers) {
@@ -1681,9 +1759,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchProviderDetails(providerId) {
-        // TODO: Fetch provider details and populate form
-        showLoading(); // Use main loading indicator for now
-        fetch(`/api/admin/providers/${providerId}`)
+        showLoading();
+        fetch(`/api/admin/providers/${providerId}`) // CORRECTED PATH
             .then(response => {
                 if (!response.ok) throw new Error('Failed to fetch provider details.');
                 return response.json();
@@ -1719,32 +1796,28 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        const providerId = document.getElementById('provider-id').value;
+        const action = providerId ? 'update' : 'add';
+
         if (!validateProviderData(providerData)) {
+            console.warn("Provider data validation failed");
             return;
         }
 
-        // --- Determine action and provider ID locally --- START
-        let determinedAction = 'add'; // Default to 'add'
-        let providerIdForSubmit = null;
-        const providerIdElement = document.getElementById('provider-id');
+        const apiCall = action === 'add'
+            ? addNewProvider(providerData)
+            : updateProvider(providerId, providerData);
 
-        if (providerIdElement && providerIdElement.value) {
-            // If the hidden ID field has a value, it's an edit
-            determinedAction = 'edit';
-            providerIdForSubmit = providerIdElement.value;
-        }
-        // --- Determine action and provider ID locally --- END
-
-        console.log(`Determined provider action: ${determinedAction}, Provider ID: ${providerIdForSubmit}`);
-
-        if (determinedAction === 'add') {
-            addNewProvider(providerData);
-        } else if (determinedAction === 'edit' && providerIdForSubmit) {
-            updateProvider(providerIdForSubmit, providerData);
-        } else {
-            console.error("CRITICAL ERROR: Invalid state reached in handleProviderFormSubmit", determinedAction, providerIdForSubmit);
-            showError("Cannot save provider: Critical internal error.");
-        }
+        apiCall.then(() => {
+                showSuccess(`Provider ${action} successfully.`);
+                closeProviderModal();
+                loadProviders();
+                // Also refresh dropdowns that depend on providers
+                loadProvidersAndPopulateDropdown();
+            })
+            .catch(error => {
+                showError(`Error ${action} provider: ${error.message}`);
+            });
     }
 
     function buildProviderData() {
@@ -1808,9 +1881,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function addNewProvider(providerData) {
-        // TODO: Call POST /api/admin/providers
-        showLoading();
-        fetch('/api/admin/providers', {
+        showLoading(); // Use general loader
+        return fetch('/api/admin/providers', { // CORRECTED PATH
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(providerData)
@@ -1824,19 +1896,19 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(newProvider => {
             showSuccess(`Provider "${newProvider.name}" added successfully.`);
             closeProviderModal();
-            loadProviders(); // Refresh list
+            // Return the promise from loadProviders to chain correctly
+            return loadProviders();
         })
-        .catch(error => showError(error.message))
-        .finally(hideLoading);
+        .catch(error => {
+             showError(error.message);
+             hideLoading(); // Hide on error
+        });
+        // No finally here, loadProviders handles hiding on success
     }
 
     function updateProvider(providerId, providerData) {
-        // Add debugging
-        console.log('Updating provider with ID:', providerId);
-        console.log('Data being sent:', JSON.stringify(providerData));
-
-        showLoading();
-        fetch(`/api/admin/providers/${providerId}`, {
+        showLoading(); // Use general loader
+        return fetch(`/api/admin/providers/${providerId}`, { // CORRECTED PATH
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(providerData)
@@ -1855,13 +1927,15 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Provider updated successfully:', updatedProvider);
             showSuccess(`Provider "${updatedProvider.name}" updated successfully.`);
             closeProviderModal();
-            loadProviders(); // Refresh list
+            // Return the promise from loadProviders to chain correctly
+            return loadProviders();
         })
         .catch(error => {
             console.error('Update error:', error);
             showError(error.message);
-        })
-        .finally(hideLoading);
+            hideLoading(); // Hide on error
+        });
+        // No finally here, loadProviders handles hiding on success
     }
 
     function editProvider(providerId) {
@@ -1876,9 +1950,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function performDeleteProvider(providerId) {
-        showLoading();
-
-        fetch(`/api/admin/providers/${providerId}`, {
+        showLoading(); // Use general loader
+        return fetch(`/api/admin/providers/${providerId}`, { // CORRECTED PATH
             method: 'DELETE'
         })
             .then(response => {
@@ -1886,86 +1959,86 @@ document.addEventListener('DOMContentLoaded', function() {
                     throw new Error('Failed to delete provider');
                 }
                 showSuccess('Provider deleted successfully');
-                loadProviders(); // Reload the provider list
+                // Return the promise from loadProviders to chain correctly
+                return loadProviders();
             })
             .catch(error => {
                 showError(`Error deleting provider: ${error.message}`);
-            })
-            .finally(() => {
-                hideLoading();
+                 hideLoading(); // Hide on error
             });
+             // No finally here, loadProviders handles hiding on success
     }
 
     function syncProvider(providerId, buttonElement) {
-        console.log(`[Debug] syncProvider called for ID: ${providerId}`); // Log entry
-        const originalButtonText = buttonElement.textContent;
-        buttonElement.textContent = 'Syncing...';
-        buttonElement.disabled = true;
-        showLoading();
-
-        console.log(`[Debug] syncProvider: Fetching /api/admin/providers/${providerId}/sync`); // Log before fetch
-        fetch(`/api/admin/providers/${providerId}/sync`, { method: 'POST' })
-             .then(response => {
-                console.log(`[Debug] syncProvider: Fetch response status: ${response.status}`); // Log response status
-                if (!response.ok) {
-                    // Attempt to get text first, then try JSON if it fails
-                    return response.text().then(text => {
-                        try {
-                            // Try parsing as JSON
-                            const errData = JSON.parse(text);
-                            throw new Error(errData.error || `Sync failed (${response.status})`);
-                        } catch (e) {
-                            // If JSON parsing fails, use the raw text as the error message
-                            // This handles cases where the server sends plain text errors
-                            throw new Error(text || `Sync failed with status: ${response.status}`);
-                        }
-                    });
-                }
-                return response.json(); // If response is OK, expect JSON
-            })
-            .then(data => {
-                let message = `Sync complete. ${data.models_created} new models added.`;
-                if (data.errors_occurred) {
-                    message += ` Some errors occurred during sync. Check server logs.`;
-                    showNotification(message, 'warning');
-                } else {
-                    showSuccess(message);
-                }
-                loadModels(); // Refresh model list as well
-            })
-            .catch(error => {
-                // Log the raw error for better debugging
-                console.error('[Error] syncProvider: Fetch failed:', error);
-                showError(`Sync error: ${error.message}`);
-            })
-            .finally(() => {
-                console.log(`[Debug] syncProvider: Fetch finally block executing for ID: ${providerId}`); // Log finally
-                buttonElement.textContent = originalButtonText;
-                buttonElement.disabled = false;
-                hideLoading();
-            });
-    }
-
-    function showProviderLoading() {
-        // Use the renamed variable
-        if (providersListElement) providersListElement.innerHTML = '<div class="loading-indicator">Loading providers...</div>';
-    }
-
-    function hideProviderLoading() {
-        // Use the renamed variable
-        if (providersListElement) {
-            const indicator = providersListElement.querySelector('.loading-indicator');
-            if (indicator) indicator.remove();
+        if (!providerId) {
+            console.error("syncProvider called without providerId");
+            return;
         }
+
+        // Disable button and show temporary loading state
+        const originalText = buttonElement.textContent;
+        buttonElement.disabled = true;
+        buttonElement.textContent = 'Syncing...';
+        buttonElement.classList.add('loading');
+
+        fetch(`/api/admin/providers/${providerId}/sync`, { // CORRECTED PATH
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+             // Optionally send sync parameters if needed
+             // body: JSON.stringify({ set_active: true, default_tokens: 8192 })
+        })
+        .then(response => {
+            console.log(`[Debug] syncProvider: Fetch response status: ${response.status}`); // Log response status
+            if (!response.ok) {
+                // Attempt to get text first, then try JSON if it fails
+                return response.text().then(text => {
+                    try {
+                        // Try parsing as JSON
+                        const errData = JSON.parse(text);
+                        throw new Error(errData.error || `Sync failed (${response.status})`);
+                    } catch (e) {
+                        // If JSON parsing fails, use the raw text as the error message
+                        // This handles cases where the server sends plain text errors
+                        throw new Error(text || `Sync failed with status: ${response.status}`);
+                    }
+                });
+            }
+            return response.json(); // If response is OK, expect JSON
+        })
+        .then(data => {
+            let message = `Sync complete. ${data.models_created} new models added.`;
+            if (data.errors_occurred) {
+                message += ` Some errors occurred during sync. Check server logs.`;
+                showNotification(message, 'warning');
+            } else {
+                showSuccess(message);
+            }
+            loadModels(); // Refresh model list as well
+        })
+        .catch(error => {
+            // Log the raw error for better debugging
+            console.error('[Error] syncProvider: Fetch failed:', error);
+            showError(`Sync error: ${error.message}`);
+        })
+        .finally(() => {
+            console.log(`[Debug] syncProvider: Fetch finally block executing for ID: ${providerId}`); // Log finally
+            buttonElement.textContent = originalText;
+            buttonElement.disabled = false;
+            buttonElement.classList.remove('loading');
+            hideLoading(); // Hide general loader after sync attempt
+        });
     }
 
     // --- Update Model Management Functions ---
 
     function loadProvidersAndPopulateDropdown(callback) {
-        fetch('/api/admin/providers')
+        showLoading();
+        fetch('/api/admin/providers') // CORRECTED PATH
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Failed to load providers');
+                    throw new Error('Failed to load providers for dropdown');
                 }
                 return response.json();
             })
@@ -2179,5 +2252,89 @@ document.addEventListener('DOMContentLoaded', function() {
             providerTypeSelect.addEventListener('change', toggleProviderConditionalFields);
             console.log('Provider type change handler attached');
         }
+    }
+
+    // --- Password Change Functions ---
+
+    function openChangePasswordModal(userId, username) {
+        // Close the main user modal first if open
+        closeUserModal();
+        // Set hidden user ID and update title
+        if (changePasswordUserIdInput) changePasswordUserIdInput.value = userId;
+        if (changePasswordModalTitle) changePasswordModalTitle.textContent = `Change Password for ${username}`;
+        // Clear previous password inputs
+        if (changePasswordForm) changePasswordForm.reset();
+        // Show the password modal
+        if (changePasswordModal) {
+            changePasswordModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    function closeChangePasswordModal() {
+        if (changePasswordModal) {
+            changePasswordModal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    }
+
+    function handleChangePasswordSubmit(event) {
+        event.preventDefault();
+        const userId = changePasswordUserIdInput.value;
+        const newPassword = newPasswordInput.value;
+        const confirmPassword = confirmPasswordInput.value;
+
+        if (!userId) {
+            showError("Cannot change password: User ID is missing.");
+            return;
+        }
+        if (newPassword.length < 8) {
+            showError("Password must be at least 8 characters long.");
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            showError("Passwords do not match.");
+            return;
+        }
+
+        // Call the API to set the password
+        setUserPassword(userId, newPassword);
+    }
+
+    function setUserPassword(userId, password) {
+        showLoading();
+        fetch(`/api/admin/users/${userId}/password`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ password: password })
+        })
+        .then(response => {
+            if (!response.ok) {
+                 // Try to parse error
+                 return response.text().then(text => {
+                     try {
+                         const errData = JSON.parse(text);
+                         throw new Error(errData.error || `Failed to set password (${response.status})`);
+                     } catch (e) {
+                         throw new Error(text || `Failed to set password (${response.status})`);
+                     }
+                 });
+            }
+            // No body expected on success (204 No Content)
+            return null;
+        })
+        .then(() => {
+            showSuccess("Password updated successfully.");
+            closeChangePasswordModal();
+            // No need to reload user list, password isn't shown
+        })
+        .catch(error => {
+            showError(`Error setting password: ${error.message}`);
+        })
+        .finally(() => {
+            hideLoading();
+        });
     }
 });

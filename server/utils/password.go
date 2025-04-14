@@ -7,21 +7,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// HashPassword takes a plaintext password and returns a bcrypt hash
+// HashPassword generates a bcrypt hash for the given password.
 func HashPassword(password string) (string, error) {
-	// Use a cost factor of 10 - a good balance between security and performance
-	// This can be adjusted based on the needs of the application
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), 10)
-	if err != nil {
-		return "", err
-	}
-	return string(hash), nil
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
 }
 
-// CheckPassword compares a plaintext password against a hash
+// CheckPassword compares a plaintext password with a bcrypt hash.
 func CheckPassword(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-	return err == nil
+	return err == nil // Returns true if the password matches the hash
 }
 
 // GenerateRandomPassword creates a secure random password

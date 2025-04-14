@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/ramborogers/cyberai/server/db"
+	"github.com/ramborogers/cyberai/server/middleware"
 	"github.com/ramborogers/cyberai/server/models"
 )
 
@@ -36,38 +37,36 @@ func NewAdminHandlers(database *db.DB, templatesFS fs.FS) *AdminHandlers {
 }
 
 // RegisterAdminRoutes registers the admin routes with the server mux
-func (h *AdminHandlers) RegisterAdminRoutes(mux *http.ServeMux) {
-	// Admin page route
-	mux.HandleFunc("/admin", func(w http.ResponseWriter, r *http.Request) {
-		// Serve admin.html from the embedded filesystem
-		serveFileFromFS(h.TemplatesFS, "admin.html", w, r)
-	})
+// UPDATED: Apply middleware directly to handlers here.
+// UPDATED: Paths are relative to the /admin/ prefix handled in main.go
+func (h *AdminHandlers) RegisterAdminRoutes(mux *http.ServeMux, adminRequired func(http.Handler) http.Handler) {
 
-	// Model routes
-	mux.HandleFunc("GET /api/admin/models", h.ListModels)
-	mux.HandleFunc("POST /api/admin/models", h.CreateModel)
-	mux.HandleFunc("GET /api/admin/models/{id}", h.GetModel)
-	mux.HandleFunc("PUT /api/admin/models/{id}", h.UpdateModel)
-	mux.HandleFunc("DELETE /api/admin/models/{id}", h.DeleteModel)
+	// Model routes (relative to /admin/)
+	mux.Handle("GET /models", adminRequired(http.HandlerFunc(h.ListModels)))
+	mux.Handle("POST /models", adminRequired(http.HandlerFunc(h.CreateModel)))
+	mux.Handle("GET /models/{id}", adminRequired(http.HandlerFunc(h.GetModel)))
+	mux.Handle("PUT /models/{id}", adminRequired(http.HandlerFunc(h.UpdateModel)))
+	mux.Handle("DELETE /models/{id}", adminRequired(http.HandlerFunc(h.DeleteModel)))
 
-	// User routes
-	mux.HandleFunc("GET /api/admin/users", h.ListUsers)
-	mux.HandleFunc("POST /api/admin/users", h.CreateUser)
-	mux.HandleFunc("GET /api/admin/users/{id}", h.GetUser)
-	mux.HandleFunc("PUT /api/admin/users/{id}", h.UpdateUser)
-	mux.HandleFunc("DELETE /api/admin/users/{id}", h.DeleteUser)
+	// User routes (relative to /admin/)
+	mux.Handle("GET /users", adminRequired(http.HandlerFunc(h.ListUsers)))
+	mux.Handle("POST /users", adminRequired(http.HandlerFunc(h.CreateUser)))
+	mux.Handle("GET /users/{id}", adminRequired(http.HandlerFunc(h.GetUser)))
+	mux.Handle("PUT /users/{id}", adminRequired(http.HandlerFunc(h.UpdateUser)))
+	mux.Handle("DELETE /users/{id}", adminRequired(http.HandlerFunc(h.DeleteUser)))
+	mux.Handle("POST /users/{id}/password", adminRequired(http.HandlerFunc(h.SetUserPasswordAdmin)))
 
-	// Role routes
-	mux.HandleFunc("GET /api/admin/roles", h.ListRoles)
-	mux.HandleFunc("GET /api/admin/roles/{id}/users", h.GetUsersByRole)
+	// Role routes (relative to /admin/)
+	mux.Handle("GET /roles", adminRequired(http.HandlerFunc(h.ListRoles)))
+	mux.Handle("GET /roles/{id}/users", adminRequired(http.HandlerFunc(h.GetUsersByRole)))
 
-	// --- Provider Routes ---
-	mux.HandleFunc("GET /api/admin/providers", h.ListProviders)
-	mux.HandleFunc("POST /api/admin/providers", h.CreateProvider)
-	mux.HandleFunc("GET /api/admin/providers/{id}", h.GetProvider)
-	mux.HandleFunc("PUT /api/admin/providers/{id}", h.UpdateProvider)
-	mux.HandleFunc("DELETE /api/admin/providers/{id}", h.DeleteProvider)
-	mux.HandleFunc("POST /api/admin/providers/{id}/sync", h.SyncProviderModels)
+	// Provider Routes (relative to /admin/)
+	mux.Handle("GET /providers", adminRequired(http.HandlerFunc(h.ListProviders)))
+	mux.Handle("POST /providers", adminRequired(http.HandlerFunc(h.CreateProvider)))
+	mux.Handle("GET /providers/{id}", adminRequired(http.HandlerFunc(h.GetProvider)))
+	mux.Handle("PUT /providers/{id}", adminRequired(http.HandlerFunc(h.UpdateProvider)))
+	mux.Handle("DELETE /providers/{id}", adminRequired(http.HandlerFunc(h.DeleteProvider)))
+	mux.Handle("POST /providers/{id}/sync", adminRequired(http.HandlerFunc(h.SyncProviderModels)))
 }
 
 // serveFileFromFS serves a file from the embedded filesystem
@@ -256,27 +255,90 @@ func (h *AdminHandlers) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 // CreateUser handles POST /api/admin/users
 func (h *AdminHandlers) CreateUser(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement authentication check - admin only
-
-	var userRequest struct {
-		User     models.User `json:"user"`
-		Password string      `json:"password"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&userRequest); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	// Decode into a generic map first for debugging
+	var requestPayload map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&requestPayload); err != nil {
+		log.Printf("[Admin CreateUser] Error decoding raw request body: %v", err)
+		http.Error(w, "Invalid request body format", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.UserService.CreateUser(&userRequest.User, userRequest.Password); err != nil {
-		log.Printf("Error creating user: %v", err)
+	// Log the raw decoded payload
+	log.Printf("[Admin CreateUser] RAW Decoded Payload: %+v", requestPayload)
+
+	// --- Extract data manually ---
+
+	// Extract password
+	password, passwordOk := requestPayload["password"].(string)
+	if !passwordOk || password == "" {
+		log.Printf("[Admin CreateUser] Failed to extract password or password empty from payload: %+v", requestPayload)
+		http.Error(w, "Missing or invalid password field", http.StatusBadRequest)
+		return
+	}
+	log.Printf("[Admin CreateUser] Extracted Password (length): %d", len(password))
+
+	// Extract user data map
+	userDataMap, userDataOk := requestPayload["user"].(map[string]interface{})
+	if !userDataOk {
+		log.Printf("[Admin CreateUser] Failed to extract 'user' object from payload: %+v", requestPayload)
+		http.Error(w, "Missing or invalid 'user' object in request", http.StatusBadRequest)
+		return
+	}
+	log.Printf("[Admin CreateUser] Extracted User Data Map: %+v", userDataMap)
+
+	// --- Manually populate models.User struct ---
+	var newUser models.User
+
+	if username, ok := userDataMap["username"].(string); ok {
+		newUser.Username = username
+	}
+	if email, ok := userDataMap["email"].(string); ok {
+		newUser.Email = email
+	}
+	// RoleID needs careful type assertion (JSON numbers are often float64)
+	if roleIDFloat, ok := userDataMap["role_id"].(float64); ok {
+		newUser.RoleID = int64(roleIDFloat)
+	} else {
+		log.Printf("[Admin CreateUser] Warning: could not assert role_id as float64. Value: %v", userDataMap["role_id"])
+		// Potentially handle other numeric types if necessary, or error out
+		// For now, we rely on the validation below to catch missing role_id
+	}
+	if isActive, ok := userDataMap["is_active"].(bool); ok {
+		newUser.IsActive = isActive
+	} else {
+		newUser.IsActive = true // Default to active if not provided or wrong type
+	}
+	if firstName, ok := userDataMap["first_name"].(string); ok {
+		newUser.FirstName = firstName
+	}
+	if lastName, ok := userDataMap["last_name"].(string); ok {
+		newUser.LastName = lastName
+	}
+
+	// Log the manually populated user struct
+	log.Printf("[Admin CreateUser] MANUALLY Populated User Struct: %+v", newUser)
+
+	// Validate required fields from the populated struct
+	if newUser.Username == "" || newUser.Email == "" || newUser.RoleID == 0 {
+		log.Printf("[Admin CreateUser] Validation failed after manual population: Missing required fields. User: %+v", newUser)
+		http.Error(w, "Missing required fields (username, email, role_id)", http.StatusBadRequest)
+		return
+	}
+
+	// Call the user service method with the manually populated struct
+	if err := h.UserService.CreateUser(&newUser, password); err != nil {
+		log.Printf("Error creating user in service: %v", err)
 		http.Error(w, "Failed to create user", http.StatusInternalServerError)
 		return
 	}
 
+	// newUser struct should now contain the ID assigned by the DB
+	log.Printf("[Admin CreateUser] User created successfully with ID: %d", newUser.ID)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(userRequest.User)
+	// Encode the manually populated struct (which now includes the ID)
+	json.NewEncoder(w).Encode(newUser)
 }
 
 // GetUser handles GET /api/admin/users/{id}
@@ -303,70 +365,154 @@ func (h *AdminHandlers) GetUser(w http.ResponseWriter, r *http.Request) {
 
 // UpdateUser handles PUT /api/admin/users/{id}
 func (h *AdminHandlers) UpdateUser(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement authentication check - admin only
-
 	idStr := r.PathValue("id")
 	userID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		http.Error(w, "Invalid user ID format", http.StatusBadRequest)
 		return
 	}
 
-	// First check if the user exists
-	_, err = h.UserService.GetUserByID(userID)
-	if err != nil {
-		log.Printf("User %d not found for update: %v", userID, err)
-		http.Error(w, "User not found", http.StatusNotFound)
-		return
-	}
-
-	var user models.User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+	// Decode the request body directly into models.User (expects flat structure)
+	var userUpdates models.User
+	if err := json.NewDecoder(r.Body).Decode(&userUpdates); err != nil {
+		log.Printf("[Admin UpdateUser] Error decoding request body: %v", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// Ensure the ID from the path matches the body
-	user.ID = userID
+	// Log the decoded update data
+	log.Printf("[Admin UpdateUser] Decoded Update Data: %+v", userUpdates)
 
-	if err := h.UserService.UpdateUser(&user); err != nil {
-		log.Printf("Error updating user %d: %v", userID, err)
+	// Set the ID from the path parameter onto the decoded struct
+	userUpdates.ID = userID
+
+	// --- Optional: Validation for Update ---
+	// You might want to add validation here, e.g., check if username/email is empty
+	if userUpdates.Username == "" || userUpdates.Email == "" || userUpdates.RoleID == 0 {
+		log.Printf("[Admin UpdateUser] Validation failed: Missing required fields. User: %+v", userUpdates)
+		http.Error(w, "Missing required fields (username, email, role_id)", http.StatusBadRequest)
+		return
+	}
+	// -------------------------------------
+
+	// Call the service to update the user
+	if err := h.UserService.UpdateUser(&userUpdates); err != nil {
+		log.Printf("[Admin UpdateUser] Error updating user %d: %v", userID, err)
+		// Handle specific errors like "not found" if UpdateUser returns them
 		http.Error(w, "Failed to update user", http.StatusInternalServerError)
 		return
 	}
 
+	// Fetch the full updated user data to return (including role, etc.)
+	updatedUser, err := h.UserService.GetUserByID(userID)
+	if err != nil {
+		log.Printf("[Admin UpdateUser] Error fetching updated user %d data: %v", userID, err)
+		// Don't fail the whole request, but log the error. Return the submitted data as fallback.
+		updatedUser = &userUpdates
+	}
+
+	log.Printf("[Admin UpdateUser] User %d updated successfully.", userID)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	json.NewEncoder(w).Encode(updatedUser) // Return the full, updated user object
 }
 
 // DeleteUser handles DELETE /api/admin/users/{id}
 func (h *AdminHandlers) DeleteUser(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement authentication check - admin only
+	// Get the ID of the admin performing the action from the context
+	requestingAdminID := int64(middleware.GetUserIDFromContext(r.Context()))
+	if requestingAdminID == 0 {
+		// Should not happen if middleware is working, but check anyway
+		log.Println("[Admin DeleteUser] Error: Could not get requesting admin ID from context.")
+		http.Error(w, "Forbidden: Could not verify requesting user.", http.StatusForbidden)
+		return
+	}
 
+	// Get the ID of the user to be deactivated from the path
 	idStr := r.PathValue("id")
-	userID, err := strconv.ParseInt(idStr, 10, 64)
+	userIDToDeactivate, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		http.Error(w, "Invalid user ID format", http.StatusBadRequest)
 		return
 	}
 
-	// Currently, there's no direct DeleteUser method in UserService
-	// We'll deactivate the user instead
-	user, err := h.UserService.GetUserByID(userID)
+	// --- Prevent Self-Deactivation ---
+	if requestingAdminID == userIDToDeactivate {
+		log.Printf("[Admin DeleteUser] Forbidden: Admin user %d attempted to deactivate themselves.", requestingAdminID)
+		http.Error(w, "Administrators cannot deactivate their own account.", http.StatusForbidden)
+		return
+	}
+	// --------------------------------
+
+	// Fetch the user to ensure they exist before attempting update
+	user, err := h.UserService.GetUserByID(userIDToDeactivate)
 	if err != nil {
-		log.Printf("Error getting user %d: %v", userID, err)
-		http.Error(w, "User not found", http.StatusNotFound)
+		log.Printf("[Admin DeleteUser] Error getting user %d: %v", userIDToDeactivate, err)
+		// Handle not found specifically
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, "User not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
 		return
 	}
 
+	// Deactivate the user
 	user.IsActive = false
 	if err := h.UserService.UpdateUser(user); err != nil {
-		log.Printf("Error deactivating user %d: %v", userID, err)
+		log.Printf("[Admin DeleteUser] Error deactivating user %d: %v", userIDToDeactivate, err)
 		http.Error(w, "Failed to deactivate user", http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("[Admin DeleteUser] User %d successfully deactivated by admin %d.", userIDToDeactivate, requestingAdminID)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// SetUserPasswordAdmin handles POST /api/admin/users/{id}/password
+func (h *AdminHandlers) SetUserPasswordAdmin(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	userID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid user ID format", http.StatusBadRequest)
+		return
+	}
+
+	// Decode the request body for the new password
+	var request struct {
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		log.Printf("[SetUserPasswordAdmin] Error decoding request body for user %d: %v", userID, err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate password presence and length (service layer does more detailed check)
+	if request.Password == "" {
+		http.Error(w, "Password cannot be empty", http.StatusBadRequest)
+		return
+	}
+	if len(request.Password) < 8 {
+		http.Error(w, "Password must be at least 8 characters long", http.StatusBadRequest)
+		return
+	}
+
+	// Call the service layer function
+	if err := h.UserService.SetUserPassword(userID, request.Password); err != nil {
+		log.Printf("[SetUserPasswordAdmin] Error setting password for user %d: %v", userID, err)
+		// Handle specific errors like "user not found"
+		if strings.Contains(err.Error(), "user not found") {
+			http.Error(w, "User not found", http.StatusNotFound)
+		} else if strings.Contains(err.Error(), "password must be at least 8 characters long") {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else {
+			http.Error(w, "Failed to set password", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	log.Printf("[SetUserPasswordAdmin] Password successfully set for user ID: %d", userID)
+	w.WriteHeader(http.StatusNoContent) // Success, no content needed in response
 }
 
 // --- Role Handlers ---

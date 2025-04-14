@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/ramborogers/cyberai/server/db"
@@ -545,4 +546,66 @@ func (s *UserService) GetUsersByRole(roleID int64) ([]User, error) {
 	}
 
 	return users, nil
+}
+
+// GetUserRole retrieves the role name for a given user ID.
+func (s *UserService) GetUserRole(userID int64) (string, error) {
+	var roleID int64
+	// First, get the role_id for the user
+	err := s.DB.QueryRow(`SELECT role_id FROM users WHERE id = ?`, userID).Scan(&roleID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("user not found: %d", userID)
+		}
+		return "", fmt.Errorf("database error fetching user role_id: %w", err)
+	}
+
+	// Now, get the role name using the role_id
+	role, err := s.GetRole(roleID)
+	if err != nil {
+		// If GetRole fails (e.g., role deleted but user still exists), return error
+		return "", fmt.Errorf("failed to get role details for role_id %d: %w", roleID, err)
+	}
+
+	return role.Name, nil
+}
+
+// SetUserPassword forcefully sets a new password for a given user ID (admin action).
+func (s *UserService) SetUserPassword(userID int64, newPassword string) error {
+	// Validate password strength (basic length check)
+	if len(newPassword) < 8 {
+		return errors.New("new password must be at least 8 characters long")
+	}
+
+	// Hash the new password
+	newPasswordHash, err := utils.HashPassword(newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash new password: %w", err)
+	}
+
+	// Update only the password_hash column
+	result, err := s.DB.Exec(`
+		UPDATE users
+		SET password_hash = ?, updated_at = ?
+		WHERE id = ?
+	`,
+		newPasswordHash, time.Now(), userID,
+	)
+
+	if err != nil {
+		return fmt.Errorf("database error updating password hash: %w", err)
+	}
+
+	// Check if any row was actually updated (i.e., user exists)
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		// Log this error but don't necessarily fail if update seemed successful otherwise
+		log.Printf("Warning: could not get rows affected after password update for user %d: %v", userID, err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found: %d", userID) // User ID didn't exist
+	}
+
+	log.Printf("Password hash updated successfully for user ID: %d", userID)
+	return nil
 }

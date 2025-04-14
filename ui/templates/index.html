@@ -92,10 +92,10 @@
     </div>
 
     <!-- Load external JavaScript -->
-    <!-- Order is important: ui first, then api/websocket, then main chat script -->
-    <script src="/static/js/ui.js"></script>
+    <!-- Load order: Core logic, API, WebSocket, then UI setup -->
+    <script src="/static/js/chat.js"></script>
     <script src="/static/js/api.js"></script>
     <script src="/static/js/websocket.js"></script>
-    <script src="/static/js/chat.js"></script>
+    <script src="/static/js/ui.js"></script>
 </body>
 </html>

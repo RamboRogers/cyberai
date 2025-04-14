@@ -5,66 +5,118 @@ import (
 	"context"
 	"log"
 	"net/http"
-	// "github.com/ramborogers/cyberai/server/models" // Assuming user service exists
+
+	"github.com/gorilla/sessions"
+	"github.com/ramborogers/cyberai/server/models" // Will need UserService here
 )
 
 type contextKey string
 
-const UserIDContextKey contextKey = "userID"
+const (
+	UserIDContextKey contextKey = "userID"
+	SessionName      string     = "cyberai-session" // Ensure this matches main.go
+)
 
-// DevMode controls whether to use development mode authentication
-// In development mode, authentication is bypassed and users are assigned admin privileges
-var DevMode bool = false
+// SessionAuthMiddleware redirects unauthenticated users to the login page.
+// It requires a session store and a UserService to check user validity (optional, can just check session).
+func SessionAuthMiddleware(store sessions.Store, userService *models.UserService) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			session, err := store.Get(r, SessionName)
+			if err != nil {
+				// Ignore store errors for now, treat as unauthenticated
+				log.Printf("Session store error in auth middleware: %v", err)
+				http.Redirect(w, r, "/login", http.StatusFound)
+				return
+			}
 
-// TempAdminAuthMiddleware enforces authentication, defaulting to admin user (ID 1) for development.
-// !!! WARNING: Replace this with real authentication !!!
-func TempAdminAuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println("WARNING: Using temporary admin authentication middleware!")
+			userID, ok := session.Values[string(UserIDContextKey)].(int)
+			if !ok || userID <= 0 {
+				// No valid userID in session
+				http.Redirect(w, r, "/login", http.StatusFound)
+				return
+			}
 
-		// --- !!! TEMPORARY HARDCODED ADMIN USER !!! ---
-		// In a real implementation, you would:
-		// 1. Check for a session token (e.g., in a cookie or Authorization header).
-		// 2. Validate the token.
-		// 3. Extract the user ID from the token.
-		// 4. Fetch user details from the database (UserService).
-		// 5. Handle errors (invalid token, user not found, etc.) by returning 401 Unauthorized.
+			// Optional: Verify user still exists and is active in the database
+			// user, err := userService.GetUserByID(userID) // Assumes GetUserByID exists
+			// if err != nil || user == nil || !user.IsActive {
+			//     log.Printf("User %d not found or inactive during auth check", userID)
+			//     // Clear potentially invalid session
+			//     session.Values[string(UserIDContextKey)] = 0
+			//     session.Options.MaxAge = -1 // Expire cookie immediately
+			//     if saveErr := session.Save(r, w); saveErr != nil {
+			//         log.Printf("Error saving expired session: %v", saveErr)
+			//     }
+			//     http.Redirect(w, r, "/login", http.StatusFound)
+			//     return
+			// }
 
-		adminUserID := 1 // Hardcoded admin user ID
-		// --- END TEMPORARY ---
+			// User is authenticated, add userID to context
+			ctx := context.WithValue(r.Context(), UserIDContextKey, userID)
+			log.Printf("SessionAuth: Authenticated User ID: %d for request: %s %s\n", userID, r.Method, r.URL.Path)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
 
-		// Add user ID to the request context
-		ctx := context.WithValue(r.Context(), UserIDContextKey, adminUserID)
-		log.Printf("TempAuth: Authenticated as User ID: %d for request: %s %s\n", adminUserID, r.Method, r.URL.Path)
+// AdminRequiredMiddleware checks if the authenticated user has the 'admin' role.
+// It relies on SessionAuthMiddleware having run first (or performs its own session check).
+// Requires a UserService to fetch the user's role.
+func AdminRequiredMiddleware(store sessions.Store, userService *models.UserService) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		// First, ensure the user is authenticated via session
+		// sessionAuthHandler := SessionAuthMiddleware(store, userService)(next) // REMOVED - unused
 
-		// Call the next handler with the updated context
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// ---- AdminRequiredMiddleware Logic ----
+			// Check session directly
+			sessionCheck, err := store.Get(r, SessionName)
+			if err != nil {
+				log.Printf("Session store error in admin middleware: %v", err)
+				http.Redirect(w, r, "/login", http.StatusFound)
+				return
+			}
+
+			userIDCheck, okCheck := sessionCheck.Values[string(UserIDContextKey)].(int)
+			if !okCheck || userIDCheck <= 0 {
+				// If the user isn't authenticated via session, redirect to login.
+				log.Printf("AdminRequired: No valid user ID found in session for %s %s. Redirecting to login.", r.Method, r.URL.Path)
+				http.Redirect(w, r, "/login", http.StatusFound)
+				return
+			}
+
+			// User is authenticated via session, check role
+			roleCheck, errCheck := userService.GetUserRole(int64(userIDCheck))
+			if errCheck != nil {
+				log.Printf("Error getting role for user %d in admin check: %v", userIDCheck, errCheck)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			if roleCheck != "admin" {
+				log.Printf("AdminRequired: Access denied for User ID %d (role: %s) to %s %s\n", userIDCheck, roleCheck, r.Method, r.URL.Path)
+				http.Error(w, "Forbidden: Administrator access required", http.StatusForbidden)
+				return
+			}
+
+			// User is admin, add ID to context and proceed
+			ctx := context.WithValue(r.Context(), UserIDContextKey, userIDCheck)
+			log.Printf("AdminRequired: Granted access for User ID %d (role: admin) to %s %s\n", userIDCheck, r.Method, r.URL.Path)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			// ---- End REVISED ----
+
+		})
+	}
 }
 
 // GetUserIDFromContext retrieves the user ID stored in the request context.
 // Returns 0 if the user ID is not found or is not an integer.
-// In development mode, it will return 1 (admin) even if the context is missing a user ID.
 func GetUserIDFromContext(ctx context.Context) int {
-	// In development mode, return admin user ID (1) regardless of context
-	if DevMode {
-		return 1
-	}
-
 	userID, ok := ctx.Value(UserIDContextKey).(int)
 	if !ok {
-		log.Println("Error: User ID not found in context or is not an integer.")
-		return 0 // Or handle error appropriately
+		// Don't log an error here, it's normal for public routes
+		// log.Println("User ID not found in context or is not an integer.")
+		return 0 // Indicates no user ID in context
 	}
 	return userID
-}
-
-// SetDevMode sets the development mode flag
-func SetDevMode(enabled bool) {
-	DevMode = enabled
-	if enabled {
-		log.Println("WARNING: Development mode enabled - authentication checks will be bypassed!")
-	} else {
-		log.Println("Development mode disabled - full authentication required")
-	}
 }

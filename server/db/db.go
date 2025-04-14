@@ -264,7 +264,7 @@ func (db *DB) migrate() error {
 	// Create default admin user if it doesn't exist (password: admin)
 	_, err = db.Exec(`
 		INSERT OR IGNORE INTO users (username, password_hash, email, first_name, last_name, role_id)
-		VALUES ('admin', '$2a$10$vI4ihjQ3UZACkeMAHZd.CuYM9wBOEDeafHX7UVLSRZjF9Wf9kwB.C', 'admin@example.com', 'Admin', 'User', 1);
+		VALUES ('admin', '$2a$10$2m5jB6PmQr0MJ6V4DSzq0.SMIAW/wIT7cjq/knsxFSY9Mcz3LFUgq', 'admin@example.com', 'Admin', 'User', 1);
 	`)
 
 	if err != nil {

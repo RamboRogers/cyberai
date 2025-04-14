@@ -794,3 +794,49 @@ function initMobileToggles() {
 document.addEventListener('DOMContentLoaded', initMobileToggles);
 // Also call it on resize events to handle orientation changes
 window.addEventListener('resize', initMobileToggles);
+
+// --- Event Listeners Setup ---
+
+function setupEventListeners() {
+    const logoutButton = document.getElementById('logout-button');
+    const purgeChatsButton = document.getElementById('purge-chats-button');
+    const newChatButton = document.getElementById('new-chat-button');
+
+    if (logoutButton) {
+        logoutButton.addEventListener('click', async () => {
+            console.log('Logout button clicked');
+            try {
+                const response = await fetch('/logout', {
+                    method: 'POST', // Or GET, depending on backend handler
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (response.ok) {
+                    console.log('Logout successful, redirecting to login...');
+                    window.location.href = '/login'; // Redirect to login page
+                } else {
+                    console.error('Logout failed:', response.status, await response.text());
+                    showNotification('Logout failed. Please try again.', 'error');
+                }
+            } catch (error) {
+                console.error('Error during logout:', error);
+                showNotification('An error occurred during logout.', 'error');
+            }
+        });
+    }
+
+    if (purgeChatsButton) {
+        purgeChatsButton.addEventListener('click', () => {
+             showConfirmationDialog(
+                'Purge All Chats?',
+                'Are you sure you want to permanently delete ALL your chats? This cannot be undone.',
+                (confirmationEl) => confirmPurgeAllChats(confirmationEl) // API call in api.js
+            );
+        });
+    }
+
+    if (newChatButton) {
+        newChatButton.addEventListener('click', startNewChat); // Function defined in chat.js
+    }
+}
