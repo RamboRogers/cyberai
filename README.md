@@ -100,7 +100,7 @@ This command uses a Docker named volume (`cyberai-data`) to store the applicatio
 docker run -d --name cyberai \
   -p 8080:8080 \
   -v cyberai-data:/cyberai/data \
-  rambrogers/cyberai:latest
+  mattrogers/cyberai:latest
 ```
 
 *   `-d`: Run in detached mode.
@@ -116,7 +116,7 @@ docker run -d --name cyberai \
 
     services:
       cyberai:
-        image: rambrogers/cyberai:latest
+        image: ramborogers/cyberai:latest
         container_name: cyberai
         ports:
           - "8080:8080"
@@ -142,7 +142,7 @@ Once the container is running (using either method), access the web interface at
 
 **Using Docker Run:**
 
-1.  Pull the latest image: `docker pull rambrogers/cyberai:latest`
+1.  Pull the latest image: `docker pull mattrogers/cyberai:latest`
 2.  Stop and remove the existing container: `docker stop cyberai && docker rm cyberai`
 3.  Start the new container using the *same* volume mount command as above.
 
@@ -161,7 +161,7 @@ Once the container is running (using either method), access the web interface at
 
 ```bash
 # Clone the repository
-git clone https://github.com/rambrogers/cyberai.git
+git clone https://github.com/ramborogers/cyberai.git
 cd cyberai
 
 # Build the application

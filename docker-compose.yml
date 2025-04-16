@@ -1,7 +1,7 @@
 
 services:
   cyberai:
-    image: rambrogers/cyberai:latest
+    image: mattrogers/cyberai:latest
     container_name: cyberai
     ports:
       - "8080:8080"
