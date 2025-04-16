@@ -86,21 +86,76 @@ CyberAI is a powerful, secure multi-user chat platform that integrates multiple 
 
 ## 🚀 Quick Start
 
-### Docker
+You can run CyberAI using Docker with either `docker run` or `docker-compose`.
+
+**Default credentials:**
+- Username: `admin`
+- Password: `admin`
+
+### Option 1: Docker Run
+
+This command uses a Docker named volume (`cyberai-data`) to store the application's data (like the SQLite database) persistently.
 
 ```bash
-docker run -d --name cyberai -p 8080:8080 rambrogers/cyberai:latest
+docker run -d --name cyberai \
+  -p 8080:8080 \
+  -v cyberai-data:/cyberai/data \
+  rambrogers/cyberai:latest
 ```
 
-Access the web interface:
+*   `-d`: Run in detached mode.
+*   `--name cyberai`: Assign a name to the container.
+*   `-p 8080:8080`: Map host port 8080 to container port 8080.
+*   `-v cyberai-data:/cyberai/data`: Mount the named volume `cyberai-data` to the `/cyberai/data` directory inside the container.
+
+### Option 2: Docker Compose
+
+1.  Create a `docker-compose.yml` file with the following content:
+    ```yaml
+    version: '3.8'
+
+    services:
+      cyberai:
+        image: rambrogers/cyberai:latest
+        container_name: cyberai
+        ports:
+          - "8080:8080"
+        volumes:
+          - cyberai-data:/cyberai/data
+        restart: unless-stopped
+
+    volumes:
+      cyberai-data:
+    ```
+2.  Run the following command in the same directory as the `docker-compose.yml` file:
+    ```bash
+    docker-compose up -d
+    ```
+    This will automatically create the named volume `cyberai-data` if it doesn't exist.
+
+### Accessing the Web Interface
+
+Once the container is running (using either method), access the web interface at:
 - Web UI: http://localhost:8080
+
+### Upgrading the Docker Container
+
+**Using Docker Run:**
+
+1.  Pull the latest image: `docker pull rambrogers/cyberai:latest`
+2.  Stop and remove the existing container: `docker stop cyberai && docker rm cyberai`
+3.  Start the new container using the *same* volume mount command as above.
+
+**Using Docker Compose:**
+
+1.  Pull the latest image: `docker-compose pull`
+2.  Restart the service, which will automatically use the new image and the existing volume: `docker-compose up -d`
 
 ## 🔨 Building from Source
 
 ### Prerequisites
 
 - Go 1.21 or later
-- SQLite 3.35+
 
 ### Clone and Build
 
@@ -112,7 +167,7 @@ cd cyberai
 # Build the application
 go build -o cyberai ./cmd/cyberai
 
-# Run the application
+# Run the application (creates data/cyberai.db by default)
 ./cyberai
 ```
 
@@ -131,9 +186,9 @@ CyberAI uses environment variables for configuration (no config file needed):
 |----------|-------------|---------|
 | PORT | Web server port | 8080 |
 | SESSION_KEY | Secret key for session cookies | Default insecure key (only for development) |
-| DB_PATH | SQLite database file path | data/cyberai.db |
+| DB_PATH | SQLite database file path | `/cyberai/data/cyberai.db` (Docker) or `data/cyberai.db` (local) |
 
-Example usage:
+Example usage when running locally:
 
 ```bash
 # Set environment variables

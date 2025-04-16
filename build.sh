@@ -12,9 +12,6 @@ fi
 # Source the .env file
 source .env
 
-# Common ldflags for all builds
-LDFLAGS="-X main.telemetryToken=${CYBERDOCK_TELEMETRY_TOKEN} -X main.telemetryURL=${CYBERDOCK_TELEMETRY_URL}"
-
 # Build for current platform
 echo "Building for $(go env GOOS)/$(go env GOARCH)..."
 go build -ldflags="${LDFLAGS}" -o bins/cyberai-$(go env GOOS)-$(go env GOARCH) cmd/cyberai/main.go

@@ -9,7 +9,7 @@ RUN apk add --no-cache \
 RUN mkdir -p /cyberai
 
 # Copy the architecture-specific binary
-COPY bins/cyberai-linux-alpine-${TARGETARCH}-static /bin/cyberai
+COPY bins/cyberai-linux-${TARGETARCH} /bin/cyberai
 
 # Make binary executable
 RUN chmod +x /bin/cyberai

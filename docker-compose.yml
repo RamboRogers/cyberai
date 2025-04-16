@@ -1,0 +1,17 @@
+
+services:
+  cyberai:
+    image: rambrogers/cyberai:latest
+    container_name: cyberai
+    ports:
+      - "8080:8080"
+    volumes:
+      - cyberai-data:/cyberai/data
+    restart: unless-stopped
+
+volumes:
+  cyberai-data:
+    # You can specify a driver or options here if needed,
+    # otherwise, Docker uses the default 'local' driver.
+    # Example:
+    # driver: local
