@@ -883,22 +883,48 @@ document.addEventListener('DOMContentLoaded', function() {
     function openUserModal(action, userId = null) {
         const modal = document.getElementById('user-modal');
         const modalTitle = document.getElementById('user-modal-title');
+        const userForm = document.getElementById('user-form');
+        const userIdInput = document.getElementById('user-id');
+        const passwordFieldsDiv = document.querySelectorAll('.new-user-password-fields'); // Get all password field divs
+        const newPasswordInput = document.getElementById('new-password');
+        const confirmPasswordInput = document.getElementById('confirm-password');
+        const changePasswordButton = document.querySelector('.change-password-action-btn'); // Use the specific class/ID
 
         modalTitle.textContent = action === 'add' ? 'Add New User' : 'Edit User';
 
         // Clear the form
-        document.getElementById('user-form').reset();
-        document.getElementById('user-id').value = '';
+        userForm.reset();
+        userIdInput.value = ''; // Clear hidden ID
 
-        // Show/hide password help text based on action
-        const passwordHint = document.querySelector('.password-field .field-hint');
-        if (passwordHint) {
-            passwordHint.style.display = action === 'edit' ? 'block' : 'none';
+        if (action === 'add') {
+            // Show password fields for new user, make required, hide change pw btn
+            passwordFieldsDiv.forEach(div => div.style.display = 'block');
+            if (newPasswordInput) newPasswordInput.required = true;
+            if (confirmPasswordInput) confirmPasswordInput.required = true;
+            if (changePasswordButton) changePasswordButton.style.display = 'none';
+        } else {
+            // Hide password fields for edit user, make not required, show change pw btn
+            passwordFieldsDiv.forEach(div => div.style.display = 'none');
+            if (newPasswordInput) newPasswordInput.required = false;
+            if (confirmPasswordInput) confirmPasswordInput.required = false;
+            if (changePasswordButton) changePasswordButton.style.display = 'inline-block'; // Or 'block' depending on layout
+
+            if (userId) {
+                userIdInput.value = userId; // Set the ID for editing
+                fetchUserDetails(userId);
+            } else {
+                console.error("Edit action called without a userId!");
+                showError("Cannot edit user: User ID missing.");
+                return; // Don't open modal if ID is missing for edit
+            }
         }
 
-        if (action === 'edit' && userId) {
-            fetchUserDetails(userId);
-        }
+        // Remove previous password hint logic if any
+        // const passwordHint = document.querySelector('.password-field .field-hint');
+        // if (passwordHint) {
+        //     passwordHint.style.display = 'none'; // Not needed with separate fields
+        // }
+
 
         // Show the modal
         modal.classList.add('active');
@@ -982,39 +1008,75 @@ document.addEventListener('DOMContentLoaded', function() {
         const action = userId ? 'update' : 'add';
         const isNewUser = (action === 'add');
 
-        // Pass isNewUser flag for context, though password check is now below
-        if (!validateUserData(userDetails, isNewUser)) {
-            console.log("User data validation failed");
+        // Validate common user data (username, email, role)
+        if (!validateUserData(userDetails)) { // Removed isNewUser flag here
+            console.log("Common user data validation failed");
             return; // Stop if validation fails
         }
 
         let apiCall;
         if (action === 'add') {
-            const passwordInput = document.getElementById('password');
-            if (!passwordInput || !passwordInput.value) {
+            // --- Password handling for NEW users ---
+            const passwordInput = document.getElementById('new-password');
+            const confirmPasswordInput = document.getElementById('confirm-password');
+
+            if (!passwordInput || !confirmPasswordInput) {
+                 showError("Internal error: Password fields not found.");
+                 console.error("Password input elements not found for new user.");
+                 return;
+            }
+
+            const passwordValue = passwordInput.value;
+            const confirmPasswordValue = confirmPasswordInput.value;
+
+            if (!passwordValue || passwordValue.trim() === '') {
                 showError("Password is required for new users.");
+                passwordInput.focus();
                 return;
             }
-            // Construct the nested object ONLY for the add call
+            if (passwordValue.length < 8) {
+                 showError("Password must be at least 8 characters long.");
+                 passwordInput.focus();
+                 return;
+            }
+            if (passwordValue !== confirmPasswordValue) {
+                showError("Passwords do not match.");
+                confirmPasswordInput.focus();
+                return;
+            }
+            // --- End Password Handling ---
+
+
+            // Construct the nested object required by the API for the add call
             const payloadForAdd = {
                 user: userDetails, // The flat user object
-                password: passwordInput.value
+                password: passwordValue // The validated password
             };
+            console.log("Adding new user with payload:", payloadForAdd); // Log payload for debugging
             apiCall = addNewUser(payloadForAdd);
+
         } else {
             // For update, just pass the flat userDetails object
             // The backend UpdateUser handler expects the flat structure
+            console.log("Updating user", userId, "with details:", userDetails);
             apiCall = updateUser(userId, userDetails);
         }
 
-        apiCall.then(() => {
-            showSuccess(`User ${action} successfully.`);
-            closeUserModal();
-            loadUsers(); // Reload the user list after success
-        }).catch(error => {
-            // No need to hide loading here, it's handled in addNewUser/updateUser finally blocks
-            showError(`Error ${action} user: ${error.message}`);
-        });
+        if (apiCall) { // Ensure apiCall was assigned
+             apiCall.then(() => {
+                 showSuccess(`User ${action === 'add' ? 'added' : 'updated'} successfully.`);
+                 closeUserModal();
+                 loadUsers(); // Reload the user list after success
+             }).catch(error => {
+                 // Error should be shown by the specific add/update function now
+                 console.error(`Error during user ${action}:`, error);
+                 // Optionally show a generic error here if needed, but prefer specific ones
+                 // showError(`Error ${action === 'add' ? 'adding' : 'updating'} user: ${error.message}`);
+             });
+        } else {
+             console.error("API call promise was not created for user form submission.");
+             showError("An unexpected error occurred submitting the user form.");
+        }
     }
 
     function buildUserData() {
@@ -1056,8 +1118,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return userDetails; // Return the flat user details object
     }
 
-    function validateUserData(userData, isNewUser) { // Added isNewUser flag
-        // Now validates the flat structure
+    function validateUserData(userData) { // Removed isNewUser flag
+        // Now validates the flat structure - password validation removed
         if (!userData.username || userData.username.trim() === '') {
             showError('Username is required.');
             return false;
@@ -1067,15 +1129,21 @@ document.addEventListener('DOMContentLoaded', function() {
             showError('Email is required.');
             return false;
         }
+        // Basic email format check (very simple)
+        if (!/\\S+@\\S+\\.\\S+/.test(userData.email)) {
+             showError('Please enter a valid email address.');
+             return false;
+        }
 
-        if (!userData.role_id) {
-            showError('Please select a role.');
+
+        if (!userData.role_id || isNaN(parseInt(userData.role_id)) || parseInt(userData.role_id) <= 0) {
+            showError('Please select a valid role.');
             return false;
         }
 
         // Password validation is now handled separately in handleUserFormSubmit for 'add'
-        // if (isNewUser && (!userData.password || userData.password.trim() === '')) {
-        //     showError('Password is required for new users.');
+        // if (isNewUser && (!userData.password || userData.password.trim() === \'\')) {
+        //     showError(\'Password is required for new users.\');
         //     return false;
         // }
 

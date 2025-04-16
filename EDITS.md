@@ -37,3 +37,11 @@
 - Create UI mockups for the screenshots
 - Set up Docker configuration for the project
 - Implement core WebSocket functionality for real-time chat
+
+## 2024-08-01: Fix User Creation Password Bug
+
+*   **`ui/templates/admin.html`**: Added `new-password` and `confirm-password` input fields within the user modal form (`#user-form`), initially hidden. Added `change-password-action-btn` class to the Change Password button.
+*   **`ui/static/js/admin.js`**:
+    *   Modified `openUserModal` to toggle visibility and `required` attribute of password fields based on action (add/edit), and toggle visibility of the Change Password button.
+    *   Modified `handleUserFormSubmit` to add password validation (length, match) and include the password in the correct payload structure (`{ user: {...}, password: "..." }`) when `action === 'add'`.
+    *   Removed password validation from `validateUserData`.

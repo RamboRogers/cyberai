@@ -473,3 +473,13 @@ type ModelConnector interface {
 *   `ui/static/js/ui.js`
 *   `ui/static/js/api.js`
 *   `ui/static/js/websocket.js`
+
+## 2024-08-01: User Creation Password Bug Fix
+
+*   **Issue**: User creation modal (`admin.html`) was missing password fields, preventing new user creation as the API (`POST /api/admin/users`) requires an initial password.
+*   **Fix**:
+    *   Added `new-password` and `confirm-password` fields to the user modal in `admin.html`, hidden by default.
+    *   Updated `admin.js` (`openUserModal`) to show password fields and hide the 'Change Password' button only when adding a new user, making password fields required.
+    *   Updated `admin.js` (`handleUserFormSubmit`) to validate password fields (length, match) and construct the correct payload (`{ user: {...}, password: "..." }`) for `addNewUser` only during user creation. Updated calls to `validateUserData`.
+    *   Removed password validation logic from `validateUserData` function.
+*   **Files Modified**: `ui/templates/admin.html`, `ui/static/js/admin.js`

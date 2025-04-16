@@ -214,6 +214,16 @@
                             </div>
                         </div>
 
+                        <div class="form-group new-user-password-fields" style="display: none;"> <!-- Initially hidden -->
+                            <label for="new-password">Password</label>
+                            <input type="password" id="new-password" name="new-password" class="cyber-input" minlength="8">
+                            <p class="field-hint">Minimum 8 characters required.</p>
+                        </div>
+                        <div class="form-group new-user-password-fields" style="display: none;"> <!-- Initially hidden -->
+                            <label for="confirm-password">Confirm Password</label>
+                            <input type="password" id="confirm-password" name="confirm-password" class="cyber-input">
+                        </div>
+
                         <div class="form-group">
                             <label for="role-id">Role</label>
                             <select id="role-id" name="role-id" class="cyber-select" required>
@@ -230,7 +240,7 @@
                         </div>
 
                         <div class="form-actions">
-                            <button type="button" id="change-password-btn" class="cyber-btn secondary">Change Password</button>
+                            <button type="button" id="change-password-btn" class="cyber-btn secondary change-password-action-btn">Change Password</button>
                             <button type="button" id="user-cancel-btn" class="cyber-btn danger">Cancel</button>
                             <button type="submit" id="user-save-btn" class="cyber-btn primary">Save User Details</button>
                         </div>
