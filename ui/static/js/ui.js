@@ -1,5 +1,8 @@
 // ui/static/js/ui.js - UI Rendering and DOM Manipulation Functions
 
+// Create a namespace for UI functions
+const ui = {};
+
 // --- DOM Element References (Assume these are available globally from chat.js) ---
 // const chatHistory = document.getElementById('chat-history');
 // const modelsListContainer = document.getElementById('models-list');
@@ -18,8 +21,8 @@
 
 // --- UI Rendering Functions ---
 
-// Render the models list in the sidebar
-function renderModelsList(models) {
+// Render the models list in the sidebar, grouped by provider
+ui.renderModelsList = function(models) {
     // Clear the current models list
     if (!modelsListContainer) return;
 
@@ -50,7 +53,7 @@ function renderModelsList(models) {
         }
 
         // Add click handler (calls function assumed to be in chat.js)
-        modelItem.addEventListener('click', () => selectModel(model.id));
+        modelItem.addEventListener('click', () => chat.selectModel(model.id));
 
         // Add to container
         modelsListContainer.appendChild(modelItem);
@@ -70,11 +73,11 @@ function renderModelsList(models) {
     }
 
     // Update active model indicator in chat header
-    updateActiveModelIndicator();
+    ui.updateActiveModelIndicator();
 }
 
 // Update active model indicator in chat header
-function updateActiveModelIndicator() {
+ui.updateActiveModelIndicator = function() {
     // Now just log which model is active for debugging if needed
     const selectedModel = modelsList.find(m => m.id == activeModel);
     if (selectedModel) {
@@ -86,7 +89,7 @@ function updateActiveModelIndicator() {
 }
 
 // Update UI to reflect active model selection in the list
-function updateActiveModelUI() {
+ui.updateActiveModelUI = function() {
     document.querySelectorAll('.model-item').forEach(item => {
         if (item.dataset.modelId == activeModel) {
             item.classList.add('active');
@@ -94,11 +97,11 @@ function updateActiveModelUI() {
             item.classList.remove('active');
         }
     });
-    updateActiveModelIndicator(); // Update any header indicator too
+    ui.updateActiveModelIndicator(); // Update any header indicator too
 }
 
 // Render the chats list in the sidebar
-function renderChatsList(chats) {
+ui.renderChatsList = function(chats) {
     if (!chatsListContainer) return;
 
     // Keep the "New Chat" button
@@ -139,11 +142,10 @@ function renderChatsList(chats) {
         deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent triggering chat selection
             // Calls function assumed to be in api.js or chat.js
-            // deleteChat(chat.id, chat.title);
-            showConfirmationDialog(
+            ui.showConfirmationDialog(
                 'Delete Chat?',
                 `Are you sure you want to permanently delete the chat "${chat.title || 'Untitled Chat'}"? This cannot be undone.`,
-                (confirmationEl) => confirmDeleteChat(chat.id, chat.title, confirmationEl) // Pass API call function
+                (confirmationEl) => api.confirmDeleteChat(chat.id, chat.title, confirmationEl) // Correct namespace: API call in api.js
             );
         });
         chatItem.appendChild(deleteBtn);
@@ -159,7 +161,7 @@ function renderChatsList(chats) {
 }
 
 // Clear all messages from the chat history
-function clearChatHistory() {
+ui.clearChatHistory = function() {
     if (!chatHistory) return;
     // Preserve system message "Welcome to CyberAI Terminal"
     const systemMessages = Array.from(chatHistory.querySelectorAll('.system-message'))
@@ -175,7 +177,7 @@ function clearChatHistory() {
 }
 
 // Helper function to create message elements (used by renderMessage and handleAssistantChunk)
-function createMessageElement(type, message_id, model_id = null) {
+ui.createMessageElement = function(type, message_id, model_id = null) {
     const messageWrapper = document.createElement('div');
     messageWrapper.classList.add('message', type === 'user' ? 'user-message' : 'bot-message');
     if (message_id) { // Allow null ID for initial user message rendering
@@ -215,7 +217,7 @@ function createMessageElement(type, message_id, model_id = null) {
     // Add model info *during creation* if available (for bot messages)
     if (type === 'bot' && model_id) {
         timestampElement.appendChild(document.createTextNode(' - ')); // Add separator as text node
-        addModelInfo(timestampElement, model_id); // addModelInfo appends the model span
+        ui.addModelInfo(timestampElement, model_id); // addModelInfo appends the model span
     }
     footerElement.appendChild(timestampElement);
 
@@ -303,7 +305,7 @@ function createMessageElement(type, message_id, model_id = null) {
 }
 
 // Render a single message object into the chat history
-function renderMessage(message) {
+ui.renderMessage = function(message) {
     // Find or create the message element
     let messageWrapper = document.getElementById(`message-${message.id}`);
     let contentElement;
@@ -311,7 +313,7 @@ function renderMessage(message) {
     if (!messageWrapper) {
          // Assume message.role is 'user' or 'assistant' (map 'assistant' to 'bot' for UI)
          const type = message.role === 'user' ? 'user' : 'bot';
-         messageWrapper = createMessageElement(type, message.id, message.model_id);
+         messageWrapper = ui.createMessageElement(type, message.id, message.model_id);
          if (!chatHistory) return; // Exit if chatHistory isn't available
          chatHistory.appendChild(messageWrapper);
          contentElement = messageWrapper.querySelector('.content');
@@ -357,7 +359,7 @@ function renderMessage(message) {
         // If it's a bot message and has a model_id, add/update the model info
         if (message.role === 'assistant' && message.model_id) {
              timestampElement.appendChild(document.createTextNode(' - ')); // Add separator
-             addModelInfo(timestampElement, message.model_id);
+             ui.addModelInfo(timestampElement, message.model_id);
         }
     }
 
@@ -389,7 +391,7 @@ function renderMessage(message) {
 }
 
 // Add system message to chat (uses createMessageElement structure)
-function addSystemMessage(content, type = 'info') { // Added type parameter back
+ui.addSystemMessage = function(content, type = 'info') { // Added type parameter back
     // Create a system message element similar to renderMessage
     const messageWrapper = document.createElement('div');
     messageWrapper.classList.add('message', 'system-message');
@@ -427,7 +429,7 @@ function addSystemMessage(content, type = 'info') { // Added type parameter back
 }
 
 // Update the UI with user information
-function updateUserUI(user) {
+ui.updateUserUI = function(user) {
     if (!user) return;
 
     // Update user name display
@@ -467,7 +469,7 @@ function updateUserUI(user) {
 // --- UI Helpers ---
 
 // Helper function to add or update model info in the timestamp span
-function addModelInfo(timestampElement, model_id) {
+ui.addModelInfo = function(timestampElement, model_id) {
     // Find existing model info span within the timestamp span
     let modelInfo = timestampElement.querySelector('.model-info');
 
@@ -489,7 +491,7 @@ function addModelInfo(timestampElement, model_id) {
 
 
 // Helper to ensure thinking box exists and return its text element
-function ensureThinkingBoxExists(messageElement) {
+ui.ensureThinkingBoxExists = function(messageElement) {
     let thinkingElement = messageElement.querySelector('.thinking-content'); // Use local var
     if (!thinkingElement) {
         // console.log('[Debug] Creating thinking box structure.');
@@ -519,7 +521,7 @@ function ensureThinkingBoxExists(messageElement) {
 let thinkingIndicatorTimeout = null;
 
 // Show or hide the thinking indicator
-function showThinkingIndicator(show) {
+ui.showThinkingIndicator = function(show) {
     // Always try to remove any existing indicator first
     const existingIndicator = document.getElementById('thinking-indicator');
     if (existingIndicator) {
@@ -579,7 +581,7 @@ function showThinkingIndicator(show) {
  * @param {string} message - The confirmation message text.
  * @param {function(HTMLElement): void} onConfirm - Callback function executed when confirm is clicked. It receives the dialog element as an argument.
  */
-function showConfirmationDialog(title, message, onConfirm) {
+ui.showConfirmationDialog = function(title, message, onConfirm) {
     // Remove any existing confirmation dialogs first
     const existingDialog = document.querySelector('.delete-confirmation');
     if (existingDialog) {
@@ -661,7 +663,7 @@ function showDeleteConfirmation(chatId, chatTitle) {
  * @param {string} message - The message to display.
  * @param {string} type - 'info', 'error', or 'success' (default: 'success').
  */
-function showNotification(message, type = 'success') {
+ui.showNotification = function(message, type = 'success') {
     const container = document.getElementById('notification-container');
     if (!container) {
         console.error("Notification container not found!");
@@ -720,7 +722,7 @@ function showNotification(message, type = 'success') {
  * @param {string} content - The raw message content.
  * @param {string|null} tempId - A temporary ID for the element before confirmation (optional).
  */
-function addMessageToUI(type, content, tempId = null) {
+ui.addMessageToUI = function(type, content, tempId = null) {
     if (!chatHistory) {
         console.error("chatHistory element not found, cannot add message to UI.");
         return;
@@ -728,7 +730,7 @@ function addMessageToUI(type, content, tempId = null) {
 
     // Use existing function to create the basic structure
     // Pass null for model_id for user messages
-    const messageWrapper = createMessageElement(type, tempId, null);
+    const messageWrapper = ui.createMessageElement(type, tempId, null);
 
     // Find the content element within the created wrapper
     const contentElement = messageWrapper.querySelector('.content');
@@ -757,8 +759,66 @@ function addMessageToUI(type, content, tempId = null) {
     console.log(`[UI] Added optimistic ${type} message to UI.`);
 }
 
+/**
+ * Displays an error message within the chat history area.
+ * @param {number|string} chatId - The ID of the chat this error belongs to (used for potential context, though not directly used for rendering here).
+ * @param {string} errorMessage - The text of the error message to display.
+ */
+ui.displayChatError = function(chatId, errorMessage) {
+    console.error(`[Chat Error - Chat ID: ${chatId}] ${errorMessage}`);
+
+    if (!chatHistory) {
+        console.error("chatHistory element not found, cannot display error message in UI.");
+        // Fallback: Use a general notification if chat history isn't available
+        ui.showNotification(`Error: ${errorMessage}`, 'error');
+        return;
+    }
+
+    // Check if this specific error message is already displayed to avoid duplicates rapidly
+    const existingErrors = chatHistory.querySelectorAll('.error-message .content');
+    const alreadyShown = Array.from(existingErrors).some(el => el.textContent.includes(errorMessage));
+    if (alreadyShown) {
+        console.warn("Duplicate error message detected, skipping display:", errorMessage);
+        return;
+    }
+
+    // Create the error message element
+    const errorWrapper = document.createElement('div');
+    errorWrapper.classList.add('message', 'error-message');
+    errorWrapper.id = `message-error-${Date.now()}`;
+
+    // Content Area
+    const contentElement = document.createElement('div');
+    contentElement.classList.add('content');
+    // The ::before pseudo-element in CSS adds the "[ERROR] " prefix
+    contentElement.textContent = errorMessage;
+    errorWrapper.appendChild(contentElement);
+
+    // Footer Area (Timestamp only for errors)
+    const footerElement = document.createElement('div');
+    footerElement.classList.add('message-footer');
+    const timestampElement = document.createElement('span');
+    timestampElement.classList.add('timestamp');
+    timestampElement.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    footerElement.appendChild(timestampElement);
+    errorWrapper.appendChild(footerElement);
+
+    // Add to chat history
+    chatHistory.appendChild(errorWrapper);
+
+    // Scroll to the bottom
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        });
+    });
+
+    // Also show a notification tile for higher visibility
+    ui.showNotification(`Error: ${errorMessage}`, 'error');
+}
+
 // Mobile Responsive Helper function - Added for better mobile usability
-function initMobileToggles() {
+ui.initMobileToggles = function() {
     // Only execute on mobile/small screens
     const isMobile = window.innerWidth <= 768;
 
@@ -791,13 +851,13 @@ function initMobileToggles() {
 }
 
 // Call the function when the document is loaded
-document.addEventListener('DOMContentLoaded', initMobileToggles);
+document.addEventListener('DOMContentLoaded', ui.initMobileToggles);
 // Also call it on resize events to handle orientation changes
-window.addEventListener('resize', initMobileToggles);
+window.addEventListener('resize', ui.initMobileToggles);
 
 // --- Event Listeners Setup ---
 
-function setupEventListeners() {
+ui.setupEventListeners = function() {
     const logoutButton = document.getElementById('logout-button');
     const purgeChatsButton = document.getElementById('purge-chats-button');
     const newChatButton = document.getElementById('new-chat-button');
@@ -817,26 +877,103 @@ function setupEventListeners() {
                     window.location.href = '/login'; // Redirect to login page
                 } else {
                     console.error('Logout failed:', response.status, await response.text());
-                    showNotification('Logout failed. Please try again.', 'error');
+                    ui.showNotification('Logout failed. Please try again.', 'error');
                 }
             } catch (error) {
                 console.error('Error during logout:', error);
-                showNotification('An error occurred during logout.', 'error');
+                ui.showNotification('An error occurred during logout.', 'error');
             }
         });
     }
 
     if (purgeChatsButton) {
         purgeChatsButton.addEventListener('click', () => {
-             showConfirmationDialog(
+             ui.showConfirmationDialog(
                 'Purge All Chats?',
                 'Are you sure you want to permanently delete ALL your chats? This cannot be undone.',
-                (confirmationEl) => confirmPurgeChats(confirmationEl) // API call in api.js
+                (confirmationEl) => api.confirmPurgeChats(confirmationEl) // Correct namespace: API call in api.js
             );
         });
     }
 
     if (newChatButton) {
-        newChatButton.addEventListener('click', startNewChat); // Function defined in chat.js
+        newChatButton.addEventListener('click', chat.startNewChat); // Use the namespaced function
     }
 }
+
+// --- Sidebar Resizing Logic ---
+ui.initializeSidebarResizing = function() {
+    const sidebar = document.querySelector('.sidebar');
+    const resizer = document.getElementById('sidebar-resizer');
+    const chatContainer = document.querySelector('.chat-container');
+    const minWidth = parseInt(getComputedStyle(sidebar).minWidth, 10);
+    const maxWidth = parseInt(getComputedStyle(sidebar).maxWidth, 10);
+    const localStorageKey = 'sidebarWidth';
+
+    let isResizing = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    // Load saved width on initialization
+    const savedWidth = localStorage.getItem(localStorageKey);
+    if (savedWidth) {
+        const newWidth = Math.max(minWidth, Math.min(maxWidth, parseInt(savedWidth, 10)));
+        sidebar.style.flexBasis = `${newWidth}px`;
+    }
+
+    resizer.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = sidebar.offsetWidth;
+        // Prevent text selection during resize
+        document.body.style.userSelect = 'none';
+        document.body.style.pointerEvents = 'none'; // Disable pointer events on underlying elements
+        resizer.style.backgroundColor = 'var(--accent-color)'; // Highlight during drag
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    });
+
+    function handleMouseMove(e) {
+        if (!isResizing) return;
+
+        const currentX = e.clientX;
+        const diffX = currentX - startX;
+        let newWidth = startWidth + diffX;
+
+        // Clamp width between min and max
+        newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+
+        sidebar.style.flexBasis = `${newWidth}px`;
+        // Optionally, add real-time adjustments to chat container if needed,
+        // but flexbox should handle it automatically.
+    }
+
+    function handleMouseUp() {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.userSelect = ''; // Re-enable text selection
+            document.body.style.pointerEvents = '';
+            resizer.style.backgroundColor = ''; // Reset handle color
+
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+
+            // Save the final width
+            localStorage.setItem(localStorageKey, sidebar.offsetWidth.toString());
+        }
+    }
+}
+// --- End Sidebar Resizing Logic ---
+
+// Initialize the UI
+ui.initializeUI = function() {
+    ui.initializeSidebarResizing(); // Add this call
+    // ... existing code ...
+}
+
+// Expose ui namespace globally
+window.ui = ui;
+
+// Call initialization
+document.addEventListener('DOMContentLoaded', ui.initializeUI);

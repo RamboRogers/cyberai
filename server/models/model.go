@@ -661,7 +661,12 @@ func (s *ModelService) SyncOpenAIModelsForProvider(providerID int64, defaultToke
 	apiURL := "https://api.openai.com/v1/models"
 	if provider.BaseURL != "" {
 		baseURL := strings.TrimSuffix(provider.BaseURL, "/")
-		apiURL = baseURL + "/v1/models"
+		// Check if baseURL already ends with /v1
+		if strings.HasSuffix(baseURL, "/v1") {
+			apiURL = baseURL + "/models" // Only append /models if /v1 is present
+		} else {
+			apiURL = baseURL + "/v1/models" // Otherwise, append the full /v1/models path
+		}
 	}
 
 	// 2. Make API request to OpenAI

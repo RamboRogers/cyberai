@@ -396,6 +396,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     <p>Last Synced: <span>${formattedLastSynced}</span></p>
                 </div>
                 <div class="model-card-actions">
+                    <button class="cyber-btn toggle-btn ${model.is_active ? 'warning' : 'success'}"
+                            data-action="toggle"
+                            data-id="${model.id}"
+                            data-active="${model.is_active}">
+                        <span class="btn-icon">${model.is_active ? '⏻' : '⭘'}</span>
+                        ${model.is_active ? 'Disable' : 'Enable'}
+                    </button>
                     <button class="cyber-btn" data-action="edit" data-id="${model.id}">Edit</button>
                     <button class="cyber-btn danger" data-action="delete" data-id="${model.id}">Delete</button>
                 </div>
@@ -405,6 +412,15 @@ document.addEventListener('DOMContentLoaded', function() {
             // Add event listeners
             card.querySelector('[data-action="edit"]').addEventListener('click', () => editModel(model.id));
             card.querySelector('[data-action="delete"]').addEventListener('click', () => deleteModel(model.id));
+            const toggleBtn = card.querySelector('[data-action="toggle"]');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', (event) => {
+                    const button = event.currentTarget;
+                    const currentIsActive = button.dataset.active === 'true';
+                    // Pass the *new desired state* to the toggle function
+                    toggleModelStatus(model.id, !currentIsActive);
+                });
+            }
         });
         // Re-apply filters if needed
         filterModels();
@@ -2336,5 +2352,78 @@ document.addEventListener('DOMContentLoaded', function() {
         .finally(() => {
             hideLoading();
         });
+    }
+
+    // Add this function to handle model activation/deactivation
+    function toggleModelStatus(modelId, newStatus) {
+        // Show loading indicator
+        showLoading();
+
+        // First fetch the current model data
+        fetch(`/api/admin/models/${modelId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to fetch model details');
+                }
+                return response.json();
+            })
+            .then(model => {
+                // Update only the is_active field
+                model.is_active = newStatus;
+
+                // Send the update request
+                return fetch(`/api/admin/models/${modelId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(model)
+                });
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to update model status');
+                }
+                return response.json();
+            })
+            .then(updatedModel => {
+                // Show success message
+                showSuccess(`Model ${updatedModel.name} ${newStatus ? 'enabled' : 'disabled'} successfully`);
+
+                // Update the UI
+                updateModelStatusInUI(modelId, newStatus);
+
+                // Hide loading indicator
+                hideLoading();
+            })
+            .catch(error => {
+                console.error('Error toggling model status:', error);
+                showError(`Failed to update model status: ${error.message}`);
+                hideLoading();
+            });
+    }
+
+    // Helper function to update model status in the UI without reloading
+    function updateModelStatusInUI(modelId, isActive) {
+        const modelCard = document.querySelector(`.model-card[data-id="${modelId}"]`);
+        if (!modelCard) return;
+
+        // Update data attribute
+        modelCard.dataset.active = isActive;
+
+        // Update status badge
+        const statusBadge = modelCard.querySelector('.status-badge');
+        if (statusBadge) {
+            statusBadge.className = `status-badge ${isActive ? 'active' : 'inactive'}`;
+            statusBadge.textContent = isActive ? 'Active' : 'Inactive';
+        }
+
+        // Update toggle button
+        const toggleBtn = modelCard.querySelector('[data-action="toggle"]');
+        if (toggleBtn) {
+            toggleBtn.className = `cyber-btn toggle-btn ${isActive ? 'warning' : 'success'}`;
+            toggleBtn.dataset.active = isActive;
+            toggleBtn.innerHTML = `<span class="btn-icon">${isActive ? '⏻' : '⭘'}</span> ${isActive ? 'Disable' : 'Enable'}`;
+        }
     }
 });

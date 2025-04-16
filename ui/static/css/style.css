@@ -86,8 +86,9 @@ body {
 
 /* Sidebar */
 .sidebar {
-    width: 200px;
+    flex: 0 0 250px;
     min-width: 180px;
+    max-width: 500px;
     background-color: var(--sidebar-bg);
     border-right: 1px solid var(--accent-color);
     padding: 10px;
@@ -95,6 +96,8 @@ body {
     flex-direction: column;
     height: 100vh;
     overflow-y: auto;
+    resize: horizontal;
+    overflow-x: hidden;
 }
 
 .title {
@@ -280,6 +283,8 @@ body {
     flex-direction: column;
     background-color: var(--chat-bg);
     height: 100vh;
+    min-width: 300px;
+    overflow: hidden;
 }
 
 .chat-header {
@@ -1064,4 +1069,120 @@ button:hover {
     background-color: var(--accent-color);
     border-radius: 3px;
     border: 1px solid var(--bg-color);
+}
+
+/* Resizer Handle */
+.resizer {
+    flex: 0 0 5px;
+    background-color: rgba(0, 255, 102, 0.2);
+    cursor: col-resize;
+    transition: background-color 0.2s ease;
+    height: 100vh;
+    z-index: 10;
+}
+
+.resizer:hover {
+    background-color: var(--accent-color);
+}
+
+/* Model List Grouping Styles */
+.provider-group {
+    margin-bottom: 5px; /* Space between provider groups */
+}
+
+.provider-title {
+    color: var(--accent-color);
+    font-size: 0.85em;
+    font-weight: bold;
+    text-transform: uppercase;
+    padding: 8px 5px 6px 5px;
+    margin: 5px 0 2px 0;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(0, 255, 102, 0.2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s ease;
+}
+
+.provider-title:hover {
+    background-color: rgba(0, 255, 102, 0.05);
+}
+
+.toggle-arrow {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 0.8em;
+    transition: transform 0.2s ease-in-out;
+}
+
+.provider-title.collapsed .toggle-arrow {
+    transform: rotate(-90deg);
+}
+
+.model-sublist {
+    max-height: 500px; /* Allow space for models */
+    overflow: hidden;
+    transition: max-height 0.3s ease-in-out;
+    padding-left: 5px; /* Indent models slightly */
+}
+
+.model-sublist.collapsed {
+    max-height: 0;
+    /* border-top: none; Remove border when collapsed */
+}
+
+.model-item {
+    /* Adjust padding/margin if needed */
+    padding: 6px 8px 6px 20px; /* Adjusted padding-left for indentation */
+    margin: 2px 0; /* Reduced margin */
+    font-size: 0.85em;
+}
+
+.model-item.active {
+    background-color: rgba(0, 255, 102, 0.15);
+    border-left: 2px solid var(--accent-color); /* Slightly thinner border */
+}
+
+/* Style for info message when no models */
+.model-item.info-message {
+    color: rgba(255, 255, 255, 0.6);
+    font-style: italic;
+    cursor: default;
+}
+.model-item.info-message:hover {
+    background-color: transparent;
+}
+
+/* Error Message Styling */
+.error-message {
+    background-color: rgba(255, 0, 102, 0.1); /* Use offline/error color base */
+    border-left: 3px solid var(--status-offline);
+    align-self: flex-start; /* Align like bot messages */
+    max-width: 90%; /* Same max width */
+    animation: fadeIn 0.4s ease-out; /* Reuse fade-in */
+}
+
+.error-message .content {
+    color: var(--text-color); /* Ensure text is readable */
+}
+
+.error-message .content::before {
+    content: "[ERROR] "; /* Prepend text */
+    font-weight: bold;
+    color: var(--status-offline);
+}
+
+.error-message .message-footer {
+    /* Optional: simplify footer for errors, maybe just timestamp */
+    justify-content: flex-end; /* Align timestamp right */
+}
+
+.error-message .timestamp {
+    color: rgba(255, 255, 255, 0.5); /* Standard timestamp color */
+}
+
+.thinking-content-text pre {
+    background-color: rgba(40, 40, 40, 0.4);
+    border-left: 2px solid rgba(255, 255, 255, 0.2);
 }

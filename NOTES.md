@@ -209,6 +209,8 @@ function handleOllamaImportSubmit(event)
 
 ## Issues Fixed
 - **CSS Selector Syntax**: Fixed invalid CSS selector in admin.js that was causing JavaScript errors. The selector was attempting to match elements with a specific style attribute value in an incorrect way. The new selector uses the `:not()` pseudo-class with the attribute contains selector to properly find visible elements.
+- **OpenAI Sync with VLLM**: Modified `SyncOpenAIModelsForProvider` in `server/models/model.go` to correctly handle custom `BaseURL` values that already include the `/v1` suffix (e.g., `http://host:port/v1`). The code now checks for the suffix and appends `/models` instead of `/v1/models` if `/v1` is detected, preventing duplicate path segments.
+- **Admin Model Toggle Button**: Fixed the enable/disable button functionality in `admin.js` to correctly read the button's current state on click. Adjusted CSS in `admin.css` to improve button alignment within the model card's action row and enhanced button/badge styling for clarity.
 
 # Notes
 
@@ -385,3 +387,59 @@ type ModelConnector interface {
 - **Goal:** Prevent the "Model switched to..." message from appearing in the main chat history when selecting a model.
 - **Change:** Commented out the call to `addSystemMessage` within the `selectModel` function in `ui/static/js/chat.js`.
 - **Result:** Model selection still functions, updates the sidebar UI, and logs to console, but no longer adds a message to the chat window.
+
+## UI Enhancements (Epic Simplistic, Visually Stunning, Tech Forward)
+
+**Requirements:**
+
+1.  **Model List Grouping:** Group models by provider in the sidebar.
+2.  **Resizable Sidebar:** Allow the user to resize the sidebar horizontally, persisting the width.
+3.  **In-Chat Error Feedback:** Display clear error messages within the chat history when AI responses fail (API errors, WebSocket errors).
+4.  **General Polish:** Improve visual hierarchy, add subtle animations/transitions, refine theme consistency.
+
+**Plan:**
+
+1.  **Resizable Sidebar:**
+    *   Add `<div class="resizer" id="sidebar-resizer"></div>` between sidebar and chat container in `index.html`.
+    *   Add CSS for `.resizer` handle appearance and positioning.
+    *   Modify `.container`, `.sidebar`, `.chat-container` CSS for flexbox resizing.
+    *   Add JS in `ui.js` (`initializeSidebarResizing`) to handle `mousedown`/`mousemove`/`mouseup` on the resizer, update `flex-basis` of sidebar, save width to `localStorage`, and load width on init.
+2.  **Model Grouping:**
+    *   Modify `displayModels` in `ui.js`:
+        *   Group models by `provider.name` (or maybe `provider.type` + `provider.name` for uniqueness).
+        *   Render HTML with structure like `<div class="provider-group"><h4>Provider Name <span class="toggle-arrow">▼</span></h4><div class="model-sublist">...models...</div></div>`.
+        *   Add event listener for toggling visibility of `.model-sublist`.
+    *   Add CSS for `.provider-group`, `h4`, `.toggle-arrow`, `.model-sublist` in `style.css`.
+3.  **Error Feedback:**
+    *   Create `displayChatError(chatId, message)` function in `ui.js`. It should append an error message div (`.message.error-message`) to the chat history.
+    *   Add CSS for `.error-message` (e.g., background, border-left color like `--status-offline`).
+    *   In `websocket.js`:
+        *   Modify `onMessage` handler for `type: 'error'` to call `ui.displayChatError`.
+    *   In `api.js`:
+        *   Modify `sendMessage` and `regenerateMessage` `catch` blocks to call `ui.displayChatError` for relevant errors (e.g., network errors, 5xx status codes). Pass the `currentChatId`.
+4.  **UI Polish:**
+    *   Review `style.css` for consistency, add subtle transitions where appropriate (e.g., hover effects, sidebar resize).
+    *   Ensure tooltips are effective.
+
+**Functions Added/Modified:**
+
+*   `ui.js`:
+    *   `initializeUI()`: Call `initializeSidebarResizing`, load saved sidebar width.
+    *   `initializeSidebarResizing()`: New function for resize logic.
+    *   `displayModels()`: Modified for grouping.
+    *   `displayChatError(chatId, message)`: New function for error cards.
+*   `api.js`:
+    *   `sendMessage()`: Modified error handling.
+    *   `regenerateMessage()`: Modified error handling.
+*   `websocket.js`:
+    *   `handleWebSocketMessage()`: Modified for `error` type.
+
+**Files Updated:**
+
+*   `NOTES.md`
+*   `EDITS.md`
+*   `ui/templates/index.html`
+*   `ui/static/css/style.css`
+*   `ui/static/js/ui.js`
+*   `ui/static/js/api.js`
+*   `ui/static/js/websocket.js`

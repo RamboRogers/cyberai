@@ -786,3 +786,83 @@ func (c *OllamaConnector) GenerateChatCompletion(ctx context.Context, req ChatCo
 - `websocket.js` contains WebSocket connection and message handling logic.
 - `chat.js` retains global state, DOM references, and the main `initChat` orchestration function.
 - Updated `index.html` to load the new JavaScript files in the correct dependency order.
+
+## OpenAI Sync VLLM Base URL Fix
+
+### Date: [Insert Current Date]
+
+- **Files Modified:**
+    - `server/models/model.go`
+- **Summary:** Modified the `SyncOpenAIModelsForProvider` function to correctly construct the API endpoint URL when a custom `BaseURL` ending in `/v1` is provided (e.g., for VLLM). The logic now checks if the base URL already ends with `/v1`. If it does, it appends `/models`; otherwise, it appends `/v1/models`.
+- **Change Details:**
+    ```diff
+    // ... within SyncOpenAIModelsForProvider ...
+    	if provider.BaseURL != "" {
+    		baseURL := strings.TrimSuffix(provider.BaseURL, "/")
+    -		apiURL = baseURL + "/v1/models"
+    +		// Check if baseURL already ends with /v1
+    +		if strings.HasSuffix(baseURL, "/v1") {
+    +			apiURL = baseURL + "/models" // Only append /models if /v1 is present
+    +		} else {
+    +			apiURL = baseURL + "/v1/models" // Otherwise, append the full /v1/models path
+    +		}
+    	}
+    // ...
+    ```
+- **Reason:** To fix a bug where syncing OpenAI models failed for providers using a custom base URL ending in `/v1`, as the `/v1/models` path was being incorrectly appended twice.
+
+## Admin Model Toggle Button Fixes
+
+### Date: [Insert Current Date]
+
+- **Files Modified:**
+    - `ui/static/js/admin.js`
+    - `ui/static/css/admin.css`
+- **Summary:** Added an Enable/Disable toggle button to the model cards in the admin panel. Fixed the JavaScript event listener to correctly read the button's current state, allowing repeated toggling without page reloads. Adjusted CSS to improve button alignment within the card's action row and enhanced styling for the toggle button and status badge for better visual clarity and theme consistency.
+- **Change Details (JS):** Modified the click event listener for the toggle button in `renderModels` to read `event.currentTarget.dataset.active` instead of relying on the initially rendered `model.is_active`.
+    ```diff
+    // card.querySelector('[data-action="toggle"]').addEventListener('click', () => toggleModelStatus(model.id, !model.is_active));
+    + const toggleBtn = card.querySelector('[data-action="toggle"]');
+    + if (toggleBtn) {
+    +     toggleBtn.addEventListener('click', (event) => {
+    +         const button = event.currentTarget;
+    +         const currentIsActive = button.dataset.active === 'true';
+    +         toggleModelStatus(model.id, !currentIsActive); // Pass the new desired state
+    +     });
+    + }
+    ```
+- **Change Details (CSS):** Added `align-items: center` to `.model-card-actions`, applied consistent padding/height to buttons within it, added a top border for separation, and refined hover effects and icon styles for the toggle button and status badge.
+- **Reason:** To fix a bug preventing repeated toggling of model status and to improve the UI alignment and visual feedback of the model management controls.
+
+## UI Enhancements (Epic Simplistic)
+
+**Date:** 2024-08-01
+
+**Files Modified:**
+- `ui/templates/index.html`
+- `ui/static/css/style.css`
+- `ui/static/js/ui.js`
+- `ui/static/js/api.js`
+- `ui/static/js/websocket.js`
+- `NOTES.md`
+- `EDITS.md`
+
+**Changes:**
+
+1.  **Resizable Sidebar:**
+    *   Added a resize handle (`<div class="resizer">`) between the sidebar and chat container (`index.html`).
+    *   Updated CSS (`style.css`) for `.container`, `.sidebar`, `.chat-container` to use flexbox for resizing and styled the `.resizer` handle.
+    *   Implemented `initializeSidebarResizing` function in `ui.js` to handle drag events on the resizer, update the sidebar's `flex-basis`, and save/load the width using `localStorage`.
+
+2.  **Model Grouping:**
+    *   Modified `renderModelsList` in `ui.js` to group models by `provider.name` before rendering.
+    *   Created HTML structure with `.provider-group`, `.provider-title` (clickable header), and `.model-sublist` (collapsible container).
+    *   Added CSS styles (`style.css`) for provider groups, titles, toggle arrows, and sublists, including collapse/expand transitions.
+
+3.  **In-Chat Error Feedback:**
+    *   Added CSS rules for `.error-message` class in `style.css` to visually distinguish error messages (reddish background, border, error prefix).
+    *   Created `displayChatError(chatId, errorMessage)` function in `ui.js` to dynamically create and append error message elements to the chat history.
+    *   Updated WebSocket handler (`websocket.js`) for `type: 'error'` messages to call `ui.displayChatError`.
+    *   Updated `catch` blocks and non-OK response handling in `sendMessage` and `regenerateMessage` functions (`api.js`) to call `ui.displayChatError` when backend requests fail or return errors.
+
+4.  **Notes:** Updated `NOTES.md` with the plan and `EDITS.md` with this summary.

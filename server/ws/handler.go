@@ -110,7 +110,8 @@ type Message struct {
 // ErrorPayload contains error details
 type ErrorPayload struct {
 	Message string `json:"message"`
-	Code    int    `json:"code,omitempty"` // Optional error code
+	Code    int    `json:"code,omitempty"`    // Optional error code
+	ChatID  *int64 `json:"chat_id,omitempty"` // Added ChatID here
 }
 
 // StatusPayload contains status update information

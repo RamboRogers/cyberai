@@ -1,7 +1,7 @@
 // CyberAI Chat Script - Main Orchestration
 
 // --- Global State Variables ---
-let ws;
+// let ws; // REMOVED - This is declared and managed in websocket.js
 let currentChatId = null;
 let modelsList = []; // Populated by api.js, Used by ui.js, api.js, chat.js
 let chatsList = [];  // Populated by api.js, Used by api.js
@@ -24,87 +24,92 @@ const userNameElement = document.querySelector('.user-name');
 const userRoleElement = document.querySelector('.user-role');
 const userAvatarElement = document.querySelector('.user-avatar');
 
-// --- Core Application Logic (Functions specific to chat.js orchestration) ---
+// --- Chat Namespace ---
+const chat = {};
 
 /**
  * Selects an active model, updates state, saves preference, and triggers UI update.
  * @param {number} modelId - The ID of the model to select.
  */
-function selectModel(modelId) {
+chat.selectModel = function(modelId) {
     if (modelId === activeModel) return; // No change needed
 
-    showThinkingIndicator(true); // Show indicator immediately
+    ui.showThinkingIndicator(true); // Show indicator immediately
 
     activeModel = modelId; // Update global state
     localStorage.setItem('activeModelId', modelId); // Persist selection
 
-    // Update UI (Calls function in ui.js)
-    updateActiveModelUI();
+    // Update UI
+    ui.updateActiveModelUI();
 
     // Show notification for model switch
     const selectedModel = modelsList.find(m => m.id == modelId);
     if (selectedModel) {
-        showNotification(`Switched to model: ${selectedModel.name}`, 'info');
+        ui.showNotification(`Switched to model: ${selectedModel.name}`, 'info');
     }
 
     // Keep console log for debugging
     console.log(`[Chat] Model switched to ID: ${modelId}`);
 
     // Hide indicator after a short delay
-    setTimeout(() => showThinkingIndicator(false), 500); // Hide after 500ms
+    setTimeout(() => ui.showThinkingIndicator(false), 500); // Hide after 500ms
 }
 
 /**
  * Initiates the process for starting a new chat.
  */
-function startNewChat() {
+chat.startNewChat = function() {
     console.log("New Chat button clicked.");
-    prepareNewChat(); // Calls the function in api.js to reset UI/state
+    api.prepareNewChat(); // Reset UI/state
 }
 
 /**
  * Initializes the chat application: sets up event listeners, fetches initial data.
  */
-function initChat() {
-	// Event listeners for UI elements
-	if (sendButton) {
-		sendButton.addEventListener('click', sendMessage); // Calls function in api.js
-	}
-	if (messageInput) {
-		messageInput.addEventListener('keyup', function(event) {
-			if (event.key === 'Enter') {
-				sendMessage(); // Calls function in api.js
-			}
-		});
-	}
-	if (newChatButton) {
-		newChatButton.addEventListener('click', prepareNewChat); // Calls function in api.js
-	}
-	if (regenerateButton) {
-		regenerateButton.addEventListener('click', regenerateLastMessage); // Calls function in api.js
-	}
-	if (chatTitle) {
-		chatTitle.addEventListener('dblclick', function() {
-			const currentTitle = this.textContent;
-			const newTitle = prompt('Enter new chat title:', currentTitle);
-			if (newTitle && newTitle.trim() !== '' && newTitle !== currentTitle) {
-				this.textContent = newTitle; // Optimistic UI update
-				updateChatTitle(currentChatId, newTitle); // Calls function in api.js
-			}
-		});
-	}
-	// Set up event listeners defined in ui.js
-	setupEventListeners(); // Call the function from ui.js
+chat.initChat = function() {
+    // Event listeners for UI elements
+    if (sendButton) {
+        sendButton.addEventListener('click', api.sendMessage);
+    }
+    if (messageInput) {
+        messageInput.addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                api.sendMessage();
+            }
+        });
+    }
+    if (newChatButton) {
+        newChatButton.addEventListener('click', api.prepareNewChat);
+    }
+    if (regenerateButton) {
+        regenerateButton.addEventListener('click', api.regenerateLastMessage);
+    }
+    if (chatTitle) {
+        chatTitle.addEventListener('dblclick', function() {
+            const currentTitle = this.textContent;
+            const newTitle = prompt('Enter new chat title:', currentTitle);
+            if (newTitle && newTitle.trim() !== '' && newTitle !== currentTitle) {
+                this.textContent = newTitle; // Optimistic UI update
+                api.updateChatTitle(currentChatId, newTitle);
+            }
+        });
+    }
 
-	// Fetch initial data (user info, models, chats)
-	fetchCurrentUser(); // Function assumed in api.js
-	connect(); // Connect WebSocket (function assumed in websocket.js)
+    // Set up event listeners defined in ui.js
+    ui.setupEventListeners();
 
-	console.log('Chat initialized.');
+    // Fetch initial data (user info, models, chats)
+    api.fetchCurrentUser();
+    websocket.connect();
+
+    console.log('Chat initialized.');
 }
 
 // --- Start application ---
-document.addEventListener('DOMContentLoaded', initChat);
+document.addEventListener('DOMContentLoaded', chat.initChat);
+
+// Make chat namespace globally available
+window.chat = chat;
 
 // Note: Functions previously in this file have been moved to:
 // - ui.js (UI rendering, DOM manipulation, helpers)

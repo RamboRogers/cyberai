@@ -289,11 +289,22 @@ footer {
 
 .model-card-actions {
     display: flex;
-    gap: 0.75rem;
-    margin-top: auto;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border-color);
+    gap: 0.6rem;
     justify-content: flex-end;
+    align-items: center; /* Vertically align buttons */
+    margin-top: auto;
+    flex-wrap: wrap;
+    padding-top: 0.75rem; /* Add padding above buttons */
+    border-top: 1px solid var(--border-color-subtle); /* Subtle separator */
+}
+
+/* Ensure consistent button height/padding */
+.model-card-actions .cyber-btn {
+    padding: 0.5rem 0.9rem; /* Adjust padding for consistency */
+    height: 38px; /* Example fixed height */
+    display: inline-flex; /* Use flex for icon alignment */
+    align-items: center;
+    justify-content: center;
 }
 
 /* Enhanced status badges */
@@ -315,6 +326,8 @@ footer {
     border: 1px solid var(--success-color); /* Use aligned variable */
     box-shadow: 0 0 8px var(--glow-color); /* Use aligned variable */
     text-shadow: 0 0 5px var(--glow-color); /* Use aligned variable */
+    font-weight: bold; /* Make active more prominent */
+    text-shadow: 0 0 8px var(--glow-color); /* Stronger glow */
 }
 
 .status-badge.inactive {
@@ -323,6 +336,7 @@ footer {
     border: 1px solid var(--danger-color);
     box-shadow: 0 0 8px rgba(255, 7, 58, 0.3);
     text-shadow: 0 0 5px rgba(255, 7, 58, 0.5);
+    opacity: 0.8; /* Slightly fade inactive */
 }
 
 /* Loading indicator */
@@ -980,4 +994,110 @@ footer {
 
 .notification {
     /* Style defined in admin.js now */
+}
+
+/* Toggle Button Styles */
+.cyber-btn.toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-width: 100px; /* Slightly wider */
+    padding: 0.4rem 0.8rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.cyber-btn.toggle-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(0,0,0,0) 0%, rgba(255,255,255,0.1) 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.cyber-btn.toggle-btn:hover::before {
+    opacity: 1;
+}
+
+.cyber-btn.toggle-btn::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: right;
+    transition: transform 0.3s ease;
+}
+
+.cyber-btn.toggle-btn:hover::after {
+    transform: scaleX(1);
+    transform-origin: left;
+}
+
+.cyber-btn.toggle-btn.success {
+    background-color: rgba(0, 255, 102, 0.2);
+    color: var(--success-color);
+    border-color: var(--success-color);
+    box-shadow: 0 0 8px var(--success-color);
+}
+
+.cyber-btn.toggle-btn.success:hover {
+    background-color: rgba(0, 255, 102, 0.3);
+    box-shadow: 0 0 14px var(--success-color), 0 0 5px var(--success-color) inset;
+    text-shadow: 0 0 5px var(--success-color);
+}
+
+.cyber-btn.toggle-btn.warning {
+    background-color: rgba(255, 247, 0, 0.2);
+    color: var(--warning-color);
+    border-color: var(--warning-color);
+    box-shadow: 0 0 8px var(--warning-color);
+}
+
+.cyber-btn.toggle-btn.warning:hover {
+    background-color: rgba(255, 247, 0, 0.3);
+    box-shadow: 0 0 14px var(--warning-color), 0 0 5px var(--warning-color) inset;
+    text-shadow: 0 0 5px var(--warning-color);
+}
+
+.btn-icon {
+    font-size: 1.1rem; /* Keep icon size */
+    filter: drop-shadow(0 0 2px currentColor);
+    transition: transform 0.3s ease, filter 0.3s ease;
+    line-height: 1; /* Ensure icon doesn't affect line height */
+}
+
+.cyber-btn.toggle-btn:hover .btn-icon {
+    transform: scale(1.15); /* Slightly more pronounced hover */
+    filter: drop-shadow(0 0 5px currentColor);
+}
+
+/* Adjust model card action styles */
+.model-card-actions {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: flex-end;
+    align-items: center; /* Vertically align buttons */
+    margin-top: auto;
+    flex-wrap: wrap;
+    padding-top: 0.75rem; /* Add padding above buttons */
+    border-top: 1px solid var(--border-color-subtle); /* Subtle separator */
+}
+
+/* Ensure consistent button height/padding */
+.model-card-actions .cyber-btn {
+    padding: 0.5rem 0.9rem; /* Adjust padding for consistency */
+    height: 38px; /* Example fixed height */
+    display: inline-flex; /* Use flex for icon alignment */
+    align-items: center;
+    justify-content: center;
 }

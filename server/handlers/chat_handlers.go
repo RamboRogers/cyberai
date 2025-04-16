@@ -625,7 +625,8 @@ func (h *ChatHandlers) generateAndStreamResponse(ctx context.Context, userID int
 
 	// 6. Handle completion/error
 	if err != nil {
-		errMsg := fmt.Sprintf("Error generating response: %v", err)
+		// Include the model ID in the error message for more context
+		errMsg := fmt.Sprintf("Error generating response with model ID %d: %v", modelIDToUse, err)
 		log.Printf("[Chat %d] Error generating chat completion: %v", chatID, err)
 		h.sendWsError(userID, chatID, errMsg)
 		if assistantMsgID != 0 {
@@ -760,12 +761,15 @@ func (h *ChatHandlers) sendWsMessage(userID int, msg ws.Message) {
 
 // sendWsError is a helper to send a structured error message to a user via WebSocket
 func (h *ChatHandlers) sendWsError(userID int, chatID int64, errorMsg string) {
+	chatIDPtr := chatID // Create a pointer for the payload
 	h.sendWsMessage(userID, ws.Message{
-		Type: "error",
-		Data: map[string]interface{}{
-			"message": errorMsg,
-			"chat_id": chatID,
+		Type: ws.MsgTypeError, // Use constant
+		ErrorPayload: &ws.ErrorPayload{
+			Message: errorMsg,
+			ChatID:  &chatIDPtr,
+			// Code: 0, // Optional: Add error code if applicable
 		},
+		// Data: nil, // Ensure Data field is not used
 	})
 }
 
