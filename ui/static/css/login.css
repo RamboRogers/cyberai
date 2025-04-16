@@ -1,0 +1,186 @@
+/* Login-specific styles */
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden; /* Prevent scrollbars on the body itself */
+    background-color: var(--bg-color);
+    position: relative;
+}
+
+.login-container {
+    background-color: var(--input-bg);
+    padding: 30px 40px;
+    border: 1px solid var(--accent-color);
+    border-radius: 5px;
+    box-shadow: 0 0 25px rgba(0, 255, 102, 0.25);
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+    position: relative; /* For potential pseudo-elements */
+    animation: fadeInLogin 0.8s ease-out;
+    overflow: hidden; /* Contain pseudo-elements */
+}
+
+@keyframes fadeInLogin {
+    from { opacity: 0; transform: translateY(20px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Add a subtle animated border */
+.login-container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    border-radius: 5px;
+    padding: 2px;
+    background: linear-gradient(45deg, rgba(0,255,102,0.1), rgba(0,255,102,0.5));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    animation: rotateBorder 4s linear infinite;
+    pointer-events: none; /* Allow interaction with elements underneath */
+}
+
+@keyframes rotateBorder {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+
+.logo-container img {
+    max-width: 150px; /* Adjust size as needed */
+    margin-bottom: 20px;
+    filter: drop-shadow(0 0 10px var(--glow-color));
+    animation: logoPulse 3s ease-in-out infinite alternate;
+}
+
+@keyframes logoPulse {
+     from { filter: drop-shadow(0 0 5px var(--glow-color)); transform: scale(1); }
+     to { filter: drop-shadow(0 0 15px var(--glow-color)); transform: scale(1.02); }
+}
+
+.login-title {
+    color: var(--accent-color);
+    font-size: 1.8em;
+    margin-bottom: 25px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 0 0 5px var(--glow-color);
+}
+
+.input-group {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.input-group label {
+    display: block;
+    color: var(--accent-color);
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    font-weight: bold;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 12px 15px;
+    background-color: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 255, 102, 0.4);
+    border-radius: 3px;
+    color: var(--text-color);
+    font-family: 'Tinos', serif;
+    font-size: 1em;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    outline: none;
+}
+
+.input-group input:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 8px rgba(0, 255, 102, 0.6);
+}
+
+.login-btn {
+    width: 100%;
+    padding: 12px 20px;
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    border: none;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    font-size: 1.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color 0.3s, box-shadow 0.3s, transform 0.1s;
+    margin-top: 10px;
+}
+
+.login-btn:hover {
+    background-color: var(--secondary-color);
+    box-shadow: 0 0 15px rgba(0, 255, 102, 0.5);
+}
+
+.login-btn:active {
+    transform: scale(0.98);
+}
+
+.error-message {
+    color: #ff4466; /* Bright red for errors */
+    background-color: rgba(255, 0, 102, 0.1);
+    border: 1px solid rgba(255, 0, 102, 0.4);
+    padding: 10px;
+    margin-top: 20px;
+    border-radius: 3px;
+    font-size: 0.9em;
+    display: none; /* Hidden by default */
+    text-align: center;
+    animation: shake 0.5s;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+/* Branding Section */
+.branding-section {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(0, 255, 102, 0.2);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.branding-section:hover {
+    opacity: 1;
+}
+
+.branding-link {
+    color: var(--secondary-color);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.9em;
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+.branding-link:hover {
+    color: var(--accent-color);
+    text-shadow: 0 0 8px var(--glow-color);
+}
+
+.branding-link svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}

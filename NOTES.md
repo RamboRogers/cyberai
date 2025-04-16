@@ -88,14 +88,43 @@ function handleOllamaImportSubmit(event)
 
 ## CyberAI Project Notes
 
-### Database Schema
+## Project Status
+- Created initial README.md with cyberpunk-themed layout
+- Used reference from CyberDock to structure the document
+- Included placeholders for screenshots (media/screen.png and media/dashboard.png)
+
+## README Structure
+- Header with project title and badges
+- Features section formatted in tables
+- Quick start with Docker instructions
+- Usage examples
+- Configuration options
+- Technical architecture overview
+- License information
+- Author connection links
+
+## To Do
+- [ ] Create actual screenshots to replace placeholders
+- [ ] Set up Docker container for the project
+- [ ] Implement core features as described in README
+- [ ] Verify port configuration (currently set to 8080)
+
+## Design Notes
+- Following cyberpunk green terminal theme as specified in style guide
+- S3270 terminal-inspired interface
+- Black/dark gray background with bright green and white text
+
+## Reference Functions
+None added yet.
+
+## Database Schema
 - Users & Roles
 - Models & Endpoints
 - Agents
 - Chats & Messages
 - Usage Statistics
 
-### Model Definitions
+## Model Definitions
 #### User Model (server/models/user.go)
 - `User` struct with fields: ID, Username, Email, PasswordHash, RoleID, etc.
 - `Role` struct for representing user roles
@@ -219,7 +248,8 @@ function handleOllamaImportSubmit(event)
 - Initial setup complete.
 - Admin API endpoints for Providers and Models defined and documented.
 - User-facing API endpoints for Models, Chats, and Messages defined and documented.
-- Database schema defined in `server/db/db.go`.
+- README.md updated with new cyberpunk-themed format based on CyberDock reference.
+- Added placeholder sections for screenshots in README.md.
 
 ## API Endpoint to Go Handler Mapping
 
