@@ -483,3 +483,9 @@ type ModelConnector interface {
     *   Updated `admin.js` (`handleUserFormSubmit`) to validate password fields (length, match) and construct the correct payload (`{ user: {...}, password: "..." }`) for `addNewUser` only during user creation. Updated calls to `validateUserData`.
     *   Removed password validation logic from `validateUserData` function.
 *   **Files Modified**: `ui/templates/admin.html`, `ui/static/js/admin.js`
+
+## 2024-08-01: Fix Email Validation Regex
+
+*   **Issue**: The email validation regex in `admin.js` (`validateUserData` function) contained double backslashes (`\\S`, `\\.`) due to improper escaping in a previous edit, causing valid emails to fail validation.
+*   **Fix**: Corrected the regex to use single backslashes (`/\S+@\S+\.\S+/`).
+*   **Files Modified**: `ui/static/js/admin.js`

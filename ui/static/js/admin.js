@@ -1130,7 +1130,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
         // Basic email format check (very simple)
-        if (!/\\S+@\\S+\\.\\S+/.test(userData.email)) {
+        if (!/\S+@\S+\.\S+/.test(userData.email)) { // Corrected regex
              showError('Please enter a valid email address.');
              return false;
         }

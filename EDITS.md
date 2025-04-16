@@ -45,3 +45,7 @@
     *   Modified `openUserModal` to toggle visibility and `required` attribute of password fields based on action (add/edit), and toggle visibility of the Change Password button.
     *   Modified `handleUserFormSubmit` to add password validation (length, match) and include the password in the correct payload structure (`{ user: {...}, password: "..." }`) when `action === 'add'`.
     *   Removed password validation from `validateUserData`.
+
+## 2024-08-01: Fix Email Validation
+
+*   **`ui/static/js/admin.js`**: Corrected the regular expression in the `validateUserData` function to `/\S+@\S+\.\S+/` (removed extra backslashes).
