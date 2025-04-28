@@ -1,0 +1,14 @@
+{
+  "name": "cyberai",
+  "version": "1.0.0",
+  "description": "CyberAI - Cyberpunk-themed AI Terminal Interface",
+  "scripts": {
+    "build:css": "tailwindcss -i ./ui/static/css/tailwind.css -o ./ui/static/css/styles.css",
+    "watch:css": "tailwindcss -i ./ui/static/css/tailwind.css -o ./ui/static/css/styles.css --watch"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^3.3.5"
+  }
+}

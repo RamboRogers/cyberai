@@ -7,8 +7,8 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-# Command to build the application
-cmd = "go build -o ./tmp/cyberai ./cmd/cyberai"
+# Command to build the application (including Tailwind)
+cmd = "npx tailwindcss -i ./ui/static/css/tailwind.css -o ./ui/static/css/styles.css && go build -o ./tmp/cyberai ./cmd/cyberai"
 
 # Binary file to run
 bin = "tmp/cyberai"
@@ -21,6 +21,10 @@ exclude_dir = ["tmp", "data", ".git", ".idea", ".vscode"]
 
 # Watch these file extensions
 include_ext = ["go", "html", "css", "js"]
+
+# Specific files to watch for Tailwind changes
+# full_bin = "npx tailwindcss -i ./ui/static/css/tailwind.css -o ./ui/static/css/styles.css"
+# include_file = ["tailwind.config.js", "ui/static/css/tailwind.css"]
 
 # Log file for air output
 log = "air.log"

@@ -5,392 +5,764 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CyberAI - Admin Panel</title>
     <link rel="icon" href="/static/images/cyberai.png" type="image/png">
-    <link rel="stylesheet" href="/static/css/main.css">
+    <!-- Link Tailwind CSS -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <!-- Link custom CSS for styles not covered by Tailwind/Penguin -->
     <link rel="stylesheet" href="/static/css/admin.css">
+    <!-- Alpine.js Local -->
+    <script defer src="/static/js/alpine.min.js"></script>
+    <!-- Alpine.js plugins Local -->
+    <script defer src="/static/js/alpine-focus.min.js"></script>
+    <script defer src="/static/js/alpine-collapse.min.js"></script>
+    <script defer src="/static/js/alpine-mask.min.js"></script>
+    
+    <!-- PenguinUI theme customization -->
+    <!-- REMOVED INLINE STYLE BLOCK - MOVED TO admin.css -->
+
 </head>
-<body class="admin-panel">
-    <header>
-        <h1>CyberAI Admin Panel</h1>
-        <div class="nav-links">
-            <a href="/" class="nav-link">Home</a>
-            <a href="/admin" class="nav-link active">Admin</a>
+<!-- Apply Tailwind dark mode if configured, otherwise use our custom theme -->
+<!-- Use full height and flex layout for sidebar -->
+<body class="h-screen bg-surface text-on-surface font-sans"
+    x-data="{ showSidebar: false, activeSection: 'providers' }"
+    @set-active-section.window="
+        activeSection = $event.detail.section;
+        $nextTick(() => { 
+            console.log('Processing set-active-section', $event.detail);
+            const providerFilter = document.getElementById('provider-filter');
+            if (providerFilter && $event.detail.filterProviderId !== undefined) {
+                providerFilter.value = $event.detail.filterProviderId;
+                if (window.filterModels) window.filterModels();
+            }
+            const mainContent = document.getElementById('main-content');
+            if (mainContent) mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    ">
+
+    <!-- Skip link -->
+    <a class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-3 focus:bg-primary focus:text-on-primary" href="#main-content">Skip to main content</a>
+
+    <!-- Overlay for mobile -->
+    <div x-cloak x-show="showSidebar" class="fixed inset-0 z-30 bg-black/50 lg:hidden" aria-hidden="true" @click="showSidebar = false" x-transition.opacity></div>
+
+    <!-- Hamburger Menu Toggle (Moved outside nav) -->
+    <button type="button" class="fixed top-4 left-4 z-50 -m-2.5 p-2.5 text-on-surface lg:hidden" @click="showSidebar = true">
+        <span class="sr-only">Open sidebar</span>
+         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+         </svg>
+    </button>
+
+    <!-- Sidebar Navigation -->
+    <nav x-cloak
+         class="fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-outline bg-surface transition-transform duration-300 lg:translate-x-0"
+         :class="showSidebar ? 'translate-x-0' : '-translate-x-full'"
+         aria-label="sidebar navigation">
+        <!-- Logo -->
+        <div class="flex h-16 shrink-0 items-center justify-center px-4 border-b border-outline">
+             <a href="/" class="flex items-center gap-2 text-xl font-bold text-primary hover:opacity-80 transition-opacity">
+                <img class="h-8 w-auto" src="/static/images/cyberai.png" alt="">
+                <span>CyberAI</span>
+             </a>
         </div>
-    </header>
 
-    <main>
-        <div class="admin-tabs">
-            <button class="tab-button active" data-tab="providers">Providers</button>
-            <button class="tab-button" data-tab="models">Models</button>
-            <button class="tab-button" data-tab="users">Users</button>
-            <button class="tab-button" data-tab="roles">Roles</button>
+        <!-- Links -->
+        <div class="flex flex-1 flex-col gap-y-7 overflow-y-auto px-4 py-4">
+            <ul class="space-y-1">
+                <li>
+                    <a href="#" @click.prevent="activeSection = 'providers'; showSidebar = false"
+                       :class="{ 'bg-surface-alt text-primary': activeSection === 'providers', 'text-on-surface hover:bg-surface-alt hover:text-primary': activeSection !== 'providers' }"
+                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6">
+                        <!-- Icon (Example: Adjust as needed) -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.58.22-2.325.418C2.92 4.801 2 5.554 2 6.5V12a2.5 2.5 0 0 0 2.5 2.5h11A2.5 2.5 0 0 0 18 12V6.5c0-.946-.92-1.699-1.675-1.889a18.225 18.225 0 0 0-2.325-.418v-.443A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 6c.552 0 1 .448 1 1v1a1 1 0 1 1-2 0V7c0-.552.448-1 1-1Z"/><path d="M4.5 10.5a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11Z"/></svg>
+                        Providers
+                    </a>
+                </li>
+                <li>
+                    <a href="#" @click.prevent="activeSection = 'models'; showSidebar = false"
+                       :class="{ 'bg-surface-alt text-primary': activeSection === 'models', 'text-on-surface hover:bg-surface-alt hover:text-primary': activeSection !== 'models' }"
+                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6">
+                        <!-- Icon (Example: Adjust as needed) -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path fill-rule="evenodd" d="M5.5 2.75a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5a.75.75 0 0 1 .75-.75Zm2.5 6a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5a.75.75 0 0 1 .75-.75Zm4.5.75a.75.75 0 0 0-1.5 0v1.5a.75.75 0 0 0 1.5 0v-1.5ZM12 6.5a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 12 6.5ZM5 8a.75.75 0 0 0-1.5 0v1.5A.75.75 0 0 0 5 9.5v-1.5Zm4.75.75a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5a.75.75 0 0 1 .75-.75Zm2 2.75a.75.75 0 0 0-1.5 0v1.5a.75.75 0 0 0 1.5 0v-1.5Z" clip-rule="evenodd"/><path d="M9.762 2.093a.75.75 0 0 1-.193.518l-1.41 1.411a.75.75 0 0 1-1.061 0l-.429-.43a.75.75 0 1 1 1.06-1.06l.43.429 1.41-1.41a.75.75 0 0 1 .519-.194Z"/><path d="M14.79 6.865a.75.75 0 0 0-.518.193l-1.41 1.41a.75.75 0 1 0 1.06 1.06l.43-.429 1.41 1.41a.75.75 0 1 0 1.06-1.06l-1.41-1.41a.75.75 0 0 0-.541-.193Z"/><path d="M16 3a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h12Zm-1.25 1.75H5.25V15.25h9.5V4.75Z"/></svg>
+                        Models
+                    </a>
+                </li>
+                 <li>
+                    <a href="#" @click.prevent="activeSection = 'users'; showSidebar = false"
+                       :class="{ 'bg-surface-alt text-primary': activeSection === 'users', 'text-on-surface hover:bg-surface-alt hover:text-primary': activeSection !== 'users' }"
+                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6">
+                        <!-- Icon (Example: Adjust as needed) -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.25 1.25 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.095a1.25 1.25 0 0 0 .41-1.412A9.972 9.972 0 0 0 10 13c-2.309 0-4.437.784-6.135 2.093Z"/></svg>
+                        Users
+                    </a>
+                </li>
+                 <li>
+                    <a href="#" @click.prevent="activeSection = 'roles'; showSidebar = false"
+                       :class="{ 'bg-surface-alt text-primary': activeSection === 'roles', 'text-on-surface hover:bg-surface-alt hover:text-primary': activeSection !== 'roles' }"
+                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6">
+                         <!-- Icon (Example: Adjust as needed) -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path fill-rule="evenodd" d="M15.988 3.012A2.25 2.25 0 0 1 18 5.25v7.5A2.25 2.25 0 0 1 15.75 15h-6a.75.75 0 0 1-.75-.75V12.75a.75.75 0 0 1 1.5 0V13.5h5.25a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75H9V6a.75.75 0 0 1-1.5 0V4.5A.75.75 0 0 1 8.25 3.75h7.738ZM6 4.5a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 .75.75v.01a.75.75 0 0 1-.75.75H6.75a.75.75 0 0 1-.75-.75V4.5Zm4.5 1.5a.75.75 0 0 0-.75.75v.01c0 .414.336.75.75.75h.01a.75.75 0 0 0 .75-.75V7.5a.75.75 0 0 0-.75-.75H10.5a.75.75 0 0 1-.75.75v.01c0 .414.336.75.75.75h.01a.75.75 0 0 0 .75-.75V10.5a.75.75 0 0 0-.75-.75H10.5Z" clip-rule="evenodd"/></svg>
+                        Roles
+                    </a>
+                </li>
+            </ul>
+
+            <!-- Separator -->
+            <hr class="border-t border-outline my-4">
+
+            <!-- Additional Links (Home/Admin) -->
+            <ul class="space-y-1">
+                <li>
+                    <a href="/admin"
+                       class="bg-surface-alt text-primary group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6" aria-current="page">
+                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path fill-rule="evenodd" d="M11.49 3.17c.38-1.56 2.64-1.56 3.02 0l.6 2.45a.75.75 0 0 0 .7.49l2.53.37c1.6.24 2.23 2.2 1.08 3.31l-1.83 1.78a.75.75 0 0 0-.22.79l.43 2.52c.27 1.6-.39 2.94-1.8 2.18l-2.26-1.19a.75.75 0 0 0-.76 0l-2.26 1.19c-1.4.76-2.07-.58-1.8-2.18l.43-2.52a.75.75 0 0 0-.22-.79L3.4 9.79c-1.15-1.1-.52-3.07 1.08-3.31l2.53-.37a.75.75 0 0 0 .7-.49l.6-2.45Z" clip-rule="evenodd" /></svg>
+                       Admin
+                    </a>
+                </li>
+            </ul>
+
+            <!-- Optional: Add Settings/Profile links here later if needed -->
+            <!-- Move Home link to the bottom -->
+            <ul class="mt-auto space-y-1 pb-4">
+                <li>
+                    <a href="/"
+                       class="text-on-surface hover:bg-surface-alt hover:text-primary group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path fill-rule="evenodd" d="M9.293 2.293a1 1 0 0 1 1.414 0l7 7A1 1 0 0 1 17 11h-1v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-.707-1.707l7-7Z" clip-rule="evenodd" /></svg>
+                        Home
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div class="flex flex-1 flex-col lg:pl-60"> <!-- Adjust padding-left to match sidebar width -->
+
+        <!-- Consolidated Action Bar -->
+        <div class="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-outline bg-surface px-4 shadow-sm sm:px-6 lg:px-8">
+            <!-- Dynamic Section Title -->
+            <h1 class="text-xl font-semibold text-primary">
+                <span x-show="activeSection === 'providers'">Provider Management</span>
+                <span x-show="activeSection === 'models'">AI Model Management</span>
+                <span x-show="activeSection === 'users'">User Management</span>
+                <span x-show="activeSection === 'roles'">Role Management</span>
+            </h1>
+            <!-- Dynamic Action Button -->
+            <div>
+                <button x-show="activeSection === 'providers'" id="add-provider-btn"
+                        @click="openProviderModal('add'); $nextTick(() => { $dispatch('open-provider-modal') })"
+                        class="bg-primary hover:bg-secondary text-on-primary font-bold py-2 px-4 rounded inline-flex items-center transition-colors duration-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6"></path></svg>
+                    New Provider
+                </button>
+                <button x-show="activeSection === 'models'" id="add-model-btn"
+                        @click="openModelModal('add'); $nextTick(() => { $dispatch('open-model-modal') })"
+                        class="bg-primary hover:bg-secondary text-on-primary font-bold py-2 px-4 rounded inline-flex items-center transition-colors duration-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6"></path></svg>
+                    New Model
+                </button>
+                 <button x-show="activeSection === 'users'" id="add-user-btn"
+                        @click="openUserModal('add'); $nextTick(() => { $dispatch('open-user-modal') })"
+                        class="bg-primary hover:bg-secondary text-on-primary font-bold py-2 px-4 rounded inline-flex items-center transition-colors duration-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6"></path></svg>
+                    New User
+                </button>
+                <!-- No Add button for Roles currently -->
+            </div>
         </div>
 
-        <!-- Providers Tab -->
-        <section class="admin-section tab-content active" id="providers-tab">
-            <div class="panel-header">
-                <h2>Provider Management</h2>
-                <div class="header-actions">
-                    <button id="add-provider-btn" class="cyber-btn">+ New Provider</button>
-                </div>
-            </div>
-            <div class="provider-list-container">
-                <div class="provider-list" id="provider-list">
-                    <div class="loading-indicator">Loading providers...</div>
-                </div>
-            </div>
-        </section>
+        <!-- The actual page content -->
+        <main id="main-content" class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+            <!-- Original tab content container (was div with x-data) -->
+            <div class="w-full">
+                <!-- Content sections now controlled by x-show="activeSection === '...'" -->
+                <!-- Providers Section -->
+                <section x-show="activeSection === 'providers'" id="providers-tab" class="space-y-6">
+                    <div class="bg-surface-alt p-4 rounded-lg shadow">
+                        <div id="provider-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div class="loading-indicator text-center col-span-full p-6 text-on-surface opacity-60">Loading providers...</div>
+                            <!-- Provider cards will be loaded here -->
+                        </div>
+                    </div>
+                </section>
 
-        <!-- Models Tab -->
-        <section class="admin-section tab-content" id="models-tab">
-            <div class="panel-header">
-                <h2>AI Model Management</h2>
-                <div class="header-actions">
-                    <button id="add-model-btn" class="cyber-btn">+ New Model</button>
-                </div>
-            </div>
-            <div class="model-list-container">
-                <div class="model-filter">
-                    <input type="text" id="model-search" placeholder="Search models..." class="cyber-input">
-                    <select id="provider-filter" class="cyber-select">
-                        <option value="">All Providers</option>
-                        <!-- Options populated dynamically by JS -->
-                    </select>
-                    <label class="cyber-checkbox">
-                        <input type="checkbox" id="active-only">
-                        <span>Active Only</span>
-                    </label>
-                </div>
-                <div class="model-list" id="model-list">
-                    <div class="loading-indicator">Loading models...</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Users Tab -->
-        <section class="admin-section tab-content" id="users-tab">
-            <div class="panel-header">
-                <h2>User Management</h2>
-                <button id="add-user-btn" class="cyber-btn">+ New User</button>
-            </div>
-
-            <div class="user-list-container">
-                <div class="user-filter">
-                    <input type="text" id="user-search" placeholder="Search users..." class="cyber-input">
-                    <select id="role-filter" class="cyber-select">
-                        <option value="">All Roles</option>
-                        <!-- Roles will be populated dynamically -->
-                    </select>
-                    <label class="cyber-checkbox">
-                        <input type="checkbox" id="user-active-only">
-                        <span>Active Only</span>
-                    </label>
-                </div>
-
-                <div class="user-list" id="user-list">
-                    <!-- Users will be loaded dynamically via JavaScript -->
-                    <div class="loading-indicator">Loading users...</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Roles Tab -->
-        <section class="admin-section tab-content" id="roles-tab">
-            <div class="panel-header">
-                <h2>Role Management</h2>
-            </div>
-
-            <div class="role-list-container">
-                <div class="role-list" id="role-list">
-                    <!-- Roles will be loaded dynamically via JavaScript -->
-                    <div class="loading-indicator">Loading roles...</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Model Form Modal -->
-        <div id="model-modal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3 id="modal-title">Add New Model</h3>
-                    <span class="close">&times;</span>
-                </div>
-                <div class="modal-body">
-                    <form id="model-form">
-                        <input type="hidden" id="model-id">
-
-                        <div class="form-group">
-                            <label for="model-provider-id">Provider</label>
-                            <select id="model-provider-id" name="provider_id" class="cyber-select" required>
-                                <option value="">Select Configured Provider</option>
-                                <!-- Options populated by JS -->
+                <!-- Models Section -->
+                <section x-show="activeSection === 'models'" id="models-tab" class="space-y-6">
+                     <div class="bg-surface-alt p-4 rounded-lg shadow space-y-4">
+                        <div class="model-filter flex flex-wrap items-center gap-4">
+                            <input type="text" id="model-search" placeholder="Search models..." class="flex-grow bg-surface border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <select id="provider-filter" class="bg-surface border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <option value="">All Providers</option>
+                                <!-- Options populated dynamically -->
                             </select>
+                            <label class="flex items-center space-x-2 text-on-surface cursor-pointer">
+                                <input type="checkbox" id="active-only" class="form-checkbox h-5 w-5 text-primary bg-surface border-outline rounded focus:ring-primary">
+                                <span>Active Only</span>
+                            </label>
                         </div>
-
-                        <div class="form-group">
-                            <label for="name">Display Name</label>
-                            <input type="text" id="name" name="name" class="cyber-input" required>
+                        <div id="model-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div class="loading-indicator text-center col-span-full p-6 text-on-surface opacity-60">Loading models...</div>
+                            <!-- Model cards will be loaded here -->
                         </div>
+                    </div>
+                </section>
 
-                        <div class="form-group">
-                            <label for="ollama-model-id">Model ID (Provider Specific)</label>
-                             <input type="text" id="model_id" name="model_id" class="cyber-input" placeholder="e.g., llama3, gpt-4o" required>
+                <!-- Users Section -->
+                <section x-show="activeSection === 'users'" id="users-tab" class="space-y-6">
+                     <div class="bg-surface-alt p-4 rounded-lg shadow space-y-4">
+                        <div class="user-filter flex flex-wrap items-center gap-4">
+                            <input type="text" id="user-search" placeholder="Search users..." class="flex-grow bg-surface border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <select id="role-filter" class="bg-surface border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <option value="">All Roles</option>
+                                <!-- Options populated dynamically -->
+                            </select>
+                            <label class="flex items-center space-x-2 text-on-surface cursor-pointer">
+                                <input type="checkbox" id="user-active-only" class="form-checkbox h-5 w-5 text-primary bg-surface border-outline rounded focus:ring-primary">
+                                <span>Active Only</span>
+                            </label>
                         </div>
-
-                        <div class="form-group">
-                            <label for="max-tokens">Max Tokens</label>
-                            <div class="input-with-presets">
-                                <input type="number" id="max-tokens" name="max-tokens" class="cyber-input" min="1" value="8192">
-                                <div class="preset-buttons">
-                                    <button type="button" class="cyber-btn preset-btn" data-value="8192">8k</button>
-                                    <button type="button" class="cyber-btn preset-btn" data-value="32768">32k</button>
-                                    <button type="button" class="cyber-btn preset-btn" data-value="131072">128k</button>
-                                </div>
-                            </div>
+                        <div id="user-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div class="loading-indicator text-center col-span-full p-6 text-on-surface opacity-60">Loading users...</div>
+                            <!-- User cards will be loaded here -->
                         </div>
+                    </div>
+                </section>
 
-                        <div class="form-group">
-                            <label for="temperature">Temperature</label>
-                            <label class="cyber-checkbox temperature-na-checkbox">
-                                <input type="checkbox" id="temperature-na">
+                 <!-- Roles Section -->
+                <section x-show="activeSection === 'roles'" id="roles-tab" class="space-y-6">
+                    <div class="bg-surface-alt p-4 rounded-lg shadow">
+                        <div id="role-list" class="space-y-4">
+                            <div class="loading-indicator text-center p-6 text-on-surface opacity-60">Loading roles...</div>
+                            <!-- Role cards will be loaded here -->
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals remain outside the main content flow -->
+    <!-- Model Form Modal -->
+    <div id="model-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 overflow-y-auto" 
+        x-data="{ open: false }" 
+        x-show="open" 
+        @open-model-modal.window="open = true"
+        @close-model-modal.window="open = false"
+        x-transition.opacity.duration.200ms
+        style="display: none">
+
+        <!-- Modal Dialog -->
+        <div class="w-full max-w-2xl transform overflow-hidden rounded-lg bg-surface-alt border border-outline p-6 shadow-xl transition-all"
+            x-show="open" 
+            x-transition:enter="transition ease-out duration-300" 
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" 
+            x-transition:leave="transition ease-in duration-200" 
+            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" 
+            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            @click.away="open = false">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-outline pb-4 mb-4">
+                <h3 id="modal-title" class="text-xl font-semibold text-primary">Add New Model</h3>
+                <button class="text-on-surface hover:text-on-surface-strong" @click="open = false">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="modal-body">
+                <form id="model-form" class="space-y-4">
+                    <input type="hidden" id="model-id">
+
+                    <div class="form-group">
+                        <label for="model-provider-id" class="block text-sm font-medium text-primary mb-1">Provider</label>
+                        <select id="model-provider-id" name="provider_id" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" required>
+                            <option value="">Select Configured Provider</option>
+                            <!-- Options populated by JS -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="name" class="block text-sm font-medium text-primary mb-1">Display Name</label>
+                        <input type="text" id="name" name="name" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="model_id" class="block text-sm font-medium text-primary mb-1">Model ID (Provider Specific)</label>
+                        <input type="text" id="model_id" name="model_id" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" 
+                            placeholder="e.g., llama3, gpt-4o" required>
+                    </div>
+
+                    <div class="form-group" x-data="{ tokens: 8192 }">
+                        <label for="max-tokens" class="block text-sm font-medium text-primary mb-1">Max Tokens</label>
+                        <div class="flex items-center space-x-3">
+                            <input type="range" id="max-tokens" x-model="tokens" name="max-tokens" 
+                                class="w-full h-2 bg-outline rounded-lg appearance-none cursor-pointer accent-primary" 
+                                min="1000" max="131072" step="1000">
+                            <output for="max-tokens" id="temperature-output" 
+                                class="text-sm text-on-surface font-mono p-1 bg-surface-alt rounded w-20 text-center" 
+                                x-text="tokens"></output>
+                        </div>
+                        <div class="preset-buttons flex space-x-2 mt-2">
+                            <button type="button" @click="tokens = 8192" 
+                                class="py-1 px-2 bg-surface-alt hover:bg-outline text-on-surface text-xs font-medium rounded" 
+                                data-value="8192">8k</button>
+                            <button type="button" @click="tokens = 32768" 
+                                class="py-1 px-2 bg-surface-alt hover:bg-outline text-on-surface text-xs font-medium rounded" 
+                                data-value="32768">32k</button>
+                            <button type="button" @click="tokens = 131072" 
+                                class="py-1 px-2 bg-surface-alt hover:bg-outline text-on-surface text-xs font-medium rounded" 
+                                data-value="131072">128k</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" x-data="{ tempValue: 0.8, tempDisabled: false }">
+                        <div class="flex justify-between items-center mb-1">
+                            <label for="temperature" class="block text-sm font-medium text-primary">Temperature</label>
+                            <label class="flex items-center space-x-2 text-on-surface cursor-pointer text-xs">
+                                <input type="checkbox" id="temperature-na" x-model="tempDisabled" 
+                                    class="h-4 w-4 text-primary bg-surface-alt border-outline rounded focus:ring-primary">
                                 <span>N/A</span>
                             </label>
-                            <div id="temperature-controls">
-                                <input type="range" id="temperature" name="temperature" class="cyber-range" min="0" max="1" step="0.01" value="0.8">
-                                <output for="temperature" id="temperature-output">0.8</output>
-                            </div>
                         </div>
-
-                        <div class="form-group">
-                            <label for="system-prompt">Default System Prompt (optional)</label>
-                            <textarea id="system-prompt" name="system-prompt" class="cyber-textarea" rows="3"></textarea>
+                        <div id="temperature-controls" class="flex items-center space-x-3" :class="{ 'opacity-50': tempDisabled }">
+                            <input type="range" id="temperature" x-model="tempValue" name="temperature" 
+                                class="w-full h-2 bg-outline rounded-lg appearance-none cursor-pointer accent-primary disabled:opacity-50" 
+                                min="0" max="1" step="0.01" :disabled="tempDisabled">
+                            <output for="temperature" id="temperature-output" 
+                                class="text-sm text-on-surface font-mono p-1 bg-surface-alt rounded w-16 text-center" 
+                                x-text="tempDisabled ? 'N/A' : (typeof tempValue === 'number' ? tempValue.toFixed(2) : '0.00')"></output>
                         </div>
-
-                        <div class="form-group">
-                            <label class="cyber-checkbox">
-                                <input type="checkbox" id="is-active" name="is-active" checked>
-                                <span>Active</span>
-                            </label>
-                        </div>
-
-                        <div class="form-actions">
-                            <button type="button" id="cancel-btn" class="cyber-btn secondary">Cancel</button>
-                            <button type="submit" id="save-btn" class="cyber-btn primary">Save Model</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- User Form Modal -->
-        <div id="user-modal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3 id="user-modal-title">Add New User</h3>
-                    <span class="close">&times;</span>
-                </div>
-                <div class="modal-body">
-                    <form id="user-form">
-                        <input type="hidden" id="user-id">
-
-                        <div class="form-group">
-                            <label for="username">Username</label>
-                            <input type="text" id="username" name="username" class="cyber-input" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="email">Email</label>
-                            <input type="email" id="email" name="email" class="cyber-input" required>
-                        </div>
-
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="first-name">First Name</label>
-                                <input type="text" id="first-name" name="first-name" class="cyber-input">
-                            </div>
-
-                            <div class="form-group">
-                                <label for="last-name">Last Name</label>
-                                <input type="text" id="last-name" name="last-name" class="cyber-input">
-                            </div>
-                        </div>
-
-                        <div class="form-group new-user-password-fields" style="display: none;"> <!-- Initially hidden -->
-                            <label for="new-password">Password</label>
-                            <input type="password" id="new-password" name="new-password" class="cyber-input" minlength="8">
-                            <p class="field-hint">Minimum 8 characters required.</p>
-                        </div>
-                        <div class="form-group new-user-password-fields" style="display: none;"> <!-- Initially hidden -->
-                            <label for="confirm-password">Confirm Password</label>
-                            <input type="password" id="confirm-password" name="confirm-password" class="cyber-input">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="role-id">Role</label>
-                            <select id="role-id" name="role-id" class="cyber-select" required>
-                                <option value="">Select Role</option>
-                                <!-- Roles will be populated dynamically -->
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="cyber-checkbox">
-                                <input type="checkbox" id="user-is-active" name="is-active" checked>
-                                <span>Active</span>
-                            </label>
-                        </div>
-
-                        <div class="form-actions">
-                            <button type="button" id="change-password-btn" class="cyber-btn secondary change-password-action-btn">Change Password</button>
-                            <button type="button" id="user-cancel-btn" class="cyber-btn danger">Cancel</button>
-                            <button type="submit" id="user-save-btn" class="cyber-btn primary">Save User Details</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- Change Password Modal -->
-        <div id="change-password-modal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3 id="change-password-modal-title">Change Password for User</h3>
-                    <span class="close change-password-close">&times;</span>
-                </div>
-                <div class="modal-body">
-                    <form id="change-password-form">
-                        <input type="hidden" id="change-password-user-id">
-                        <div class="form-group">
-                            <label for="new-password">New Password</label>
-                            <input type="password" id="new-password" name="new-password" class="cyber-input" required minlength="8">
-                            <p class="field-hint">Minimum 8 characters required.</p>
-                        </div>
-                        <div class="form-group">
-                            <label for="confirm-password">Confirm New Password</label>
-                            <input type="password" id="confirm-password" name="confirm-password" class="cyber-input" required>
-                        </div>
-                        <div class="form-actions">
-                            <button type="button" id="change-password-cancel-btn" class="cyber-btn secondary">Cancel</button>
-                            <button type="submit" id="change-password-save-btn" class="cyber-btn primary">Set New Password</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- Confirmation Modal -->
-        <div id="confirm-modal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Confirm Action</h3>
-                    <span class="close">&times;</span>
-                </div>
-                <div class="modal-body">
-                    <p id="confirm-message">Are you sure you want to delete this item?</p>
-                    <div class="form-actions">
-                        <button type="button" id="confirm-cancel" class="cyber-btn secondary">Cancel</button>
-                        <button type="button" id="confirm-yes" class="cyber-btn danger">Delete</button>
                     </div>
+
+                    <div class="form-group">
+                        <label for="system-prompt" class="block text-sm font-medium text-primary mb-1">Default System Prompt (optional)</label>
+                        <textarea id="system-prompt" name="system-prompt" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" 
+                            rows="3"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="flex items-center space-x-2 text-on-surface cursor-pointer">
+                            <input type="checkbox" id="is-active" name="is-active" 
+                                class="h-5 w-5 text-primary bg-surface-alt border-outline rounded focus:ring-primary" checked>
+                            <span>Active</span>
+                        </label>
+                    </div>
+
+                    <div class="form-actions flex justify-end space-x-3 pt-4 border-t border-outline">
+                        <button type="button" id="cancel-btn" @click="open = false"
+                            class="py-2 px-4 bg-surface-alt hover:bg-outline text-on-surface font-semibold rounded shadow">
+                            Cancel
+                        </button>
+                        <button type="submit" id="save-btn" 
+                            class="py-2 px-4 bg-primary hover:bg-secondary text-on-primary font-semibold rounded shadow">
+                            Save Model
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Form Modal -->
+    <div id="user-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 overflow-y-auto" 
+        x-data="{ open: false, isNewUser: true }" 
+        x-show="open" 
+        @open-user-modal.window="open = true; isNewUser = ($event.detail && $event.detail.isNew === false) ? false : true"
+        @close-user-modal.window="open = false"
+        x-transition.opacity.duration.200ms
+        style="display: none">
+        
+        <div class="w-full max-w-2xl rounded-lg bg-surface-alt border border-outline p-6 shadow-xl transition-all transform overflow-hidden"
+            x-show="open"
+            x-transition:enter="transition ease-out duration-300" 
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+            @click.away="open = false">
+            
+            <div class="flex items-center justify-between border-b border-outline pb-4 mb-4">
+                <h3 id="user-modal-title" class="text-xl font-semibold text-primary" x-text="isNewUser ? 'Add New User' : 'Edit User'"></h3>
+                <button class="text-on-surface hover:text-on-surface-strong" @click="open = false">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <form id="user-form" class="space-y-4">
+                    <input type="hidden" id="user-id">
+
+                    <div class="form-group">
+                        <label for="username" class="block text-sm font-medium text-primary mb-1">Username</label>
+                        <input type="text" id="username" name="username" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email" class="block text-sm font-medium text-primary mb-1">Email</label>
+                        <input type="email" id="email" name="email" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" required>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-group">
+                            <label for="first-name" class="block text-sm font-medium text-primary mb-1">First Name</label>
+                            <input type="text" id="first-name" name="first-name" 
+                                class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                        <div class="form-group">
+                            <label for="last-name" class="block text-sm font-medium text-primary mb-1">Last Name</label>
+                            <input type="text" id="last-name" name="last-name" 
+                                class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                    </div>
+
+                    <!-- Password fields only shown for NEW user -->
+                    <div class="form-group" x-show="isNewUser">
+                        <label for="new-password" class="block text-sm font-medium text-primary mb-1">Password</label>
+                        <input type="password" id="new-password" name="new-password" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" minlength="8">
+                        <p class="mt-1 text-xs text-on-surface opacity-80">Minimum 8 characters required.</p>
+                    </div>
+                    <div class="form-group" x-show="isNewUser">
+                        <label for="confirm-password" class="block text-sm font-medium text-primary mb-1">Confirm Password</label>
+                        <input type="password" id="confirm-password" name="confirm-password" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="role-id" class="block text-sm font-medium text-primary mb-1">Role</label>
+                        <select id="role-id" name="role-id" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" required>
+                            <option value="">Select Role</option>
+                            <!-- Roles populated dynamically -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="flex items-center space-x-2 text-on-surface cursor-pointer">
+                            <input type="checkbox" id="user-is-active" name="is-active" 
+                                class="h-5 w-5 text-primary bg-surface-alt border-outline rounded focus:ring-primary" checked>
+                            <span>Active</span>
+                        </label>
+                    </div>
+
+                    <div class="form-actions flex justify-between items-center pt-4 border-t border-outline">
+                        <!-- Change Password button shown only for EDIT user -->
+                        <button type="button" id="change-password-btn" 
+                            class="py-2 px-4 bg-warning hover:bg-opacity-90 text-on-warning font-semibold rounded shadow" 
+                            x-show="!isNewUser">
+                            Change Password
+                        </button>
+                        <!-- Spacer -->
+                        <div class="flex-grow"></div>
+                        <!-- Cancel and Save buttons -->
+                        <div class="flex space-x-3">
+                            <button type="button" id="user-cancel-btn" @click="open = false"
+                                class="py-2 px-4 bg-surface-alt hover:bg-outline text-on-surface font-semibold rounded shadow">
+                                Cancel
+                            </button>
+                            <button type="submit" id="user-save-btn" 
+                                class="py-2 px-4 bg-primary hover:bg-secondary text-on-primary font-semibold rounded shadow">
+                                Save User
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="change-password-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 overflow-y-auto" 
+        x-data="{ open: false, username: '' }" 
+        x-show="open" 
+        @open-change-password-modal.window="open = true; username = $event.detail?.username || ''"
+        style="display: none">
+        
+        <div class="w-full max-w-md rounded-lg bg-surface-alt border border-outline p-6 shadow-xl"
+            x-show="open" 
+            @click.away="open = false">
+            
+            <div class="modal-header flex items-center justify-between border-b border-outline pb-4 mb-4">
+                <h3 id="change-password-modal-title" class="text-xl font-semibold text-primary">
+                    Change Password <span x-text="username ? 'for ' + username : ''"></span>
+                </h3>
+                <button class="text-on-surface hover:text-on-surface-strong" @click="open = false">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <form id="change-password-form" class="space-y-4">
+                    <input type="hidden" id="change-password-user-id">
+                    <div class="form-group">
+                        <label for="change-new-password" class="block text-sm font-medium text-primary mb-1">New Password</label>
+                        <input type="password" id="change-new-password" name="new-password" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" required minlength="8">
+                        <p class="mt-1 text-xs text-on-surface opacity-80">Minimum 8 characters required.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="change-confirm-password" class="block text-sm font-medium text-primary mb-1">Confirm New Password</label>
+                        <input type="password" id="change-confirm-password" name="confirm-password" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" required>
+                    </div>
+                    <div class="form-actions flex justify-end space-x-3 pt-4 border-t border-outline">
+                        <button type="button" id="change-password-cancel-btn" @click="open = false"
+                            class="py-2 px-4 bg-surface-alt hover:bg-outline text-on-surface font-semibold rounded shadow">
+                            Cancel
+                        </button>
+                        <button type="submit" id="change-password-save-btn" 
+                            class="py-2 px-4 bg-primary hover:bg-secondary text-on-primary font-semibold rounded shadow">
+                            Set Password
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 overflow-y-auto"
+        x-data="{ open: false, message: 'Are you sure?' }"
+        x-show="open"
+        @open-confirm-modal.window="open = true; message = $event.detail?.message || 'Are you sure?'"
+        @close-confirm-modal.window="open = false"
+        style="display: none">
+        
+        <div class="w-full max-w-sm rounded-lg bg-surface-alt border border-outline p-6 shadow-xl"
+            x-show="open"
+            @click.away="open = false">
+            
+            <div class="modal-header flex items-center justify-between border-b border-outline pb-3 mb-3">
+                <h3 class="text-lg font-semibold text-warning">Confirm Action</h3>
+                <button class="text-on-surface hover:text-on-surface-strong" @click="open = false">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <p id="confirm-message" class="mb-6 text-on-surface" x-text="message"></p>
+                <div class="form-actions flex justify-end space-x-3">
+                    <button type="button" id="confirm-cancel" @click="open = false"
+                        class="py-2 px-4 bg-surface-alt hover:bg-outline text-on-surface font-semibold rounded shadow">
+                        Cancel
+                    </button>
+                    <button type="button" id="confirm-yes" 
+                        class="py-2 px-4 bg-danger hover:bg-opacity-90 text-on-danger font-semibold rounded shadow">
+                        Confirm
+                    </button>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Ollama Import Modal -->
-        <div id="ollama-import-modal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Import Ollama Models</h3>
-                    <span class="close">&times;</span>
-                </div>
-                <div class="modal-body">
-                    <form id="ollama-import-form">
-                        <div class="form-group">
-                            <label for="ollama-server-url">Ollama Server URL</label>
-                            <input type="url" id="ollama-server-url" class="cyber-input" placeholder="http://leviathan:11434" required>
+    <!-- Provider Form Modal -->
+    <div id="provider-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 overflow-y-auto" 
+        x-data="{ open: false }" 
+        x-show="open" 
+        @open-provider-modal.window="open = true"
+        @close-provider-modal.window="open = false"
+        x-transition.opacity.duration.200ms
+        style="display: none">
+
+        <!-- Modal Dialog -->
+        <div class="w-full max-w-lg transform overflow-hidden rounded-lg bg-surface-alt border border-outline p-6 shadow-xl transition-all"
+            x-show="open" 
+            x-transition:enter="transition ease-out duration-300" 
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" 
+            x-transition:leave="transition ease-in duration-200" 
+            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" 
+            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            @click.away="open = false">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-outline pb-4 mb-4">
+                <h3 id="provider-modal-title" class="text-xl font-semibold text-primary">Add New Provider</h3>
+                <button class="text-on-surface hover:text-on-surface-strong" @click="open = false">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="modal-body">
+                <form id="provider-form" class="space-y-4">
+                    <input type="hidden" id="provider-id">
+
+                    <div class="form-group">
+                        <label for="provider-name" class="block text-sm font-medium text-primary mb-1">Provider Name</label>
+                        <input type="text" id="provider-name" name="name" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" 
+                            placeholder="e.g., My Local Ollama" required>
+                    </div>
+
+                    <div class="form-group" x-data="{ selectedType: '' }">
+                        <label for="provider-type" class="block text-sm font-medium text-primary mb-1">Provider Type</label>
+                        <select id="provider-type" name="type" x-model="selectedType"
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" required>
+                            <option value="">Select Type</option>
+                            <option value="ollama">Ollama</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic</option>
+                        </select>
+                    
+                        <!-- Conditional Fields -->
+                        <div class="form-group mt-4" x-show="selectedType !== ''">
+                            <label for="provider-base-url" class="block text-sm font-medium text-primary mb-1">Base URL</label>
+                            <input type="url" id="provider-base-url" name="base_url" 
+                                class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" 
+                                :placeholder="selectedType === 'ollama' ? 'http://localhost:11434' : 'Leave empty for default'">
+                            <p class="mt-1 text-xs text-on-surface opacity-80" 
+                                x-text="selectedType === 'ollama' ? 'Required for Ollama.' : 'Optional for this provider (leave empty for default).'"></p>
                         </div>
 
-                        <div class="form-group">
-                            <label for="ollama-api-key">API Key (if required)</label>
-                            <input type="password" id="ollama-api-key" class="cyber-input" placeholder="Optional for some Ollama servers">
+                        <div class="form-group mt-4" x-show="selectedType !== ''">
+                            <label for="provider-api-key" class="block text-sm font-medium text-primary mb-1">API Key</label>
+                            <input type="password" id="provider-api-key" name="api_key" 
+                                class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" 
+                                :placeholder="selectedType === 'ollama' ? 'Optional for Ollama' : 'Enter API key'">
+                            <p class="mt-1 text-xs text-on-surface opacity-80" 
+                                x-text="selectedType === 'ollama' ? 'Optional for Ollama.' : 'Required for this provider.'"></p>
                         </div>
+                    </div>
 
-                        <div class="form-group">
-                            <label for="ollama-default-tokens">Default Max Tokens</label>
-                            <select id="ollama-default-tokens" class="cyber-select">
-                                <option value="4096">4K (Smallest models)</option>
-                                <option value="8192" selected>8K (Medium models)</option>
-                                <option value="32768">32K (Large models)</option>
-                                <option value="128000">128K (Largest models)</option>
-                            </select>
-                            <p class="field-hint">Base token limit (will be adjusted based on model size)</p>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="cyber-checkbox">
-                                <input type="checkbox" id="import-all-active" checked>
-                                <span>Import all models as active</span>
-                            </label>
-                        </div>
-
-                        <div class="form-actions">
-                            <button type="button" id="ollama-import-cancel" class="cyber-btn secondary">Cancel</button>
-                            <button type="submit" id="ollama-import-submit" class="cyber-btn primary">Import Models</button>
-                        </div>
-                    </form>
-                </div>
+                    <div class="form-actions flex justify-end space-x-3 pt-4 border-t border-outline">
+                        <button type="button" id="provider-cancel-btn" @click="open = false"
+                            class="py-2 px-4 bg-surface-alt hover:bg-outline text-on-surface font-semibold rounded shadow">
+                            Cancel
+                        </button>
+                        <button type="submit" id="provider-save-btn"
+                            class="py-2 px-4 bg-primary hover:bg-secondary text-on-primary font-semibold rounded shadow">
+                            Save Provider
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
+    </div>
 
-        <!-- Provider Form Modal -->
-        <div id="provider-modal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3 id="provider-modal-title">Add New Provider</h3>
-                    <span class="close provider-close">&times;</span>
-                </div>
-                <div class="modal-body">
-                    <form id="provider-form">
-                        <input type="hidden" id="provider-id">
+    <!-- Ollama Import Modal (Deprecated - Maybe remove or restyle?) -->
+    <div id="ollama-import-modal" class="modal">
+        <!-- Restyle this if kept, using similar structure as other modals -->
+    </div>
 
-                        <div class="form-group">
-                            <label for="provider-name">Provider Name</label>
-                            <input type="text" id="provider-name" name="name" class="cyber-input" placeholder="e.g., My Local Ollama" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="provider-type">Provider Type</label>
-                            <select id="provider-type" name="type" class="cyber-select" required>
-                                <option value="">Select Type</option>
-                                <option value="ollama">Ollama</option>
-                                <option value="openai">OpenAI</option>
-                                <option value="anthropic">Anthropic</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group provider-conditional-field ollama-field openai-field anthropic-field">
-                            <label for="provider-base-url">Base URL</label>
-                            <input type="url" id="provider-base-url" name="base_url" class="cyber-input" placeholder="http://localhost:11434">
-                            <p class="field-hint">Required for Ollama. Optional for OpenAI/Anthropic (leave empty for default API endpoints).</p>
-                        </div>
-
-                        <div class="form-group provider-conditional-field openai-field anthropic-field ollama-field">
-                            <label for="provider-api-key">API Key</label>
-                            <input type="password" id="provider-api-key" name="api_key" class="cyber-input" placeholder="Leave blank to keep existing key">
-                            <p class="field-hint">Required for OpenAI/Anthropic. Optional for some Ollama setups.</p>
-                        </div>
-
-                        <div class="form-actions">
-                            <button type="button" id="provider-cancel-btn" class="cyber-btn danger">Cancel</button>
-                            <button type="submit" class="cyber-btn primary">Save Provider</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <footer>
-        <p>CyberAI - Secure Multi-Model AI Chat Platform</p>
+    <footer class="mt-12 py-4 text-center text-sm text-gray-500 border-t border-outline">
+        CyberAI - Secure Multi-Model AI Chat Platform
     </footer>
+
+    <!-- Penguin UI Toast Notification Container -->
+    <div x-data="{
+            notifications: [],
+            displayDuration: 5000, // Use 5 seconds like the old system
+            soundEffect: false, // Disabled by default
+
+            addNotification({ variant = 'info', title = null, message = null}) {
+                const id = Date.now() + Math.random(); // Add random to prevent rare collisions
+                const notification = { id, variant, title, message };
+
+                // Optional: Limit notification count if needed
+                // if (this.notifications.length >= 5) {
+                //     this.notifications.splice(0, this.notifications.length - 4);
+                // }
+
+                this.notifications.push(notification);
+
+                // Optional: Sound effect logic if enabled
+                // if (this.soundEffect) { ... }
+            },
+            removeNotification(id) {
+                setTimeout(() => {
+                    this.notifications = this.notifications.filter(
+                        (notification) => notification.id !== id,
+                    )
+                }, 400); // Delay removal slightly for transitions
+            },
+        }" 
+        x-on:notify.window="addNotification({
+                variant: $event.detail.variant,
+                title: $event.detail.title,
+                message: $event.detail.message,
+            })"
+        class="fixed bottom-4 right-4 z-[100] flex w-full max-w-xs flex-col-reverse items-end space-y-2 space-y-reverse">
+
+        <template x-for="(notification, index) in notifications" x-bind:key="notification.id">
+            <!-- Main container for transition and visibility -->    
+            <div x-data="{ isVisible: false, timeout: null }" 
+                x-cloak x-show="isVisible" 
+                class="relative w-full overflow-hidden rounded-md border border-outline bg-surface p-4 shadow-lg" 
+                role="alert" 
+                x-on:mouseenter="clearTimeout(timeout)" 
+                x-on:mouseleave="timeout = setTimeout(() => { isVisible = false; removeNotification(notification.id) }, displayDuration)" 
+                x-init="$nextTick(() => { isVisible = true }); timeout = setTimeout(() => { isVisible = false; removeNotification(notification.id) }, displayDuration)" 
+                x-transition:enter="transition duration-300 ease-out" 
+                x-transition:enter-start="translate-y-4 opacity-0" 
+                x-transition:enter-end="translate-y-0 opacity-100" 
+                x-transition:leave="transition duration-300 ease-in" 
+                x-transition:leave-start="translate-y-0 opacity-100" 
+                x-transition:leave-end="translate-y-4 opacity-0">
+                
+                <!-- Content container -->
+                <div class="flex items-start gap-3">
+                    
+                    <!-- Icon based on variant -->
+                    <div class="shrink-0" aria-hidden="true">
+                        <!-- Info -->
+                        <template x-if="notification.variant === 'info'">                
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-info" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clip-rule="evenodd" />
+                            </svg>
+                        </template>
+                        <!-- Success -->
+                        <template x-if="notification.variant === 'success'">                
+                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-success" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+                            </svg>
+                        </template>
+                        <!-- Warning -->
+                         <template x-if="notification.variant === 'warning'">                
+                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-warning" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" />
+                            </svg>
+                        </template>
+                        <!-- Danger / Error -->
+                         <template x-if="notification.variant === 'danger' || notification.variant === 'error'">                
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-danger" aria-hidden="true">
+                              <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+                            </svg>
+                         </template>
+                    </div>
+
+                    <!-- Title & Message -->
+                    <div class="flex-1">
+                        <h3 x-cloak x-show="notification.title" class="text-sm font-semibold text-on-surface-strong" x-text="notification.title"></h3>
+                        <p x-cloak x-show="notification.message" class="mt-1 text-sm text-on-surface" x-text="notification.message"></p>
+                    </div>
+
+                    <!--Dismiss Button -->
+                    <button type="button" class="ml-auto shrink-0 rounded p-1 text-on-surface/80 hover:text-on-surface" aria-label="dismiss notification" x-on:click="isVisible = false; removeNotification(notification.id)">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" class="h-5 w-5" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </template>
+    </div>
+    <!-- End Penguin UI Toast Notification Container -->
 
     <script src="/static/js/admin.js"></script>
 </body>

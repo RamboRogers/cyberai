@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-black text-white;
+  }
+}
+
+@layer components {
+  .terminal-text {
+    @apply text-primary font-mono;
+  }
+  
+  .data-text {
+    @apply text-on-surface-strong font-mono;
+  }
+  
+  .support-text {
+    @apply text-primary font-mono;
+  }
+  
+  .cyberpunk-btn {
+    @apply bg-primary text-on-primary px-4 py-2 font-mono font-bold rounded hover:bg-secondary transition-all;
+  }
+  
+  .cyberpunk-input {
+    @apply bg-surface border border-primary text-on-surface px-3 py-2 rounded font-mono focus:outline-none focus:ring-2 focus:ring-primary;
+  }
+  
+  .cyberpunk-card {
+    @apply bg-surface-alt border border-primary rounded p-4 shadow-lg;
+  }
+  
+  .cyberpunk-title {
+    @apply text-primary font-mono font-bold text-xl;
+  }
+} 

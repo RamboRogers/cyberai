@@ -176,8 +176,6 @@ func (h *AdminHandlers) GetModel(w http.ResponseWriter, r *http.Request) {
 
 // UpdateModel handles PUT /api/admin/models/{id}
 func (h *AdminHandlers) UpdateModel(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement authentication check - admin only
-
 	idStr := r.PathValue("id")
 	modelID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -185,34 +183,110 @@ func (h *AdminHandlers) UpdateModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// First check if the model exists
-	_, err = h.ModelService.GetModelByID(modelID)
+	// 1. Fetch the existing model data
+	existingModel, err := h.ModelService.GetModelByID(modelID)
 	if err != nil {
 		log.Printf("Model %d not found for update: %v", modelID, err)
-		http.Error(w, "Model not found", http.StatusNotFound)
+		if strings.Contains(err.Error(), "not found") { // Check if the error is specifically "not found"
+			http.Error(w, "Model not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Failed to retrieve existing model", http.StatusInternalServerError)
+		}
 		return
 	}
 
-	var model models.Model
-	if err := json.NewDecoder(r.Body).Decode(&model); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	// 2. Decode the request body into a temporary structure for partial updates.
+	//    Use pointers to distinguish between a field explicitly set to false/zero
+	//    and a field not provided in the request.
+	type modelUpdatePayload struct {
+		Name                *string          `json:"name"`
+		ModelID             *string          `json:"model_id"`
+		MaxTokens           *int             `json:"max_tokens"`
+		Temperature         *float64         `json:"temperature"` // Pointer for nullability
+		DefaultSystemPrompt *string          `json:"default_system_prompt"`
+		IsActive            *bool            `json:"is_active"`
+		Configuration       *json.RawMessage `json:"configuration"` // Use standard json.RawMessage
+		// ProviderID should NOT be updatable here
+	}
+
+	var payload modelUpdatePayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid request body format", http.StatusBadRequest)
 		return
 	}
 
-	// Ensure the ID from the path matches the body
-	model.ID = modelID
-
-	if err := h.ModelService.UpdateModel(&model); err != nil {
-		log.Printf("Error updating model %d: %v", modelID, err)
-		http.Error(w, "Failed to update model", http.StatusInternalServerError)
-		return
+	// 3. Merge the changes from the payload into the existing model data.
+	//    Only update fields that were actually present in the payload.
+	updated := false
+	if payload.Name != nil {
+		existingModel.Name = *payload.Name
+		updated = true
+	}
+	if payload.ModelID != nil {
+		existingModel.ModelID = *payload.ModelID
+		updated = true
+	}
+	if payload.MaxTokens != nil {
+		existingModel.MaxTokens = *payload.MaxTokens
+		updated = true
 	}
 
-	// Don't return the API key in the response
-	// model.APIKey = "" // No longer exists on model
+	// Handle temperature nullability carefully
+	if payload.Temperature != nil { // Check if the key was present
+		existingModel.Temperature = *payload.Temperature // Assign dereferenced value
+		updated = true
+	} // If payload.Temperature was nil, the key wasn't sent, so don't update.
+
+	if payload.DefaultSystemPrompt != nil {
+		existingModel.DefaultSystemPrompt = *payload.DefaultSystemPrompt
+		updated = true
+	}
+	if payload.IsActive != nil {
+		existingModel.IsActive = *payload.IsActive
+		updated = true
+	}
+	if payload.Configuration != nil {
+		// existingModel.Configuration is map[string]interface{}
+		// payload.Configuration is *json.RawMessage
+		// We need to unmarshal the raw message into the map
+		if err := json.Unmarshal(*payload.Configuration, &existingModel.Configuration); err != nil {
+			log.Printf("Error unmarshaling configuration payload for model %d: %v", modelID, err)
+			// Decide how to handle: return error or just log and skip update?
+			http.Error(w, "Invalid configuration format in request body", http.StatusBadRequest)
+			return // Stop processing if configuration is invalid
+		}
+		updated = true
+	}
+
+	// 4. If any fields were updated, save the merged model data.
+	if updated {
+		if err := h.ModelService.UpdateModel(existingModel); err != nil {
+			log.Printf("Error updating model %d after merge: %v", modelID, err)
+			// Check for specific errors like unique constraints if necessary
+			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+				http.Error(w, "Update failed due to unique constraint violation (e.g., duplicate Model ID for provider)", http.StatusConflict)
+			} else {
+				http.Error(w, "Failed to save updated model", http.StatusInternalServerError)
+			}
+			return
+		}
+		log.Printf("Successfully updated model %d", modelID)
+	} else {
+		log.Printf("No updatable fields provided for model %d. No update performed.", modelID)
+	}
+
+	// 5. Respond with the (potentially updated) model data.
+	//    Fetch again to ensure consistency, especially regarding timestamps.
+	finalModel, err := h.ModelService.GetModelByID(modelID)
+	if err != nil {
+		log.Printf("Error fetching final model %d after update: %v", modelID, err)
+		// Don't fail the request if the update likely succeeded, but log the fetch error.
+		// Respond with the in-memory 'existingModel' as a fallback.
+		finalModel = existingModel
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(model)
+	json.NewEncoder(w).Encode(finalModel)
 }
 
 // DeleteModel handles DELETE /api/admin/models/{id}
@@ -228,7 +302,12 @@ func (h *AdminHandlers) DeleteModel(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.ModelService.DeleteModel(modelID); err != nil {
 		log.Printf("Error deleting model %d: %v", modelID, err)
-		http.Error(w, "Failed to delete model", http.StatusInternalServerError)
+		// Check if the error indicates "not found" (adjust based on actual ModelService error type/message)
+		if strings.Contains(strings.ToLower(err.Error()), "not found") { // Basic check, improve if possible
+			http.Error(w, "Model not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Failed to delete model", http.StatusInternalServerError)
+		}
 		return
 	}
 

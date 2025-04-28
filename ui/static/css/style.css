@@ -472,8 +472,7 @@ body {
     background-color: var(--input-bg);
 }
 
-/* Combined input[type="text"] styles */
-input[type="text"],
+/* Combined input styles - SCOPED TO CHAT INPUT ONLY */
 .input-container input {
     flex-grow: 1;
     background-color: rgba(0, 0, 0, 0.3);

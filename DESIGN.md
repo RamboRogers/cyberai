@@ -9,15 +9,15 @@ CyberAI is a self-hosted AI chat application that supports multiple large langua
 The application follows a client-server architecture with:
 
 1. **Backend**: Go-based server with SQLite database
-2. **Frontend**: HTML/CSS/JavaScript web interface
+2. **Frontend**: HTML/CSS/JavaScript web interface utilizing **Tailwind CSS**, **Alpine.js**, and potentially **Penguin UI** components for styling and interactivity.
 
 ### Backend Components
 
-- **HTTP Server**: Main entry point handling API requests and serving static files
-- **Database**: SQLite for data persistence
-- **Model Connectors**: Modules for interacting with different LLM APIs
-- **Authentication**: User management and session handling
-- **WebSocket**: Real-time communication for chat
+- **HTTP Server**: Main entry point handling API requests and serving static files (including generated Tailwind CSS).
+- **Database**: SQLite for data persistence.
+- **Model Connectors**: Modules for interacting with different LLM APIs.
+- **Authentication**: User management and session handling.
+- **WebSocket**: Real-time communication for chat.
 
 ### Implementation Status
 
@@ -44,9 +44,22 @@ The connectors handle different messaging formats between the internal applicati
 
 ### Frontend Components
 
-- **Chat Interface**: Main UI for interacting with AI models
-- **Settings**: Configuration and customization options
-- **Admin Panel**: User and model management for administrators
+- **UI Framework**: The frontend is styled using **Tailwind CSS** for utility-first styling and incorporates **Alpine.js** for JavaScript interactivity, particularly for components like tabs and dropdowns. Components may be sourced or inspired by **Penguin UI**.
+- **Chat Interface**: Main UI for interacting with AI models.
+- **Settings**: Configuration and customization options.
+- **Admin Panel**: User, provider, and model management interface for administrators (styled with Tailwind/Alpine).
+- **Build Process**: Requires a build step (e.g., using `npx tailwindcss`) to generate the final CSS file from Tailwind directives and configuration.
+
+#### Tailwind CSS Workflow
+
+The frontend styling heavily relies on Tailwind CSS, following this workflow:
+
+1.  **Utility Classes:** Styles are primarily applied directly within HTML elements using Tailwind's utility classes (e.g., `bg-primary`, `text-white`, `p-4`, `rounded`).
+2.  **Configuration (`tailwind.config.js`):** Defines the theme (colors, fonts, spacing), customizes utilities, and specifies the `content` paths (HTML templates, JS files) that Tailwind scans to detect class usage.
+3.  **Input CSS (`ui/static/css/tailwind.css`):** Contains `@tailwind` directives (base, components, utilities) to inject Tailwind's styles and allows for defining custom base styles or component layers.
+4.  **Build Step:** The command `npx tailwindcss -i ./ui/static/css/tailwind.css -o ./ui/static/css/styles.css` is executed. Tailwind scans the files listed in `tailwind.config.js` -> `content`, identifies all used utility classes, and generates an optimized CSS file containing only the necessary styles.
+5.  **Output CSS (`ui/static/css/styles.css`):** The final, generated CSS file linked in the application's HTML (`<link rel="stylesheet" href="/static/css/styles.css">`). This file should not be edited directly.
+6.  **Automation (`.air.toml`):** The `air` live-reloading tool is configured to automatically run the Tailwind build step before the Go application build whenever changes are detected in relevant source files (`.go`, `.html`, `.css`, `.js`, `tailwind.config.js`), ensuring styles are always up-to-date during development.
 
 ## Data Model
 
@@ -186,6 +199,9 @@ The connectors handle different messaging formats between the internal applicati
 - Efficient token counting for rate limiting
 - Message chunking for large conversations
 - Caching for frequently accessed data
+- WebSocket for real-time updates
+- Optimized static file serving
+- Potential caching strategies
 
 ## Security
 
@@ -195,13 +211,15 @@ The connectors handle different messaging formats between the internal applicati
 - Input validation and sanitization
 - Rate limiting
 - Role-based access control
+- Session management with secure cookies (HttpOnly, Secure flags)
 
 ## Deployment
 
 The application can be deployed as:
-1. A single binary with embedded assets
-2. A Docker container
-3. A standalone service with separate static file hosting
+1. A single Go binary with embedded static assets (HTML, JS, generated CSS)
+2. A Docker container bundling the Go binary and static assets
+
+**Build Requirement**: The frontend requires a Tailwind CSS build step before embedding or deploying static assets
 
 ## Future Considerations
 
@@ -210,6 +228,7 @@ The application can be deployed as:
 - File upload and processing capabilities
 - Export/import functionality
 - Fine-tuning interface
+- More sophisticated agent management
 
 ## Recent Changes / Notes
 
@@ -217,3 +236,5 @@ The application can be deployed as:
 - Addressed issues with the model edit modal not displaying correctly due to duplicate function definitions.
 - Fixed JavaScript errors (`TypeError`) occurring when saving models by adding element existence checks before accessing properties.
 - Corrected model validation logic to differentiate between adding a new model (requires provider selection) and editing an existing model (provider is already set), resolving incorrect validation errors during edits.
+- **UI Refactor (Admin Panel)**: Started refactoring the admin panel UI (`admin.html`, `admin.js`, `admin.css`) to use **Tailwind CSS** and **Alpine.js** for styling and interactivity, replacing previous custom CSS classes and JavaScript logic where applicable.
+- **Dependencies Added**: Requires Node.js/npm for the Tailwind CSS build process.

@@ -489,3 +489,36 @@ type ModelConnector interface {
 *   **Issue**: The email validation regex in `admin.js` (`validateUserData` function) contained double backslashes (`\\S`, `\\.`) due to improper escaping in a previous edit, causing valid emails to fail validation.
 *   **Fix**: Corrected the regex to use single backslashes (`/\S+@\S+\.\S+/`).
 *   **Files Modified**: `ui/static/js/admin.js`
+
+## Project State & Notes (as of 2025-04-27 ~15:15)
+
+**Focus Area:** Admin Panel UI & API Backend
+
+**Recent Activity:**
+
+*   **Problem:** Toggling the "Active" status on model cards in the admin panel (`admin.html`) was causing the card UI to blank out, and later revealed a 500 Internal Server Error.
+*   **Root Cause:** The backend Go handler for `PUT /api/admin/models/{id}` (`UpdateModel` in `server/handlers/admin_handlers.go`) was incorrectly handling partial updates. It decoded the partial request (`{"is_active": true}`) into a new, empty struct, then attempted to save this incomplete struct, overwriting valid data with zero-values and causing database errors (likely constraint violations).
+*   **Fix Implemented (Backend):** Refactored the `UpdateModel` handler in `server/handlers/admin_handlers.go` to follow a fetch-merge-update pattern:
+    1.  Fetch the existing model data from the database.
+    2.  Decode the incoming JSON payload into a temporary struct using pointers to identify provided fields.
+    3.  Merge only the provided fields from the payload onto the existing model data.
+    4.  Save the complete, merged model data back to the database.
+    5.  Fetch the final, updated model data again before responding to ensure consistency.
+*   **Fix Implemented (Frontend):** Refactored the `toggleModelStatus` function in `ui/static/js/admin.js` to fetch the complete model data via a GET request *after* the PUT request succeeds, and then use this complete data to re-render the entire model card, ensuring UI consistency.
+*   **API Documentation:** Updated `API.md` for the `PUT /api/admin/models/{id}` endpoint to accurately describe the partial update behavior and the expected request/response bodies.
+
+**Current Status:**
+
+*   Model status toggling should now work correctly without UI blanking or 500 errors.
+*   Backend handler for model updates is more robust against partial requests.
+
+**Next Steps/Potential Issues:**
+
+*   Verify delete functionality (raised as a potential issue previously - 404 errors).
+*   Continue testing other admin panel interactions.
+
+**Relevant Functions Modified:**
+
+*   `server/handlers/admin_handlers.go`: `UpdateModel`
+*   `ui/static/js/admin.js`: `toggleModelStatus`, `createModelCardHTML` (extracted), `renderModels`
+*   `API.md`: Updated `PUT /api/admin/models/{id}` section.

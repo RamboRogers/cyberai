@@ -1,2497 +1,1669 @@
 // Admin Panel JavaScript for CyberAI
-document.addEventListener('DOMContentLoaded', function() {
-    // Tab System
-    const tabButtons = document.querySelectorAll('.tab-button');
-    const tabContents = document.querySelectorAll('.tab-content');
 
-    tabButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const tabName = button.getAttribute('data-tab');
+// --- Utility Functions ---
+// HTML escape function to prevent XSS
+window.escapeHtml = function(unsafe) {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+};
 
-            // Update active tab button
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
+// Define utility functions first
+// Notification functions (REPLACED with Penguin UI Toast via event dispatch)
+// window.showNotification = function(message, type = 'info') { ... }; // REMOVED
 
-            // Show active tab content
-            tabContents.forEach(content => {
-                content.classList.remove('active');
-                if (content.id === `${tabName}-tab`) {
-                    content.classList.add('active');
-                }
-            });
-        });
-    });
+// New dispatch functions
+window.showNotification = function(message, type = 'info', title = null) {
+    let variant = type; // Map old type to new variant
+    if (type === 'error') variant = 'danger'; // Map 'error' to Penguin's 'danger'
+    
+    let eventTitle = title;
+    if (!eventTitle) {
+        switch (variant) {
+            case 'success': eventTitle = 'Success!'; break;
+            case 'danger': eventTitle = 'Error!'; break;
+            case 'warning': eventTitle = 'Warning!'; break;
+            case 'info': eventTitle = 'Information'; break;
+            default: eventTitle = 'Notification';
+        }
+    }
 
-    // DOM Elements - Models Tab
-    const modelList = document.getElementById('model-list');
-    const addModelBtn = document.getElementById('add-model-btn');
-    const importOllamaBtn = document.getElementById('import-ollama-btn');
-    const modelModal = document.getElementById('model-modal');
-    const modelForm = document.getElementById('model-form');
-    const modalTitle = document.getElementById('modal-title');
-    const cancelBtn = document.getElementById('cancel-btn');
-    const modelCloseModalBtns = document.querySelectorAll('#model-modal .close');
-    const confirmModal = document.getElementById('confirm-modal');
-    const confirmYesBtn = document.getElementById('confirm-yes');
-    const confirmCancelBtn = document.getElementById('confirm-cancel');
-    const confirmCloseBtn = document.querySelector('#confirm-modal .close');
-    const providerSelect = document.getElementById('provider');
-    const modelProviderSelect = document.getElementById('model-provider-id');
-    const temperatureSlider = document.getElementById('temperature');
-    const temperatureOutput = document.getElementById('temperature-output');
-    const modelSearch = document.getElementById('model-search');
-    const providerFilterSelect = document.getElementById('provider-filter');
-    const activeOnlyCheckbox = document.getElementById('active-only');
-    const maxTokensInput = document.getElementById('max-tokens');
-    const presetTokenButtons = document.querySelectorAll('.preset-btn');
+    window.dispatchEvent(new CustomEvent('notify', {
+        detail: {
+            variant: variant,
+            title: eventTitle,
+            message: message
+        }
+    }));
+};
 
-    // Temperature N/A Elements
-    const temperatureNACheckbox = document.getElementById('temperature-na');
-    const temperatureControlsDiv = document.getElementById('temperature-controls');
+window.showSuccess = function(message) {
+    window.showNotification(message, 'success', 'Success!');
+};
 
-    // Ollama import modal elements
-    const ollamaImportModal = document.getElementById('ollama-import-modal');
-    const ollamaImportForm = document.getElementById('ollama-import-form');
-    const ollamaServerUrl = document.getElementById('ollama-server-url');
-    const ollamaApiKey = document.getElementById('ollama-api-key');
-    const ollamaDefaultTokens = document.getElementById('ollama-default-tokens');
-    const importAllActive = document.getElementById('import-all-active');
-    const ollamaImportSubmit = document.getElementById('ollama-import-submit');
-    const ollamaImportCancel = document.getElementById('ollama-import-cancel');
-    const ollamaModalCloseBtns = document.querySelectorAll('#ollama-import-modal .close');
+window.showError = function(message) {
+    // Map our 'error' to Penguin UI's 'danger' variant
+    window.showNotification(message, 'danger', 'Error!'); 
+};
 
-    // DOM Elements - Users Tab
-    const userList = document.getElementById('user-list');
-    const addUserBtn = document.getElementById('add-user-btn');
-    const userModal = document.getElementById('user-modal');
-    const userForm = document.getElementById('user-form');
-    const userModalTitle = document.getElementById('user-modal-title');
-    const userCancelBtn = document.getElementById('user-cancel-btn');
-    const userCloseModalBtns = document.querySelectorAll('#user-modal .close');
-    const userSearch = document.getElementById('user-search');
-    const roleFilter = document.getElementById('role-filter');
-    const userActiveOnlyCheckbox = document.getElementById('user-active-only');
-    const changePasswordBtn = document.getElementById('change-password-btn'); // Added
+window.showWarning = function(message) {
+    window.showNotification(message, 'warning', 'Warning!');
+};
 
-    // DOM Elements - Change Password Modal
-    const changePasswordModal = document.getElementById('change-password-modal');
-    const changePasswordForm = document.getElementById('change-password-form');
-    const changePasswordUserIdInput = document.getElementById('change-password-user-id');
-    const changePasswordModalTitle = document.getElementById('change-password-modal-title');
-    const newPasswordInput = document.getElementById('new-password');
-    const confirmPasswordInput = document.getElementById('confirm-password');
-    const changePasswordCancelBtn = document.getElementById('change-password-cancel-btn');
-    const changePasswordCloseBtns = document.querySelectorAll('.change-password-close');
-
-    // DOM Elements - Roles Tab
-    const roleList = document.getElementById('role-list');
-
-    // --- NEW: DOM Elements - Providers Tab ---
-    const providersListElement = document.getElementById('provider-list');
-    const addProviderBtn = document.getElementById('add-provider-btn');
-    const providerModal = document.getElementById('provider-modal');
-    const providerForm = document.getElementById('provider-form');
-    const providerModalTitle = document.getElementById('provider-modal-title');
-    const providerCancelBtn = document.getElementById('provider-cancel-btn');
-    const providerCloseModalBtns = document.querySelectorAll('#provider-modal .close');
-    const providerTypeSelect = document.getElementById('provider-type'); // For conditional fields
-
-    // Current item being edited/deleted
-    let currentModelId = null;
-    let currentUserId = null;
-    let currentAction = null;
-    let currentItemType = null;
-
-    // Event Listeners - Models
-    addModelBtn.addEventListener('click', () => openModelModal('add'));
-    cancelBtn.addEventListener('click', closeModelModal);
-    modelCloseModalBtns.forEach(btn => btn.addEventListener('click', closeModelModal));
-    modelForm.addEventListener('submit', handleModelFormSubmit);
-    temperatureSlider.addEventListener('input', updateTemperatureOutput);
-    modelSearch.addEventListener('input', filterModels);
-    providerFilterSelect.addEventListener('change', () => {
-        console.log("Provider filter changed to:", providerFilterSelect.value);
-        filterModels();
-    });
-    activeOnlyCheckbox.addEventListener('change', () => {
-        console.log("Active only changed to:", activeOnlyCheckbox.checked);
-        filterModels();
-    });
-
-    // Add event listeners for preset token buttons
-    presetTokenButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            if (maxTokensInput) {
-                maxTokensInput.value = button.getAttribute('data-value');
-            }
-        });
-    });
-
-    // Add event listener for Temperature N/A checkbox
-    if (temperatureNACheckbox) {
-        temperatureNACheckbox.addEventListener('change', () => {
-            const isChecked = temperatureNACheckbox.checked;
-            if (temperatureControlsDiv) {
-                 temperatureControlsDiv.style.opacity = isChecked ? '0.5' : '1';
-            }
-            if (temperatureSlider) {
-                temperatureSlider.disabled = isChecked;
-                if (isChecked) {
-                    temperatureSlider.value = 0;
-                    if (temperatureOutput) {
-                        temperatureOutput.value = 0;
-                    }
-                } else {
-                    // Optionally restore a default value or leave as is
-                    temperatureSlider.value = 0.8; // Reset to default if unchecked
-                    if (temperatureOutput) {
-                        temperatureOutput.value = 0.8;
-                    }
-                }
-            }
-        });
+// Loading indicator functions
+window.showLoading = function() {
+    let loadingContainer = document.getElementById('loading-container');
+    if (!loadingContainer) {
+        // Create loading container if it doesn't exist
+        loadingContainer = document.createElement('div');
+        loadingContainer.id = 'loading-container';
+        loadingContainer.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        loadingContainer.innerHTML = `
+            <div class="bg-gray-800 p-4 rounded-lg shadow-lg text-center">
+                <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-green-400 mx-auto"></div>
+                <p class="text-green-400 mt-2">Loading content...</p>
+            </div>
+        `;
+        document.body.appendChild(loadingContainer);
     } else {
-        console.warn("Temperature N/A checkbox not found.");
+        loadingContainer.style.display = 'flex';
     }
+};
 
-    // Event Listeners - Users
-    addUserBtn.addEventListener('click', () => openUserModal('add'));
-    userCancelBtn.addEventListener('click', closeUserModal);
-    userCloseModalBtns.forEach(btn => btn.addEventListener('click', closeUserModal));
-    userForm.addEventListener('submit', handleUserFormSubmit);
-    userSearch.addEventListener('input', filterUsers);
-    roleFilter.addEventListener('change', filterUsers);
-    userActiveOnlyCheckbox.addEventListener('change', filterUsers);
+window.hideLoading = function() {
+    const loadingContainer = document.getElementById('loading-container');
+    if (loadingContainer) {
+        loadingContainer.style.display = 'none';
+    }
+};
 
-    // Listener for Change Password button within User Edit modal
-    if (changePasswordBtn) {
-        changePasswordBtn.addEventListener('click', () => {
-            const userId = document.getElementById('user-id').value;
-            const username = document.getElementById('username').value;
-            if (userId) {
-                openChangePasswordModal(userId, username);
-            }
+// Handle API responses consistently
+window.handleResponse = function(response) {
+    if (!response.ok) {
+        return response.text().then(text => {
+            let errorMsg = `Request failed: ${response.status} ${response.statusText}`;
+            try {
+                const jsonData = JSON.parse(text);
+                errorMsg = jsonData.error || errorMsg;
+            } catch (e) { /* Ignore parsing errors */ }
+            console.error(`Fetch Error: ${response.status}`, text);
+            throw new Error(errorMsg);
         });
     }
+    if (response.status === 204) {
+        return Promise.resolve(null);
+    }
+    // Ensure JSON parsing is safe
+    return response.json()
+       .then(data => data ?? null) // Handle valid JSON `null` or parsed data
+       .catch(err => {
+         console.warn("JSON Parsing Error:", err, "Response Status:", response.status);
+         return null; // Return null on JSON parse error
+       });
+};
 
-    // Event Listeners - Change Password Modal
-    if (changePasswordForm) {
-        changePasswordForm.addEventListener('submit', handleChangePasswordSubmit);
-    }
-    if (changePasswordCancelBtn) {
-        changePasswordCancelBtn.addEventListener('click', closeChangePasswordModal);
-    }
-    changePasswordCloseBtns.forEach(btn => btn.addEventListener('click', closeChangePasswordModal));
-
-    // Event Listeners - Confirmation Modal
-    confirmCancelBtn.addEventListener('click', closeConfirmModal);
-    confirmCloseBtn.addEventListener('click', closeConfirmModal);
-    confirmYesBtn.addEventListener('click', handleConfirmAction);
-
-    // Event Listeners - Ollama Import
-    if (importOllamaBtn) {
-        importOllamaBtn.addEventListener('click', handleOllamaImport);
-    }
-
-    // --- NEW: Event Listeners - Providers ---
-    if (addProviderBtn) {
-        addProviderBtn.addEventListener('click', () => openProviderModal('add'));
-    }
-    if (providerCancelBtn) {
-        providerCancelBtn.addEventListener('click', closeProviderModal);
-    }
-    if (providerCloseModalBtns) {
-        providerCloseModalBtns.forEach(btn => btn.addEventListener('click', closeProviderModal));
-    }
-    if (providerForm) {
-        providerForm.addEventListener('submit', handleProviderFormSubmit);
-    }
-    if (providerTypeSelect) {
-        providerTypeSelect.addEventListener('change', toggleProviderConditionalFields);
-    }
-
-    // Initial Load - Use Promise.all to wait for all loads before hiding main indicator
-    function initialLoad() {
-        showLoading(); // Show main loader
-        Promise.all([
-            // Modify loading functions to return their fetch promise
-            loadProvidersPromise(),
-            loadModelsPromise(),
-            loadUsersPromise(),
-            loadRolesPromise()
-        ])
-        .then(() => {
-            console.log("Initial data load complete.");
-            // Any setup that depends on all data being loaded can go here
+// Fetch model details for editing
+window.fetchModelDetails = function(modelId) {
+    console.log(`Fetching details for model ID: ${modelId}`);
+    window.showLoading();
+    fetch(`/api/admin/models/${modelId}`)
+        .then(window.handleResponse)
+        .then(model => {
+            if (model) {
+                // We have model data, populate the form
+                const form = document.getElementById('model-form');
+                if (form) {
+                    document.getElementById('name').value = model.name || '';
+                    document.getElementById('model_id').value = model.model_id || '';
+                    document.getElementById('max-tokens').value = model.max_tokens || 0;
+                    
+                    // Handle temperature which can be null
+                    const temperatureInput = document.getElementById('temperature');
+                    const temperatureNACheckbox = document.getElementById('temperature-na');
+                    
+                    if (model.temperature === null && temperatureNACheckbox) {
+                        temperatureNACheckbox.checked = true;
+                        if (temperatureInput) temperatureInput.disabled = true;
+                    } else {
+                        if (temperatureNACheckbox) temperatureNACheckbox.checked = false;
+                        if (temperatureInput) {
+                            temperatureInput.disabled = false;
+                            temperatureInput.value = model.temperature || 0;
+                        }
+                    }
+                    
+                    // Set provider dropdown
+                    const providerSelect = document.getElementById('model-provider-id');
+                    if (providerSelect && model.provider_id) {
+                        for (let i = 0; i < providerSelect.options.length; i++) {
+                            if (providerSelect.options[i].value == model.provider_id) {
+                                providerSelect.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Set system prompt
+                    const systemPromptTextarea = document.getElementById('system-prompt');
+                    if (systemPromptTextarea) {
+                        systemPromptTextarea.value = model.default_system_prompt || '';
+                    }
+                    
+                    // Set active status
+                    const isActiveCheckbox = document.getElementById('is-active');
+                    if (isActiveCheckbox) {
+                        isActiveCheckbox.checked = model.is_active;
+                    }
+                }
+            } else {
+                window.showError("Failed to load model details.");
+            }
         })
         .catch(error => {
-            console.error("Error during initial data load:", error);
-            showError("Failed to load initial admin data. Please refresh.");
-            // Optionally hide loading even on error, or leave it showing
+            window.showError(`Error fetching model: ${error.message}`);
         })
         .finally(() => {
-            hideLoading(); // Hide main loader once all promises settle
+            window.hideLoading();
         });
-    }
+};
 
-    // --- Modified Load Functions to Return Promises ---
-
-    function loadProvidersPromise() {
-        // No showLoading/hideLoading here, handled by initialLoad
-        return fetch('/api/admin/providers')
-            .then(response => {
-                if (!response.ok) throw new Error('Failed to load providers');
-                return response.json();
-            })
-            .then(providers => {
-                const providerArray = Array.isArray(providers) ? providers : [];
-                renderProviders(providerArray);
-                populateModelProviderDropdown(providerArray); // For model modal
-                populateModelFilterDropdown(providerArray);   // For model list filter
-                // Do not call hideLoading here
-            }); // Catch is handled by Promise.all
-    }
-
-     function loadModelsPromise() {
-        // No showLoading/hideLoading here
-        return fetch('/api/admin/models')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to load models');
-                }
-                return response.json();
-            })
-            .then(models => {
-                renderModels(Array.isArray(models) ? models : []);
-                 // Do not call hideLoading here
-            }); // Catch is handled by Promise.all
-    }
-
-    function loadUsersPromise() {
-        // No showLoading/hideLoading here
-        return fetch('/api/admin/users')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to load users');
-                }
-                return response.json();
-            })
-            .then(users => {
-                renderUsers(Array.isArray(users) ? users : []);
-                populateRoleFilter(Array.isArray(users) ? users : []);
-                 // Do not call hideLoading here
-            }); // Catch is handled by Promise.all
-    }
-
-     function loadRolesPromise() {
-        // No showLoading/hideLoading here
-        return fetch('/api/admin/roles')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to load roles');
-                }
-                return response.json();
-            })
-            .then(roles => {
-                renderRoles(Array.isArray(roles) ? roles : []);
-                populateRoleSelectOptions(Array.isArray(roles) ? roles : []);
-                 // Do not call hideLoading here
-            }); // Catch is handled by Promise.all
-    }
-
-    // --- Call Initial Load ---
-    initialLoad();
-
-    // Functions
-    function loadModels() {
-        showLoading();
-        console.log("[loadModels] Starting fetch..."); // Log start
-
-        fetch('/api/admin/models') // CORRECTED PATH
-            .then(response => {
-                console.log(`[loadModels] Received response status: ${response.status}`); // Log status
-                if (!response.ok) {
-                    console.error(`[loadModels] Fetch failed with status: ${response.status}`);
-                    throw new Error('Failed to load models');
-                }
-                console.log("[loadModels] Response OK, attempting to parse JSON..."); // Log before JSON parsing
-                return response.json();
-            })
-            .then(models => {
-                // Ensure models is an array before rendering
-                console.log("[loadModels] JSON parsed successfully. Received models data:", JSON.stringify(models, null, 2)); // Log received data
-                renderModels(Array.isArray(models) ? models : []);
-            })
-            .catch(error => {
-                console.error("[loadModels] Error caught:", error); // Log caught errors
-                showError(error.message);
-            })
-            .finally(() => {
-                console.log("[loadModels] Fetch finished (finally block)."); // Log finish
-                hideLoading();
-            });
-    }
-
-    function renderModels(models) {
-        if (!modelList) return;
-        if (models.length === 0) {
-            modelList.innerHTML = '<div class="no-results">No models found. Add a provider and sync or add a model manually.</div>';
-            return;
-        }
-
-        modelList.innerHTML = '';
-
-        // For debugging
-        console.log('Rendering models:', models.map(m => ({id: m.id, name: m.name, provider_id: m.provider_id})));
-
-        models.forEach(model => {
-            const card = document.createElement('div');
-            card.className = 'model-card';
-            card.dataset.id = model.id;
-
-            // Use provider info from the joined data
-            const providerName = model.provider ? model.provider.name : `Provider ID: ${model.provider_id}`;
-            const providerType = model.provider ? model.provider.type : 'unknown';
-
-            // Ensure provider_id is stored as a string
-            const providerId = String(model.provider_id);
-
-            card.dataset.provider = providerType; // For filtering by type
-            card.dataset.providerId = providerId; // For filtering by provider ID
-            card.dataset.active = model.is_active;
-            card.dataset.name = model.name;
-
-            console.log(`Model ${model.name} assigned provider ID: ${providerId}`);
-
-            // Format the last synced date
-            let formattedLastSynced = 'Never';
-            if (model.last_synced_at) {
-                try {
-                    const syncDate = new Date(model.last_synced_at);
-                    // Check if the date is valid
-                    if (!isNaN(syncDate.getTime())) {
-                        formattedLastSynced = syncDate.toLocaleString();
-                    } else {
-                        console.error(`Invalid date format for last_synced_at: ${model.last_synced_at} for model ${model.name}`);
-                        formattedLastSynced = 'Invalid Date'; // Keep it explicit
+// Fetch provider details for editing
+window.fetchProviderDetails = function(providerId) {
+    console.log(`Fetching details for provider ID: ${providerId}`);
+    window.showLoading();
+    fetch(`/api/admin/providers/${providerId}`)
+        .then(window.handleResponse)
+        .then(provider => {
+            if (provider) {
+                // We have provider data, populate the form
+                const form = document.getElementById('provider-form');
+                if (form) {
+                    document.getElementById('provider-name').value = provider.name || '';
+                    
+                    const typeSelect = document.getElementById('provider-type');
+                    if (typeSelect && provider.type) {
+                        typeSelect.value = provider.type;
+                        
+                        // Trigger Alpine.js update on type change
+                        const providerScope = typeSelect.closest('[x-data*="selectedType"]');
+                        if (providerScope && providerScope.__x) {
+                            providerScope.__x.data.selectedType = provider.type;
+                        }
+                        
+                        // Show conditional fields based on type
+                        window.toggleProviderConditionalFields();
                     }
-                } catch (e) {
-                    console.error(`Error parsing date for model ${model.name}:`, model.last_synced_at, e);
-                    formattedLastSynced = 'Parsing Error';
+                    
+                    // Set URL if present
+                    const baseUrlInput = document.getElementById('provider-base-url');
+                    if (baseUrlInput) {
+                        baseUrlInput.value = provider.base_url || '';
+                    }
+                    
+                    // Don't populate API key as it's sensitive and should be blank on edit
+                    const apiKeyInput = document.getElementById('provider-api-key');
+                    if (apiKeyInput) {
+                        apiKeyInput.value = ''; // Keep empty for security
+                        apiKeyInput.placeholder = '(unchanged)';
+                    }
                 }
-            }
-
-            card.innerHTML = `
-                <div class="model-provider ${providerType}">${escapeHtml(providerName)}</div>
-                <h3>${escapeHtml(model.name)}</h3>
-                <div class="model-card-details">
-                    <p class="model-id-container">
-                        <span class="model-id-label">Model ID:</span>
-                        <code class="model-id-value">${escapeHtml(model.model_id)}</code>
-                    </p>
-                    <p>Provider ID: <span>${providerId}</span></p>
-                    <p>Max Tokens: <span>${model.max_tokens.toLocaleString()}</span></p>
-                    <p>Temp: <span>${model.temperature}</span></p>
-                    <p>Status: <span class="status-badge ${model.is_active ? 'active' : 'inactive'}">${model.is_active ? 'Active' : 'Inactive'}</span></p>
-                    <p>Last Synced: <span>${formattedLastSynced}</span></p>
-                </div>
-                <div class="model-card-actions">
-                    <button class="cyber-btn toggle-btn ${model.is_active ? 'warning' : 'success'}"
-                            data-action="toggle"
-                            data-id="${model.id}"
-                            data-active="${model.is_active}">
-                        <span class="btn-icon">${model.is_active ? '⏻' : '⭘'}</span>
-                        ${model.is_active ? 'Disable' : 'Enable'}
-                    </button>
-                    <button class="cyber-btn" data-action="edit" data-id="${model.id}">Edit</button>
-                    <button class="cyber-btn danger" data-action="delete" data-id="${model.id}">Delete</button>
-                </div>
-            `;
-            modelList.appendChild(card);
-
-            // Add event listeners
-            card.querySelector('[data-action="edit"]').addEventListener('click', () => editModel(model.id));
-            card.querySelector('[data-action="delete"]').addEventListener('click', () => deleteModel(model.id));
-            const toggleBtn = card.querySelector('[data-action="toggle"]');
-            if (toggleBtn) {
-                toggleBtn.addEventListener('click', (event) => {
-                    const button = event.currentTarget;
-                    const currentIsActive = button.dataset.active === 'true';
-                    // Pass the *new desired state* to the toggle function
-                    toggleModelStatus(model.id, !currentIsActive);
-                });
-            }
-        });
-        // Re-apply filters if needed
-        filterModels();
-    }
-
-    function openModelModal(action, modelId = null) {
-        const modal = document.getElementById('model-modal');
-        const modalTitle = document.getElementById('modal-title');
-
-        modalTitle.textContent = action === 'add' ? 'Add New Model' : 'Edit Model';
-
-        // Clear the form
-        document.getElementById('model-form').reset();
-        document.getElementById('model-id').value = '';
-
-        if (action === 'edit' && modelId) {
-            fetchModelDetails(modelId);
-        }
-
-        // Show the modal
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeModelModal() {
-        const modal = document.getElementById('model-modal');
-        modal.classList.remove('active');
-        document.body.style.overflow = '';
-    }
-
-    function fetchModelDetails(modelId) {
-        showLoading();
-        fetch(`/api/admin/models/${modelId}`) // CORRECTED PATH
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to fetch model details');
-                }
-                return response.json();
-            })
-            .then(model => {
-                populateModelForm(model);
-                hideLoading();
-            })
-            .catch(error => {
-                console.error('Error fetching model details:', error);
-                showError('Failed to load model details: ' + error.message);
-                hideLoading();
-            });
-    }
-
-    function populateModelForm(model) {
-        // Load provider dropdown first if needed
-        loadProvidersAndPopulateDropdown(() => {
-            // Now populate the form fields
-            document.getElementById('model-id').value = model.id;
-            document.getElementById('model-provider-id').value = model.provider_id;
-            document.getElementById('name').value = model.name;
-            document.getElementById('model_id').value = model.model_id;
-            document.getElementById('max-tokens').value = model.max_tokens;
-
-            // Handle temperature and N/A checkbox
-            const tempValue = model.temperature; // Store original value
-            const tempIsNA = tempValue === 0; // Consider 0 as N/A
-
-            if (temperatureNACheckbox) {
-                temperatureNACheckbox.checked = tempIsNA;
-                // Trigger change event to update disabled state and values
-                temperatureNACheckbox.dispatchEvent(new Event('change'));
-            }
-
-            // Set slider and output, even if initially disabled
-            if (temperatureSlider) {
-                temperatureSlider.value = tempIsNA ? 0 : tempValue;
-            }
-            if (temperatureOutput) {
-                temperatureOutput.value = tempIsNA ? 0 : tempValue;
-            }
-
-            document.getElementById('system-prompt').value = model.default_system_prompt || '';
-            document.getElementById('is-active').checked = model.is_active;
-        });
-    }
-
-    function handleModelFormSubmit(event) {
-        event.preventDefault();
-
-        const modelData = buildModelData();
-
-        if (!modelData) {
-            console.warn("buildModelData returned null, aborting form submission.");
-            return;
-        }
-
-        // --- Determine action and model ID locally --- START
-        const modelId = document.getElementById('model-id').value;
-        const action = modelId ? 'update' : 'add';
-        // --- Determine action and model ID locally --- END
-
-        if (!validateModelData(modelData, action)) {
-            console.log("Model validation failed.");
-            return;
-        }
-
-        const apiCall = action === 'add'
-            ? addNewModel(modelData)
-            : updateModel(modelId, modelData);
-
-        apiCall
-            .then(() => {
-                showSuccess(`Model ${action === 'add' ? 'added' : 'updated'} successfully.`);
-                closeModelModal();
-                loadModels(); // Refresh list
-            })
-            .catch(error => {
-                console.error(`Error ${action} model:`, error);
-                showError(`Failed to ${action} model: ${error.message}`);
-            });
-    }
-
-    function buildModelData() {
-        const providerIdElement = document.getElementById('model-provider-id');
-        const nameElement = document.getElementById('name');
-        const modelIdElement = document.getElementById('model_id'); // Potential null element
-        const maxTokensElement = document.getElementById('max-tokens');
-        const temperatureElement = document.getElementById('temperature');
-        const systemPromptElement = document.getElementById('system-prompt');
-        const isActiveElement = document.getElementById('is-active');
-
-        // Check if critical elements exist before accessing .value
-        if (!modelIdElement) {
-            console.error("Error: Element with ID 'model_id' not found in the DOM.");
-            showError("An error occurred: Cannot find model ID input element.");
-            return null; // Indicate failure
-        }
-        if (!providerIdElement || !nameElement || !maxTokensElement || !temperatureElement || !systemPromptElement || !isActiveElement) {
-             console.error("Error: One or more critical form elements not found.");
-             showError("An error occurred: Missing form elements.");
-             return null; // Indicate failure
-        }
-
-        // Read temperature, considering the N/A checkbox
-        let temperatureValue;
-        if (temperatureNACheckbox && temperatureNACheckbox.checked) {
-            temperatureValue = 0;
-        } else {
-            temperatureValue = parseFloat(temperatureElement.value);
-        }
-
-        // Now it should be safe to access .value
-        return {
-            provider_id: parseInt(providerIdElement.value),
-            name: nameElement.value,
-            model_id: modelIdElement.value,
-            max_tokens: parseInt(maxTokensElement.value),
-            temperature: temperatureValue, // Use potentially modified value
-            default_system_prompt: systemPromptElement.value,
-            is_active: isActiveElement.checked,
-            configuration: {} // Default empty config for now
-        };
-    }
-
-    function validateModelData(modelData, action) {
-        if (action === 'add' && !modelData.provider_id) {
-            showError('Please select a provider for the new model.');
-            return false;
-        }
-        if (!modelData.name) {
-            showError('Please enter a model name');
-            return false;
-        }
-        if (!modelData.model_id) {
-            showError('Please enter the provider-specific model ID');
-            return false;
-        }
-        if (isNaN(modelData.max_tokens) || modelData.max_tokens <= 0) {
-            showError('Max Tokens must be a positive number.');
-            return false;
-        }
-        return true;
-    }
-
-    function addNewModel(modelData) {
-        showLoading();
-        return fetch('/api/admin/models', { // CORRECTED PATH
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(modelData)
-        })
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(data => {
-                        throw new Error(data.error || 'Failed to add model');
-                    });
-                }
-                return response.json();
-            })
-            .catch(error => {
-                showError(error.message);
-            })
-            .finally(() => {
-                hideLoading();
-            });
-    }
-
-    function updateModel(modelId, modelData) {
-        showLoading();
-        return fetch(`/api/admin/models/${modelId}`, { // CORRECTED PATH
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(modelData)
-        })
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(data => {
-                        throw new Error(data.error || 'Failed to update model');
-                    });
-                }
-                return response.json();
-            })
-            .catch(error => {
-                showError(error.message);
-            })
-            .finally(() => {
-                hideLoading();
-            });
-    }
-
-    function editModel(modelId) {
-        openModelModal('edit', modelId);
-    }
-
-    function deleteModel(modelId) {
-        openConfirmModal('Are you sure you want to delete this model?', 'delete', modelId);
-    }
-
-    function performDeleteModel(modelId) {
-        showLoading();
-        return fetch(`/api/admin/models/${modelId}`, { // CORRECTED PATH
-            method: 'DELETE'
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to delete model');
-                }
-                showSuccess('Model deleted successfully');
-                loadModels();
-            })
-            .catch(error => {
-                showError(error.message);
-            })
-            .finally(() => {
-                hideLoading();
-            });
-    }
-
-    function filterModels() {
-        const searchTerm = modelSearch.value.toLowerCase();
-        const providerIdFilter = providerFilterSelect.value; // Use the updated select
-        const activeOnly = activeOnlyCheckbox.checked;
-
-        // Clear debug info
-        console.clear();
-        console.log('==== Filter Models ====');
-        console.log('Provider Filter Value:', providerIdFilter, typeof providerIdFilter);
-        console.log('Active Only:', activeOnly);
-        console.log('Search Term:', searchTerm);
-
-        const cards = document.querySelectorAll('.model-card');
-        console.log(`Total cards: ${cards.length}`);
-
-        let matched = 0;
-        let hiddenByProvider = 0;
-        let hiddenByActive = 0;
-        let hiddenBySearch = 0;
-
-        cards.forEach(card => {
-            const name = card.dataset.name.toLowerCase();
-            const cardProviderId = card.dataset.providerId; // Use providerId dataset
-            const isActive = card.dataset.active === "true";
-
-            // Debug provider IDs in the cards
-            console.log(`Card: ${name} | Provider ID: ${cardProviderId} | Active: ${isActive}`);
-
-            const matchesSearch = name.includes(searchTerm);
-            if (!matchesSearch) hiddenBySearch++;
-
-            // Improved comparison logic for provider filtering
-            const matchesProvider = !providerIdFilter || providerIdFilter === '' ||
-                                    cardProviderId === providerIdFilter;
-            if (!matchesProvider) hiddenByProvider++;
-
-            const matchesActive = !activeOnly || isActive;
-            if (!matchesActive) hiddenByActive++;
-
-            const shouldShow = matchesSearch && matchesProvider && matchesActive;
-
-            if (shouldShow) {
-                matched++;
-                card.style.display = '';
             } else {
-                card.style.display = 'none';
+                window.showError("Failed to load provider details.");
             }
+        })
+        .catch(error => {
+            window.showError(`Error fetching provider: ${error.message}`);
+        })
+        .finally(() => {
+            window.hideLoading();
         });
+};
 
-        console.log(`Matched: ${matched} | Hidden by provider: ${hiddenByProvider} | Hidden by active: ${hiddenByActive} | Hidden by search: ${hiddenBySearch}`);
-
-        // Show "no results" message if all cards are hidden
-        const visibleCards = document.querySelectorAll('.model-card:not([style*="display: none"])');
-        let noResults = modelList.querySelector('.no-results-filter'); // Check if message exists
-
-        if (visibleCards.length === 0 && cards.length > 0) {
-            if (!noResults) {
-                noResults = document.createElement('div');
-                noResults.className = 'no-results-filter';
-                noResults.textContent = 'No models match your filter criteria.';
-                modelList.appendChild(noResults);
-            }
-        } else {
-            if (noResults) {
-                noResults.remove();
-            }
-        }
-    }
-
-    function toggleProviderConditionalFields() {
-        const providerType = providerTypeSelect.value;
-        const baseUrlGroup = document.getElementById('provider-base-url')?.closest('.form-group');
-        const apiKeyGroup = document.getElementById('provider-api-key')?.closest('.form-group');
-        const baseUrlInput = document.getElementById('provider-base-url');
-        const apiKeyInput = document.getElementById('provider-api-key');
-
-        // Hide all conditional fields by default
-        if(baseUrlGroup) baseUrlGroup.style.display = 'none';
-        if(apiKeyGroup) apiKeyGroup.style.display = 'none';
-
-        // Reset required attributes
-        if (baseUrlInput) baseUrlInput.required = false;
-        if (apiKeyInput) apiKeyInput.required = false;
-
-        // Show fields based on provider type
-        if (providerType === 'ollama') {
-            // Ollama requires base URL and optionally API key
-            if (baseUrlGroup) baseUrlGroup.style.display = 'block';
-            if (baseUrlInput) baseUrlInput.required = true; // Required for Ollama
-            if (apiKeyGroup) apiKeyGroup.style.display = 'block';
-        } else if (providerType === 'openai' || providerType === 'anthropic') {
-            // OpenAI/Anthropic require API key and optionally base URL
-            if (baseUrlGroup) baseUrlGroup.style.display = 'block'; // Show base URL field
-            if (apiKeyGroup) apiKeyGroup.style.display = 'block';
-            if (apiKeyInput && currentAction === 'add') {
-                apiKeyInput.required = true; // Required for new providers
-            }
-        }
-    }
-
-    function updateTemperatureOutput() {
-        temperatureOutput.textContent = temperatureSlider.value;
-    }
-
-    // --- Users Tab Functions ---
-    function loadUsers() {
-        showLoading(); // Use general loader
-        fetch('/api/admin/users') // CORRECTED PATH
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to load users');
+// Fetch user details for editing
+window.fetchUserDetails = function(userId) {
+    console.log(`Fetching details for user ID: ${userId}`);
+    window.showLoading();
+    fetch(`/api/admin/users/${userId}`)
+        .then(window.handleResponse)
+        .then(user => {
+            if (user) {
+                // We have user data, populate the form
+                const form = document.getElementById('user-form');
+                if (form) {
+                    document.getElementById('username').value = user.username || '';
+                    document.getElementById('email').value = user.email || '';
+                    document.getElementById('first-name').value = user.first_name || '';
+                    document.getElementById('last-name').value = user.last_name || '';
+                    
+                    // Set role dropdown
+                    const roleSelect = document.getElementById('role-id');
+                    if (roleSelect && user.role_id) {
+                        for (let i = 0; i < roleSelect.options.length; i++) {
+                            if (roleSelect.options[i].value == user.role_id) {
+                                roleSelect.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Set active status
+                    const isActiveCheckbox = document.getElementById('user-is-active');
+                    if (isActiveCheckbox) {
+                        isActiveCheckbox.checked = user.is_active;
+                    }
+                    
+                    // Hide password fields on edit
+                    const passwordSection = document.getElementById('password-section');
+                    if (passwordSection) passwordSection.style.display = 'none';
                 }
-                return response.json();
-            })
-            .then(users => {
-                 // Ensure users is an array before rendering
-                renderUsers(Array.isArray(users) ? users : []);
-                populateRoleFilter(Array.isArray(users) ? users : []); // Also ensure array for filter population
-            })
-            .catch(error => {
-                showError(error.message);
-            })
-            .finally(() => {
-                hideLoading(); // Use general loader
-            });
-    }
-
-    function renderUsers(users) {
-        if (users.length === 0) {
-            userList.innerHTML = '<div class="no-results">No users found. Add a new user to get started.</div>';
-            return;
-        }
-
-        userList.innerHTML = '';
-
-        users.forEach(user => {
-            const card = document.createElement('div');
-            card.className = 'user-card';
-            card.dataset.id = user.id;
-            card.dataset.role = user.role ? user.role.name.toLowerCase() : '';
-            card.dataset.active = user.is_active;
-            card.dataset.name = user.username;
-
-            let roleName = user.role ? user.role.name : 'Unknown';
-            let roleClass = roleName.toLowerCase();
-
-            card.innerHTML = `
-                <div class="role-badge ${roleClass}">${escapeHtml(roleName)}</div>
-                <h3>${escapeHtml(user.username)}</h3>
-                <div class="user-card-details">
-                    <p>Email: <span>${escapeHtml(user.email)}</span></p>
-                    <p>Name: <span>${escapeHtml(user.first_name || '')} ${escapeHtml(user.last_name || '')}</span></p>
-                    <p>Status: <span class="status-badge ${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></p>
-                </div>
-                <div class="user-card-actions">
-                    <button class="cyber-btn" data-action="edit-user" data-id="${user.id}">Edit</button>
-                    <button class="cyber-btn danger" data-action="delete-user" data-id="${user.id}">Delete</button>
-                </div>
-            `;
-
-            userList.appendChild(card);
-
-            // Add event listeners to the action buttons
-            card.querySelector('[data-action="edit-user"]').addEventListener('click', () => {
-                editUser(user.id);
-            });
-
-            card.querySelector('[data-action="delete-user"]').addEventListener('click', () => {
-                deleteUser(user.id);
-            });
-        });
-    }
-
-    function populateRoleFilter(users) {
-        // Get unique roles from users
-        const roleSet = new Set();
-        users.forEach(user => {
-            if (user.role) {
-                roleSet.add(JSON.stringify({
-                    id: user.role.id,
-                    name: user.role.name
-                }));
-            }
-        });
-
-        // Clear existing options except the first one
-        const firstOption = roleFilter.options[0];
-        roleFilter.innerHTML = '';
-        roleFilter.appendChild(firstOption);
-
-        // Add options for each role
-        Array.from(roleSet).forEach(roleJson => {
-            const role = JSON.parse(roleJson);
-            const option = document.createElement('option');
-            option.value = role.id;
-            option.textContent = role.name;
-            roleFilter.appendChild(option);
-        });
-    }
-
-    function openUserModal(action, userId = null) {
-        const modal = document.getElementById('user-modal');
-        const modalTitle = document.getElementById('user-modal-title');
-        const userForm = document.getElementById('user-form');
-        const userIdInput = document.getElementById('user-id');
-        const passwordFieldsDiv = document.querySelectorAll('.new-user-password-fields'); // Get all password field divs
-        const newPasswordInput = document.getElementById('new-password');
-        const confirmPasswordInput = document.getElementById('confirm-password');
-        const changePasswordButton = document.querySelector('.change-password-action-btn'); // Use the specific class/ID
-
-        modalTitle.textContent = action === 'add' ? 'Add New User' : 'Edit User';
-
-        // Clear the form
-        userForm.reset();
-        userIdInput.value = ''; // Clear hidden ID
-
-        if (action === 'add') {
-            // Show password fields for new user, make required, hide change pw btn
-            passwordFieldsDiv.forEach(div => div.style.display = 'block');
-            if (newPasswordInput) newPasswordInput.required = true;
-            if (confirmPasswordInput) confirmPasswordInput.required = true;
-            if (changePasswordButton) changePasswordButton.style.display = 'none';
-        } else {
-            // Hide password fields for edit user, make not required, show change pw btn
-            passwordFieldsDiv.forEach(div => div.style.display = 'none');
-            if (newPasswordInput) newPasswordInput.required = false;
-            if (confirmPasswordInput) confirmPasswordInput.required = false;
-            if (changePasswordButton) changePasswordButton.style.display = 'inline-block'; // Or 'block' depending on layout
-
-            if (userId) {
-                userIdInput.value = userId; // Set the ID for editing
-                fetchUserDetails(userId);
             } else {
-                console.error("Edit action called without a userId!");
-                showError("Cannot edit user: User ID missing.");
-                return; // Don't open modal if ID is missing for edit
+                window.showError("Failed to load user details.");
             }
-        }
-
-        // Remove previous password hint logic if any
-        // const passwordHint = document.querySelector('.password-field .field-hint');
-        // if (passwordHint) {
-        //     passwordHint.style.display = 'none'; // Not needed with separate fields
-        // }
-
-
-        // Show the modal
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeUserModal() {
-        const modal = document.getElementById('user-modal');
-        modal.classList.remove('active');
-        document.body.style.overflow = '';
-    }
-
-    function fetchUserDetails(userId) {
-        showLoading();
-        fetch(`/api/admin/users/${userId}`) // CORRECTED PATH
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to fetch user details');
-                }
-                return response.json();
-            })
-            .then(user => {
-                populateUserForm(user);
-                hideLoading();
-            })
-            .catch(error => {
-                console.error('Error fetching user details:', error);
-                showError('Failed to load user details: ' + error.message);
-                hideLoading();
-            });
-    }
-
-    function populateUserForm(user) {
-        console.log("[populateUserForm] Populating form for user:", user);
-        // Populate the form with user data directly
-        document.getElementById('user-id').value = user.id;
-        document.getElementById('username').value = user.username;
-        document.getElementById('email').value = user.email;
-        document.getElementById('first-name').value = user.first_name || '';
-        document.getElementById('last-name').value = user.last_name || '';
-
-        // Set role dropdown
-        const roleSelect = document.getElementById('role-id');
-        if (roleSelect && user.role_id) {
-             console.log(`[populateUserForm] Setting role ID to: ${user.role_id}`);
-             roleSelect.value = user.role_id;
-             // Verify the value was set
-             if (roleSelect.value != user.role_id) {
-                 console.warn(`[populateUserForm] Role ID ${user.role_id} not found in dropdown. Available options:`, Array.from(roleSelect.options).map(opt => opt.value));
-             }
-        } else if (!roleSelect) {
-             console.error("[populateUserForm] Role select dropdown not found!");
-        } else if (!user.role_id) {
-             console.warn("[populateUserForm] User data missing role_id.");
-        }
-
-        // Set active checkbox
-        const activeCheckbox = document.getElementById('user-is-active');
-        if (activeCheckbox) {
-            activeCheckbox.checked = user.is_active;
-        }
-
-        // Clear password field - we don't receive the password in the response
-        const passwordField = document.getElementById('password');
-        if (passwordField) {
-            passwordField.value = '';
-        }
-        console.log("[populateUserForm] Form population complete.");
-    }
-
-    function handleUserFormSubmit(event) {
-        event.preventDefault();
-
-        const userDetails = buildUserData(); // Gets flat user details { username: ..., email: ... }
-        if (!userDetails) {
-            console.warn("buildUserData returned null, aborting form submission.");
-            return; // Stop if data building failed
-        }
-
-        const userId = document.getElementById('user-id').value;
-        const action = userId ? 'update' : 'add';
-        const isNewUser = (action === 'add');
-
-        // Validate common user data (username, email, role)
-        if (!validateUserData(userDetails)) { // Removed isNewUser flag here
-            console.log("Common user data validation failed");
-            return; // Stop if validation fails
-        }
-
-        let apiCall;
-        if (action === 'add') {
-            // --- Password handling for NEW users ---
-            const passwordInput = document.getElementById('new-password');
-            const confirmPasswordInput = document.getElementById('confirm-password');
-
-            if (!passwordInput || !confirmPasswordInput) {
-                 showError("Internal error: Password fields not found.");
-                 console.error("Password input elements not found for new user.");
-                 return;
-            }
-
-            const passwordValue = passwordInput.value;
-            const confirmPasswordValue = confirmPasswordInput.value;
-
-            if (!passwordValue || passwordValue.trim() === '') {
-                showError("Password is required for new users.");
-                passwordInput.focus();
-                return;
-            }
-            if (passwordValue.length < 8) {
-                 showError("Password must be at least 8 characters long.");
-                 passwordInput.focus();
-                 return;
-            }
-            if (passwordValue !== confirmPasswordValue) {
-                showError("Passwords do not match.");
-                confirmPasswordInput.focus();
-                return;
-            }
-            // --- End Password Handling ---
-
-
-            // Construct the nested object required by the API for the add call
-            const payloadForAdd = {
-                user: userDetails, // The flat user object
-                password: passwordValue // The validated password
-            };
-            console.log("Adding new user with payload:", payloadForAdd); // Log payload for debugging
-            apiCall = addNewUser(payloadForAdd);
-
-        } else {
-            // For update, just pass the flat userDetails object
-            // The backend UpdateUser handler expects the flat structure
-            console.log("Updating user", userId, "with details:", userDetails);
-            apiCall = updateUser(userId, userDetails);
-        }
-
-        if (apiCall) { // Ensure apiCall was assigned
-             apiCall.then(() => {
-                 showSuccess(`User ${action === 'add' ? 'added' : 'updated'} successfully.`);
-                 closeUserModal();
-                 loadUsers(); // Reload the user list after success
-             }).catch(error => {
-                 // Error should be shown by the specific add/update function now
-                 console.error(`Error during user ${action}:`, error);
-                 // Optionally show a generic error here if needed, but prefer specific ones
-                 // showError(`Error ${action === 'add' ? 'adding' : 'updating'} user: ${error.message}`);
-             });
-        } else {
-             console.error("API call promise was not created for user form submission.");
-             showError("An unexpected error occurred submitting the user form.");
-        }
-    }
-
-    function buildUserData() {
-        const usernameElement = document.getElementById('username');
-        const emailElement = document.getElementById('email');
-        // Password element is NOT needed here anymore
-        const firstNameElement = document.getElementById('first-name');
-        const lastNameElement = document.getElementById('last-name');
-        const roleIdElement = document.getElementById('role-id');
-        const isActiveElement = document.getElementById('user-is-active');
-
-        // Check if critical elements exist
-        if (!usernameElement || !emailElement || !roleIdElement) {
-            console.error("Error: Critical user form elements not found.");
-            showError("An error occurred: Missing user form elements.");
-            return null;
-        }
-
-        // Build the FLAT user data object (no outer 'user' key)
-        const userDetails = {
-            username: usernameElement.value,
-            email: emailElement.value,
-            role_id: parseInt(roleIdElement.value),
-            is_active: isActiveElement ? isActiveElement.checked : true
-            // Note: ID is handled separately in submit/update functions
-        };
-
-        // Add optional fields if they exist and have values
-        if (firstNameElement && firstNameElement.value) {
-            userDetails.first_name = firstNameElement.value;
-        }
-
-        if (lastNameElement && lastNameElement.value) {
-            userDetails.last_name = lastNameElement.value;
-        }
-
-        // DO NOT add password here
-
-        return userDetails; // Return the flat user details object
-    }
-
-    function validateUserData(userData) { // Removed isNewUser flag
-        // Now validates the flat structure - password validation removed
-        if (!userData.username || userData.username.trim() === '') {
-            showError('Username is required.');
-            return false;
-        }
-
-        if (!userData.email || userData.email.trim() === '') {
-            showError('Email is required.');
-            return false;
-        }
-        // Basic email format check (very simple)
-        if (!/\S+@\S+\.\S+/.test(userData.email)) { // Corrected regex
-             showError('Please enter a valid email address.');
-             return false;
-        }
-
-
-        if (!userData.role_id || isNaN(parseInt(userData.role_id)) || parseInt(userData.role_id) <= 0) {
-            showError('Please select a valid role.');
-            return false;
-        }
-
-        // Password validation is now handled separately in handleUserFormSubmit for 'add'
-        // if (isNewUser && (!userData.password || userData.password.trim() === \'\')) {
-        //     showError(\'Password is required for new users.\');
-        //     return false;
-        // }
-
-        return true;
-    }
-
-    function addNewUser(userRequestData) { // Expects { user: { ... }, password: "..." }
-        showLoading();
-        return fetch('/api/admin/users', { // CORRECTED PATH
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(userRequestData)
         })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to create user');
-                }
-                return response.json();
-            })
-            .catch(error => {
-                showError(error.message);
-            })
-            .finally(() => {
-                hideLoading();
-            });
-    }
-
-    function updateUser(userId, userDetails) { // Expects flat user details { username: ..., email: ... }
-        showLoading();
-        // Note: Password should not be in userDetails for update
-        return fetch(`/api/admin/users/${userId}`, { // CORRECTED PATH
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(userDetails) // Send the flat structure
+        .catch(error => {
+            window.showError(`Error fetching user: ${error.message}`);
         })
-            .then(response => {
-                if (!response.ok) {
-                    // Try to parse error response
-                    return response.json().then(data => {
-                        throw new Error(data.error || 'Failed to update user');
-                    }).catch(() => {
-                         // Fallback if error response is not JSON
-                        throw new Error(`Failed to update user (${response.status})`);
-                    });
-                }
-                return response.json(); // Success response
-            })
-            .catch(error => {
-                 showError(error.message); // Show error from API or fetch
-                 throw error; // Re-throw to be caught by handleUserFormSubmit if needed
-            })
-            .finally(() => {
-                hideLoading();
-            });
-    }
-
-    function editUser(userId) {
-        openUserModal('edit', userId);
-    }
-
-    function deleteUser(userId) {
-        currentUserId = userId;
-        currentItemType = 'user';
-        openConfirmModal('Are you sure you want to delete this user?', 'delete', userId);
-    }
-
-    function performDeleteUser(userId) {
-        showLoading();
-        // Note: This actually deactivates the user
-        return fetch(`/api/admin/users/${userId}`, { // CORRECTED PATH
-            method: 'DELETE'
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to delete user');
-                }
-                showSuccess('User deleted successfully');
-                loadUsers(); // Reload the user list
-            })
-            .catch(error => {
-                showError(`Error deleting user: ${error.message}`);
-            })
-            .finally(() => {
-                hideLoading();
-            });
-    }
-
-    function filterUsers() {
-        const searchTerm = userSearch.value.toLowerCase();
-        const roleId = roleFilter.value;
-        const activeOnly = userActiveOnlyCheckbox.checked;
-
-        const userCards = userList.querySelectorAll('.user-card');
-
-        userCards.forEach(card => {
-            const name = card.dataset.name.toLowerCase();
-            const role = card.dataset.role;
-            const isActive = card.dataset.active === 'true';
-
-            const matchesSearch = name.includes(searchTerm);
-            const matchesRole = !roleId || card.dataset.roleId === roleId;
-            const matchesActive = !activeOnly || isActive;
-
-            if (matchesSearch && matchesRole && matchesActive) {
-                card.style.display = '';
-            } else {
-                card.style.display = 'none';
-            }
+        .finally(() => {
+            window.hideLoading();
         });
+};
 
-        // Show no results message if all cards are hidden
-        const visibleCards = Array.from(userCards).filter(card => card.style.display !== 'none');
-        if (visibleCards.length === 0) {
-            let noResults = userList.querySelector('.no-results');
-            if (!noResults) {
-                noResults = document.createElement('div');
-                noResults.className = 'no-results';
-                noResults.textContent = 'No users match your filters';
-                userList.appendChild(noResults);
-            }
-        } else {
-            const noResults = userList.querySelector('.no-results');
-            if (noResults) {
-                noResults.remove();
-            }
-        }
+window.toggleProviderConditionalFields = function() {
+    console.log("Toggling provider conditional fields");
+    const providerType = document.getElementById('provider-type')?.value;
+    
+    // Get all conditional field containers
+    const openaiFields = document.getElementById('openai-fields');
+    const ollamaFields = document.getElementById('ollama-fields');
+    const anthropicFields = document.getElementById('anthropic-fields');
+    
+    // Hide all first
+    if (openaiFields) openaiFields.style.display = 'none';
+    if (ollamaFields) ollamaFields.style.display = 'none';
+    if (anthropicFields) anthropicFields.style.display = 'none';
+    
+    // Show relevant fields based on selected type
+    if (providerType === 'openai' && openaiFields) {
+        openaiFields.style.display = 'block';
+    } else if (providerType === 'ollama' && ollamaFields) {
+        ollamaFields.style.display = 'block';
+    } else if (providerType === 'anthropic' && anthropicFields) {
+        anthropicFields.style.display = 'block';
     }
+};
 
-    // --- Roles Tab Functions ---
-    function loadRoles() {
-        showLoading(); // Use general loader
-        fetch('/api/admin/roles') // CORRECTED PATH
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to load roles');
-                }
-                return response.json();
-            })
-            .then(roles => {
-                // Ensure roles is an array before rendering
-                renderRoles(Array.isArray(roles) ? roles : []);
-                populateRoleSelectOptions(Array.isArray(roles) ? roles : []); // Also ensure array for select population
-            })
-            .catch(error => {
-                showError(error.message);
-            })
-            .finally(() => {
-                hideLoading(); // Use general loader
-            });
-    }
-
-    function renderRoles(roles) {
-        if (roles.length === 0) {
-            roleList.innerHTML = '<div class="no-results">No roles found.</div>';
-            return;
-        }
-
-        roleList.innerHTML = '';
-
-        roles.forEach(role => {
-            const card = document.createElement('div');
-            card.className = 'role-card';
-            card.dataset.id = role.id;
-            card.dataset.name = role.name;
-
-            card.innerHTML = `
-                <h3>${escapeHtml(role.name)}</h3>
-                <p>${escapeHtml(role.description || 'No description')}</p>
-                <div class="role-users">
-                    <div class="role-users-title">Users with this role:</div>
-                    <div class="role-users-loading">Loading users...</div>
-                    <div class="role-users-list" id="role-users-${role.id}"></div>
-                </div>
-            `;
-
-            roleList.appendChild(card);
-
-            // Load users for this role
-            loadUsersForRole(role.id);
-        });
-    }
-
-    function loadUsersForRole(roleId) {
-        // Don't show main loader here, just update inline
-        const loadingIndicator = document.querySelector(`#role-users-${roleId}`)?.previousElementSibling;
-        if (loadingIndicator && loadingIndicator.classList.contains('role-users-loading')) {
-             loadingIndicator.style.display = 'block'; // Show inline loader
-        }
-
-        fetch(`/api/admin/roles/${roleId}/users`) // CORRECTED PATH
-            .then(response => {
-                if (!response.ok) {
-                    // If response is not ok, don't try to parse JSON, throw error directly
-                    throw new Error(`Failed to load users for role ${roleId}: ${response.status}`);
-                }
-                // Handle potential empty body for 2xx responses
-                if (response.status === 204) { // No Content
-                    return []; // Return empty array if no content
-                }
-                return response.json(); // Otherwise, parse JSON
-            })
-            .then(users => {
-                // Ensure users is an array before rendering
-                renderUsersForRole(roleId, Array.isArray(users) ? users : []);
-            })
-            .catch(error => {
-                console.error(`Error loading users for role ${roleId}:`, error);
-                const usersList = document.getElementById(`role-users-${roleId}`);
-                if (usersList) {
-                    usersList.innerHTML = '<div class="error-message">Failed to load users</div>';
-                }
-            })
-            .finally(() => {
-                // Remove inline loading indicator
-                 if (loadingIndicator && loadingIndicator.classList.contains('role-users-loading')) {
-                    loadingIndicator.remove();
-                }
-            });
-    }
-
-    function renderUsersForRole(roleId, users) {
-        const usersList = document.getElementById(`role-users-${roleId}`);
-        if (!usersList) return;
-
-        if (!users || users.length === 0) {
-            usersList.innerHTML = '<div class="no-users">No users with this role</div>';
-            return;
-        }
-
-        usersList.innerHTML = '';
-        users.forEach(user => {
-            const chip = document.createElement('div');
-            chip.className = 'user-chip';
-            chip.textContent = user.username;
-            usersList.appendChild(chip);
-        });
-    }
-
-    function populateRoleSelectOptions(roles) {
-        const roleSelect = document.getElementById('role-id');
-
-        // Clear existing options except the first one
-        const firstOption = roleSelect.options[0];
-        roleSelect.innerHTML = '';
-        roleSelect.appendChild(firstOption);
-
-        // Add options for each role
-        roles.forEach(role => {
-            const option = document.createElement('option');
-            option.value = role.id;
-            option.textContent = role.name;
-            roleSelect.appendChild(option);
-        });
-    }
-
-    // --- Confirmation and Notification Functions ---
-    function openConfirmModal(message, action, itemId) {
-        console.log(`[Debug] openConfirmModal called with: message=${message}, action=${action}, itemId=${itemId}, currentItemType=${currentItemType}`); // Log entry
-        document.getElementById('confirm-message').textContent = message;
-        currentAction = action;
-        currentItemType = currentItemType || 'model'; // Default to model if not set
-
-        if (currentItemType === 'model') {
-            currentModelId = itemId;
-        } else if (currentItemType === 'user') {
-            currentUserId = itemId;
-        }
-
-        const confirmModalElement = document.getElementById('confirm-modal');
-        if (confirmModalElement) {
-            confirmModalElement.style.display = 'flex'; // Ensure it's not display: none
-            // Use requestAnimationFrame to ensure display change is applied before adding class
-            requestAnimationFrame(() => {
-                 confirmModalElement.classList.add('active');
-                 document.body.style.overflow = 'hidden';
-                 console.log("[Debug] Added .active class to #confirm-modal. It should be visible.");
-            });
-        } else {
-             console.error("[Error] Confirmation modal element (#confirm-modal) not found!");
-        }
-    }
-
-    function closeConfirmModal() {
-        if (confirmModal) {
-            confirmModal.classList.remove('active');
-            document.body.style.overflow = '';
-            console.log("[Debug] Removed .active class from #confirm-modal. It should be hidden.");
-            // Add a delay to ensure transition completes before setting display: none
-            setTimeout(() => {
-                if (confirmModal && !confirmModal.classList.contains('active')) {
-                    confirmModal.style.display = 'none';
-                    console.log("[Debug] Set display: none on #confirm-modal after timeout.");
-                }
-            }, 350); // Slightly longer than the transition duration
-        } else {
-            console.error("[Error] Confirmation modal element (#confirm-modal) not found during close!");
-        }
-    }
-
-    function handleConfirmAction() {
-        if (currentAction === 'delete') {
-            if (currentItemType === 'model' && currentModelId) {
-                performDeleteModel(currentModelId);
-            } else if (currentItemType === 'user' && currentUserId) {
-                performDeleteUser(currentUserId);
-            } else if (currentItemType === 'provider' && currentProviderId) {
-                performDeleteProvider(currentProviderId);
-            }
-        }
-        closeConfirmModal();
-        // Reset state after action
-        currentItemType = null;
-        currentModelId = null;
-        currentUserId = null;
-        currentProviderId = null;
-    }
-
-    function handleOllamaImport() {
-        // Instead of direct API call, open the import modal
-        openOllamaImportModal();
-    }
-
-    function openOllamaImportModal() {
-        // Pre-fill the server URL if it exists in the input field
-        const urlInputValue = document.getElementById('ollama-import-url').value.trim();
-        if (urlInputValue) {
-            ollamaServerUrl.value = urlInputValue;
-        }
-
-        ollamaImportModal.style.display = 'block';
-    }
-
-    function closeOllamaImportModal() {
-        ollamaImportModal.style.display = 'none';
-    }
-
-    function handleOllamaImportSubmit(event) {
-        event.preventDefault();
-
-        const serverUrl = ollamaServerUrl.value.trim();
-        if (!serverUrl) {
-            showError('Please enter Ollama server URL');
-            return;
-        }
-
-        // Show loading state
-        ollamaImportSubmit.textContent = 'Importing...';
-        ollamaImportSubmit.disabled = true;
-
-        // Prepare import data with advanced options
-        const importData = {
-            base_url: serverUrl
-        };
-
-        // Add API key if provided
-        if (ollamaApiKey.value) {
-            importData.api_key = ollamaApiKey.value;
-        }
-
-        // Add default token setting - use a higher default if not specified
-        if (ollamaDefaultTokens.value) {
-            importData.default_tokens = parseInt(ollamaDefaultTokens.value);
-        } else {
-            // Provide a better default (8192 tokens) if not specified
-            importData.default_tokens = 8192;
-        }
-
-        // Add active flag
-        importData.set_active = importAllActive.checked;
-
-        // Make API request
-        fetch('/api/admin/models/import-ollama', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(importData)
-        })
+// Load providers for select dropdowns
+window.loadProvidersAndPopulateDropdown = function(callback) {
+    console.log("Loading providers for dropdown");
+    fetch('/api/admin/providers')
         .then(response => {
             if (!response.ok) {
-                // Try to parse the error response from the server
-                return response.json().then(errData => {
-                    throw new Error(errData.error || `Failed to import models: ${response.status}`);
-                }).catch(() => {
-                    // Fallback if parsing error response fails
-                    throw new Error(`Failed to import models: ${response.status}`);
-                });
+                throw new Error(`Failed to load providers: ${response.status}`);
             }
             return response.json();
         })
-        .then(data => {
-            loadModels(); // Refresh model list
-            closeOllamaImportModal();
-            let successMessage = `Successfully imported ${data.models_imported} models from Ollama server`;
-            if (data.errors_occurred) {
-                successMessage += `. Some models failed to import. Please check server logs for details.`;
-                // Optionally, show a different type of notification (e.g., warning)
-                showNotification(successMessage, 'warning'); // Assuming a warning style exists or can be added
-            } else {
-                showSuccess(successMessage);
+        .then(providers => {
+            const providerDropdown = document.getElementById('model-provider-id');
+            if (providerDropdown) {
+                // Clear existing options first, keeping just the first placeholder
+                while (providerDropdown.options.length > 1) {
+                    providerDropdown.remove(1);
+                }
+                
+                // Add providers as options
+                providers.forEach(provider => {
+                    const option = document.createElement('option');
+                    option.value = provider.id;
+                    option.textContent = provider.name;
+                    providerDropdown.appendChild(option);
+                });
             }
+            if (callback && typeof callback === 'function') callback();
         })
         .catch(error => {
-            showError(`Error importing models: ${error.message}`);
+            console.error("Error loading providers:", error);
+            if (callback && typeof callback === 'function') callback();
+        });
+};
+
+// Load roles for select dropdowns
+window.loadRolesAndPopulateDropdown = function(callback) {
+    console.log("Loading roles for dropdown");
+    fetch('/api/admin/roles')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to load roles: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(roles => {
+            const roleDropdown = document.getElementById('role-id');
+            if (roleDropdown) {
+                // Clear existing options first, keeping just the first placeholder
+                while (roleDropdown.options.length > 1) {
+                    roleDropdown.remove(1);
+                }
+                
+                // Add roles as options
+                roles.forEach(role => {
+                    const option = document.createElement('option');
+                    option.value = role.id;
+                    option.textContent = role.name;
+                    roleDropdown.appendChild(option);
+                });
+            }
+            if (callback && typeof callback === 'function') callback();
+        })
+        .catch(error => {
+            console.error("Error loading roles:", error);
+            if (callback && typeof callback === 'function') callback();
+        });
+};
+
+// Define the modal functions in the global scope so Alpine.js can access them
+window.openModelModal = function(action, modelId = null) {
+    console.log(`Preparing model modal for action: ${action}`);
+    const modal = document.getElementById('model-modal');
+    if (!modal) { console.error("Model modal element not found!"); return; }
+
+    // Setup form content (reset, title, potentially load data)
+    const form = document.getElementById('model-form');
+    if (form) form.reset();
+    
+    const title = document.getElementById('modal-title');
+    const idInput = document.getElementById('model-id');
+    if (idInput) idInput.value = ''; // Clear ID for add/edit
+    if (title) title.textContent = action === 'add' ? 'Add New Model' : 'Edit Model';
+
+    // Load providers needed for the dropdown
+    if (window.loadProvidersAndPopulateDropdown) {
+        window.loadProvidersAndPopulateDropdown(() => {
+            if (action === 'edit' && modelId) {
+                if(idInput) idInput.value = modelId; // Set ID for edit
+                if (window.fetchModelDetails) window.fetchModelDetails(modelId); // This will populate the form fields
+            }
+            console.log(`Model modal ready for ${action}. Waiting for Alpine to show.`);
+        });
+    } else {
+        console.error("loadProvidersAndPopulateDropdown not defined yet");
+    }
+};
+
+window.openProviderModal = function(action, providerId = null) {
+    console.log(`Preparing provider modal for action: ${action}`);
+    const modal = document.getElementById('provider-modal');
+    if (!modal) { console.error("Provider modal element not found!"); return; }
+    
+    // Setup form content
+    const form = document.getElementById('provider-form');
+    if (form) form.reset();
+    
+    const idInput = document.getElementById('provider-id');
+    const title = document.getElementById('provider-modal-title');
+    if (idInput) idInput.value = '';
+    if (title) title.textContent = action === 'add' ? 'Add New Provider' : 'Edit Provider';
+
+    const providerTypeSelect = document.getElementById('provider-type');
+    if (providerTypeSelect) {
+        providerTypeSelect.value = ''; // Reset dropdown
+        // Manually trigger Alpine update for conditional fields (if needed)
+        const providerScope = providerTypeSelect.closest('[x-data*="selectedType"]');
+        if(providerScope && providerScope.__x) {
+            providerScope.__x.data.selectedType = '';
+        }
+        if (window.toggleProviderConditionalFields) window.toggleProviderConditionalFields(); // Ensure fields are hidden initially
+    }
+    
+    if (action === 'edit' && providerId) {
+        if(idInput) idInput.value = providerId;
+        if (window.fetchProviderDetails) window.fetchProviderDetails(providerId); // Populates form
+    }
+    console.log(`Provider modal ready for ${action}. Waiting for Alpine to show.`);
+};
+
+window.openUserModal = function(action, userId = null) {
+    console.log(`Preparing user modal for action: ${action}`);
+    const modal = document.getElementById('user-modal');
+    if (!modal) { console.error("User modal not found!"); return; }
+
+    // Setup form content first
+    const form = document.getElementById('user-form');
+    if (form) form.reset();
+    
+    // Set hidden input 
+    const idInput = document.getElementById('user-id');
+    if (idInput) idInput.value = '';
+    
+    // Prepare roles dropdown and data
+    if (window.loadRolesAndPopulateDropdown) {
+        window.loadRolesAndPopulateDropdown(() => {
+            if (action === 'edit' && userId) {
+                if(idInput) idInput.value = userId;
+                if (window.fetchUserDetails) window.fetchUserDetails(userId);
+            }
+            console.log(`User modal ready for ${action}. Waiting for Alpine to show.`);
+        });
+    } else {
+        console.error("loadRolesAndPopulateDropdown not defined yet");
+    }
+};
+
+window.openChangePasswordModal = function(userId, username) {
+    console.log(`Preparing change password modal for user: ${username}`);
+    const modal = document.getElementById('change-password-modal');
+    if (!modal) { console.error("Change password modal not found!"); return; }
+
+    // Set up form first
+    const form = document.getElementById('change-password-form');
+    if (form) form.reset();
+    
+    // Set user ID
+    const userIdInput = document.getElementById('change-password-user-id');
+    if (userIdInput) userIdInput.value = userId || '';
+    
+    console.log(`Change password modal ready. Waiting for Alpine to show.`);
+};
+
+window.openConfirmModal = function(message, action, itemId, itemType) {
+    console.log(`Preparing confirm modal for action: ${action}, ID: ${itemId}, Type: ${itemType}`);
+    const modal = document.getElementById('confirm-modal');
+    if (!modal) { console.error("Confirm modal not found!"); return; }
+    
+    // Store action, item ID, and item TYPE for the confirmation handler
+    window.currentAction = action;
+    window.currentItemId = itemId;
+    window.currentItemType = itemType; // Store the passed type
+
+    console.log(`Confirm modal ready. Waiting for Alpine to show.`);
+    // Dispatch event with details (optional, but good practice)
+    window.dispatchEvent(new CustomEvent('open-confirm-modal', {
+        detail: { message: message }
+    }));
+};
+
+// Handle confirmation actions
+window.handleConfirmAction = function() {
+    // Retrieve stored action, ID, and TYPE
+    const action = window.currentAction;
+    const itemId = window.currentItemId;
+    const itemType = window.currentItemType; // Use the stored type
+
+    console.log(`Handling confirm action: ${action}, ID: ${itemId}, Type: ${itemType}`); // Log type
+
+    // --- Dispatch event to close modal --- 
+    console.log("Dispatching close-confirm-modal event.");
+    window.dispatchEvent(new CustomEvent('close-confirm-modal'));
+    // --- Removed direct state manipulation ---
+    // const confirmModal = document.getElementById('confirm-modal');
+    // if (confirmModal && confirmModal.__x) {
+    //    console.log("Attempting to close confirm modal via Alpine state."); 
+    //    confirmModal.__x.data.open = false; 
+    // } else {
+    //    console.error("Could not find Alpine instance on confirm modal to close it."); 
+    // }
+
+    if (!action || !itemId || !itemType) { // Check itemType as well
+        window.showError(`Missing action information (Action: ${action}, ID: ${itemId}, Type: ${itemType}). Please try again.`);
+        return;
+    }
+
+    // Determine which action to take based on action AND type
+    if (action === 'delete' && itemType === 'model') {
+        window.performDeleteModel(itemId);
+    } else if (action === 'delete' && itemType === 'user') {
+        window.performDeleteUser(itemId);
+    } else if (action === 'delete' && itemType === 'provider') {
+        window.performDeleteProvider(itemId);
+    } else {
+        window.showError(`Unknown combination: Action='${action}', Type='${itemType}'`); // Updated error message
+    }
+};
+
+window.performDeleteModel = function(modelId) {
+    window.showLoading();
+    fetch(`/api/admin/models/${modelId}`, {
+        method: 'DELETE'
+    })
+    .then(window.handleResponse)
+    .then(() => {
+        window.showSuccess("Model deleted successfully.");
+        // Refresh the models list
+        if (window.loadModelsPromise) {
+            window.loadModelsPromise();
+        } else {
+            location.reload(); // Fallback
+        }
+    })
+    .catch(error => {
+        window.showError(`Failed to delete model: ${error.message}`);
+    })
+    .finally(() => {
+        window.hideLoading();
+    });
+};
+
+window.performDeleteUser = function(userId) {
+    window.showLoading();
+    fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE'
+    })
+    .then(window.handleResponse)
+    .then(() => {
+        window.showSuccess("User deleted successfully.");
+        // Refresh the users list
+        if (window.loadUsersPromise) {
+            window.loadUsersPromise();
+        } else {
+            location.reload(); // Fallback
+        }
+    })
+    .catch(error => {
+        window.showError(`Failed to delete user: ${error.message}`);
+    })
+    .finally(() => {
+        window.hideLoading();
+    });
+};
+
+window.performDeleteProvider = function(providerId) {
+    window.showLoading();
+    fetch(`/api/admin/providers/${providerId}`, {
+        method: 'DELETE'
+    })
+    .then(window.handleResponse)
+    .then(() => {
+        window.showSuccess("Provider and all associated models deleted successfully.");
+        // Refresh both lists
+        if (window.loadProvidersPromise && window.loadModelsPromise) {
+            window.loadProvidersPromise().then(window.loadModelsPromise);
+        } else {
+            location.reload(); // Fallback
+        }
+    })
+    .catch(error => {
+        window.showError(`Failed to delete provider: ${error.message}`);
+    })
+    .finally(() => {
+        window.hideLoading();
+    });
+};
+
+window.setUserPassword = function(userId, password) {
+    window.showLoading();
+    
+    fetch(`/api/admin/users/${userId}/password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: password })
+    })
+    .then(window.handleResponse)
+    .then(() => {
+        window.showSuccess("Password changed successfully.");
+        // Close the modal
+        const changePasswordModal = document.getElementById('change-password-modal');
+        if (changePasswordModal && changePasswordModal.__x) {
+            changePasswordModal.__x.data.open = false;
+        }
+    })
+    .catch(error => {
+        window.showError(`Failed to change password: ${error.message}`);
+    })
+    .finally(() => {
+        window.hideLoading();
+    });
+};
+
+// Filter Functions
+window.filterModels = function() {
+    console.log("Filtering models");
+    const searchInput = document.getElementById('model-search');
+    const providerFilter = document.getElementById('provider-filter');
+    const activeOnlyCheckbox = document.getElementById('active-only');
+    
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    const selectedProviderId = providerFilter ? providerFilter.value : '';
+    const activeOnly = activeOnlyCheckbox ? activeOnlyCheckbox.checked : false;
+    
+    const modelCards = document.querySelectorAll('.model-card');
+    let visibleCount = 0;
+    
+    modelCards.forEach(card => {
+        const modelName = (card.dataset.name || '').toLowerCase();
+        const providerId = card.dataset.providerId || '';
+        const isActive = card.dataset.active === 'true';
+        
+        const matchesSearch = !searchTerm || modelName.includes(searchTerm);
+        const matchesProvider = !selectedProviderId || providerId === selectedProviderId;
+        const matchesActive = !activeOnly || isActive;
+        
+        const isVisible = matchesSearch && matchesProvider && matchesActive;
+        card.style.display = isVisible ? 'flex' : 'none';
+        
+        if (isVisible) visibleCount++;
+    });
+    
+    // Update "no results" message
+    window.updateNoResultsMessage(
+        document.getElementById('model-list'),
+        visibleCount,
+        modelCards.length,
+        'models'
+    );
+};
+
+window.filterUsers = function() {
+    console.log("Filtering users");
+    const searchInput = document.getElementById('user-search');
+    const roleFilter = document.getElementById('role-filter');
+    const activeOnlyCheckbox = document.getElementById('user-active-only');
+    
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    const selectedRoleId = roleFilter ? roleFilter.value : '';
+    const activeOnly = activeOnlyCheckbox ? activeOnlyCheckbox.checked : false;
+    
+    const userCards = document.querySelectorAll('.user-card');
+    let visibleCount = 0;
+    
+    userCards.forEach(card => {
+        const userName = (card.dataset.name || '').toLowerCase();
+        const userEmail = (card.dataset.email || '').toLowerCase();
+        const roleId = card.dataset.roleId || '';
+        const isActive = card.dataset.active === 'true';
+        
+        const matchesSearch = !searchTerm || 
+            userName.includes(searchTerm) || 
+            userEmail.includes(searchTerm);
+        const matchesRole = !selectedRoleId || roleId === selectedRoleId;
+        const matchesActive = !activeOnly || isActive;
+        
+        const isVisible = matchesSearch && matchesRole && matchesActive;
+        card.style.display = isVisible ? 'flex' : 'none';
+        
+        if (isVisible) visibleCount++;
+    });
+    
+    // Update "no results" message
+    window.updateNoResultsMessage(
+        document.getElementById('user-list'),
+        visibleCount,
+        userCards.length,
+        'users'
+    );
+};
+
+window.updateNoResultsMessage = function(listElement, visibleCount, totalCards, itemType) {
+    if (!listElement) return;
+    
+    // Remove existing no-results message if any
+    const existingMsg = listElement.querySelector('.no-results-filter');
+    if (existingMsg) existingMsg.remove();
+    
+    // If we have cards but none are visible, show a message
+    if (totalCards > 0 && visibleCount === 0) {
+        const noResultsMsg = document.createElement('div');
+        noResultsMsg.className = 'no-results-filter text-center col-span-full p-6 text-gray-400';
+        noResultsMsg.innerHTML = `No ${itemType} match your filters. <button class="text-green-400 hover:underline clear-filters">Clear filters</button>`;
+        listElement.appendChild(noResultsMsg);
+        
+        // Add event listener to clear filters button
+        const clearBtn = noResultsMsg.querySelector('.clear-filters');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                // Reset the filters
+                if (itemType === 'models') {
+                    const searchInput = document.getElementById('model-search');
+                    const providerFilter = document.getElementById('provider-filter');
+                    const activeOnly = document.getElementById('active-only');
+                    
+                    if (searchInput) searchInput.value = '';
+                    if (providerFilter) providerFilter.value = '';
+                    if (activeOnly) activeOnly.checked = false;
+                    
+                    window.filterModels();
+                } else if (itemType === 'users') {
+                    const searchInput = document.getElementById('user-search');
+                    const roleFilter = document.getElementById('role-filter');
+                    const activeOnly = document.getElementById('user-active-only');
+                    
+                    if (searchInput) searchInput.value = '';
+                    if (roleFilter) roleFilter.value = '';
+                    if (activeOnly) activeOnly.checked = false;
+                    
+                    window.filterUsers();
+                }
+            });
+        }
+    }
+};
+
+// Add data loading functions
+window.loadModelsPromise = function() {
+    return fetch('/api/admin/models')
+        .then(window.handleResponse)
+        .then(models => {
+            window.renderModels(Array.isArray(models) ? models : []);
+            return models;
+        })
+        .catch(err => { 
+            console.error("Load Models Promise Failed:", err); 
+            throw err; 
+        });
+};
+
+window.loadProvidersPromise = function() {
+    return fetch('/api/admin/providers')
+        .then(window.handleResponse)
+        .then(providers => {
+            // Ensure providers is an array before proceeding
+            const providerArray = Array.isArray(providers) ? providers : [];
+            window.renderProviders(providerArray);
+            window.populateModelProviderDropdown(providerArray);
+            window.populateModelFilterDropdown(providerArray);
+            return providerArray;
+        })
+        .catch(err => { 
+            console.error("Load Providers Promise Failed:", err); 
+            throw err; 
+        });
+};
+
+window.loadUsersPromise = function() {
+    return fetch('/api/admin/users')
+        .then(window.handleResponse)
+        .then(users => {
+            window.renderUsers(Array.isArray(users) ? users : []);
+            return users;
+        })
+        .catch(err => { 
+            console.error("Load Users Promise Failed:", err); 
+            throw err; 
+        });
+};
+
+window.loadRolesPromise = function() {
+    return fetch('/api/admin/roles')
+        .then(window.handleResponse)
+        .then(roles => {
+            const roleArray = Array.isArray(roles) ? roles : [];
+            window.renderRoles(roleArray);
+            window.populateRoleSelectOptions(roleArray);
+            window.populateRoleFilter(roleArray);
+            return roleArray;
+        })
+        .catch(err => { 
+            console.error("Load Roles Promise Failed:", err); 
+            throw err; 
+        });
+};
+
+window.loadAllData = function() {
+    window.showLoading();
+    Promise.all([
+        window.loadProvidersPromise(),
+        window.loadModelsPromise(),
+        window.loadUsersPromise(),
+        window.loadRolesPromise()
+    ])
+    .then(() => {
+        console.log("Initial data load complete.");
+    })
+    .catch(error => {
+        console.error("Error during initial data load:", error);
+        window.showError("Failed to load initial admin data. Please refresh.");
+    })
+    .finally(() => {
+        window.hideLoading();
+    });
+};
+
+// Dropdown utilities
+window.populateModelProviderDropdown = function(providers) {
+    const dropdown = document.getElementById('model-provider-id');
+    if (!dropdown) return;
+    
+    // Clear existing options first (except the first placeholder)
+    while (dropdown.options.length > 1) {
+        dropdown.remove(1);
+    }
+    
+    // Add providers as options
+    providers.forEach(provider => {
+        const option = document.createElement('option');
+        option.value = provider.id;
+        option.textContent = provider.name;
+        dropdown.appendChild(option);
+    });
+};
+
+window.populateModelFilterDropdown = function(providers) {
+    const dropdown = document.getElementById('provider-filter');
+    if (!dropdown) return;
+    
+    // Clear existing options first (except the first placeholder)
+    while (dropdown.options.length > 1) {
+        dropdown.remove(1);
+    }
+    
+    // Add providers as options
+    providers.forEach(provider => {
+        const option = document.createElement('option');
+        option.value = provider.id;
+        option.textContent = provider.name;
+        dropdown.appendChild(option);
+    });
+};
+
+window.populateRoleSelectOptions = function(roles) {
+    const dropdown = document.getElementById('role-id');
+    if (!dropdown) return;
+    
+    // Clear existing options first (except the first placeholder)
+    while (dropdown.options.length > 1) {
+        dropdown.remove(1);
+    }
+    
+    // Add roles as options
+    roles.forEach(role => {
+        const option = document.createElement('option');
+        option.value = role.id;
+        option.textContent = role.name;
+        dropdown.appendChild(option);
+    });
+};
+
+window.populateRoleFilter = function(roles) {
+    const dropdown = document.getElementById('role-filter');
+    if (!dropdown) return;
+    
+    // Clear existing options first (except the first placeholder)
+    while (dropdown.options.length > 1) {
+        dropdown.remove(1);
+    }
+    
+    // Add roles as options
+    roles.forEach(role => {
+        const option = document.createElement('option');
+        option.value = role.id;
+        option.textContent = role.name;
+        dropdown.appendChild(option);
+    });
+};
+
+// Rendering functions
+window.renderModels = function(models) {
+    const modelList = document.getElementById('model-list');
+    if (!modelList) return;
+    
+    const modelArray = Array.isArray(models) ? models : [];
+    modelList.innerHTML = ''; // Clear previous
+
+    if (modelArray.length === 0) {
+        modelList.innerHTML = '<div class="no-results text-center col-span-full p-6 text-gray-400">No models found. Add a provider and sync or add manually.</div>';
+        return;
+    }
+
+    modelArray.forEach(model => {
+        const card = document.createElement('div');
+        const providerId = String(model.provider_id);
+        const isActive = model.is_active;
+        const providerType = model.provider ? model.provider.type : 'unknown';
+
+        // Use CSS classes instead of inline styles
+        card.className = `model-card card rounded-lg shadow p-4 flex flex-col justify-between space-y-3 ${!isActive ? 'opacity-60' : ''}`;
+        
+        card.dataset.id = model.id;
+        card.dataset.providerId = providerId;
+        card.dataset.active = isActive;
+        card.dataset.name = model.name;
+        card.dataset.providerType = providerType;
+
+        // Use the new function to generate innerHTML
+        card.innerHTML = window.createModelCardHTML(model);
+        
+        modelList.appendChild(card);
+        
+        // Add listeners directly after appending
+        card.querySelector('[data-action="edit"]')?.addEventListener('click', () => {
+            window.openModelModal('edit', model.id);
+            window.dispatchEvent(new CustomEvent('open-model-modal'));
+        });
+        card.querySelector('[data-action="delete"]')?.addEventListener('click', () => {
+            // Pass 'model' as the itemType
+            window.openConfirmModal(`Are you sure you want to delete model '${window.escapeHtml(model.name)}'?`, 'delete', model.id, 'model');
+        });
+        card.querySelector('[data-action="toggle"]')?.addEventListener('click', (e) => {
+            const button = e.currentTarget;
+            const currentIsActive = button.dataset.active === 'true';
+            window.toggleModelStatus(model.id, !currentIsActive);
+        });
+    });
+    window.filterModels();
+};
+
+window.renderProviders = function(providers) {
+    const providersListElement = document.getElementById('provider-list');
+    if (!providersListElement) return;
+    
+    const providerArray = Array.isArray(providers) ? providers : [];
+    providersListElement.innerHTML = ''; // Clear previous
+
+    if (providerArray.length === 0) {
+        providersListElement.innerHTML = '<div class="no-results text-center col-span-full p-6 text-gray-400">No providers configured.</div>';
+        return;
+    }
+
+    providerArray.forEach(provider => {
+        const card = document.createElement('div');
+        // Use CSS classes instead of inline styles
+        card.className = 'provider-card rounded-lg shadow p-4 flex flex-col justify-between space-y-3';
+        
+        card.dataset.id = provider.id;
+        card.dataset.type = provider.type;
+
+        let syncButtonHTML = '';
+        if (provider.type === 'ollama' || provider.type === 'openai') {
+            // Tailwind button classes
+            syncButtonHTML = `<button class="text-xs py-1 px-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded shadow sync-btn" data-action="sync" data-id="${provider.id}">Sync Models</button>`;
+        }
+
+        // Use CSS classes instead of inline styles
+        card.innerHTML = `
+            <div>
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="text-lg font-semibold card-title">${window.escapeHtml(provider.name)}</h3>
+                    <span class="text-xs uppercase font-bold px-2 py-1 rounded ${provider.type === 'ollama' ? 'bg-purple-600 text-white' : provider.type === 'openai' ? 'bg-teal-600 text-white' : 'bg-yellow-600 text-black'}">${window.escapeHtml(provider.type)}</span>
+                </div>
+                <div class="text-sm card-content space-y-1">
+                    ${provider.base_url ? `<p><span class="font-medium label">URL:</span> <code class="text-xs">${window.escapeHtml(provider.base_url)}</code></p>` : ''}
+                    <p><span class="font-medium label">Created:</span> ${new Date(provider.created_at).toLocaleString()}</p>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 pt-3 mt-3 card-footer">
+                <button class="text-xs py-1 px-2 bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded shadow" data-action="view-models" data-id="${provider.id}">View Models</button>
+                ${syncButtonHTML}
+                <button class="text-xs py-1 px-2 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold rounded shadow" data-action="edit-provider" data-id="${provider.id}">Edit</button>
+                <button class="text-xs py-1 px-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded shadow" data-action="delete-provider" data-id="${provider.id}">Delete</button>
+            </div>
+        `;
+        providersListElement.appendChild(card);
+        
+        // Add listeners directly again
+        card.querySelector('[data-action="edit-provider"]')?.addEventListener('click', () => {
+            window.openProviderModal('edit', provider.id);
+            window.dispatchEvent(new CustomEvent('open-provider-modal'));
+        });
+        card.querySelector('[data-action="delete-provider"]')?.addEventListener('click', () => {
+            // Pass 'provider' as the itemType
+            window.openConfirmModal(`Are you sure you want to delete provider '${window.escapeHtml(provider.name)}' and ALL its models? This cannot be undone.`, 'delete', provider.id, 'provider');
+        });
+        card.querySelector('[data-action="sync"]')?.addEventListener('click', (e) => window.syncProvider(provider.id, e.target));
+        card.querySelector('[data-action="view-models"]')?.addEventListener('click', () => window.viewProviderModels(provider.id));
+    });
+};
+
+window.renderUsers = function(users) {
+    const userList = document.getElementById('user-list');
+    if (!userList) return;
+    
+    const userArray = Array.isArray(users) ? users : [];
+    userList.innerHTML = ''; // Clear previous
+
+    if (userArray.length === 0) {
+        userList.innerHTML = '<div class="no-results text-center col-span-full p-6 text-gray-400">No users found.</div>';
+        return;
+    }
+
+    userArray.forEach(user => {
+        const card = document.createElement('div');
+        const roleName = user.role ? user.role.name : 'Unknown';
+        const roleClass = roleName.toLowerCase();
+        const isActive = user.is_active;
+
+        // Use CSS classes instead of hardcoded bg-gray-700
+        card.className = `user-card rounded-lg shadow p-4 flex flex-col justify-between space-y-3 ${!isActive ? 'opacity-60' : ''}`;
+        card.dataset.id = user.id;
+        card.dataset.roleId = user.role_id;
+        card.dataset.active = isActive;
+        card.dataset.name = user.username;
+        card.dataset.email = user.email;
+
+        // Use CSS classes for proper styling
+        card.innerHTML = `
+            <div>
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="text-lg font-semibold card-title">${window.escapeHtml(user.username)}</h3>
+                    <span class="text-xs uppercase font-bold px-2 py-1 rounded ${roleClass === 'admin' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}">${window.escapeHtml(roleName)}</span>
+                </div>
+                <div class="text-sm card-content space-y-1">
+                    <p><span class="font-medium label">Email:</span> ${window.escapeHtml(user.email)}</p>
+                    <p><span class="font-medium label">Name:</span> ${window.escapeHtml(user.first_name || '')} ${window.escapeHtml(user.last_name || '')}</p>
+                    <p><span class="font-medium label">Status:</span> <span class="font-bold ${isActive ? 'text-green-400' : 'text-red-400'}">${isActive ? 'Active' : 'Inactive'}</span></p>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 pt-3 mt-3 card-footer">
+                <button class="text-xs py-1 px-2 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold rounded shadow" data-action="edit-user" data-id="${user.id}">Edit</button>
+                <button class="text-xs py-1 px-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded shadow" data-action="delete-user" data-id="${user.id}">Delete</button>
+            </div>
+        `;
+        userList.appendChild(card);
+        
+        // Add listeners directly again
+        card.querySelector('[data-action="edit-user"]')?.addEventListener('click', () => {
+            window.openUserModal('edit', user.id);
+            window.dispatchEvent(new CustomEvent('open-user-modal', { detail: { isNew: false } }));
+        });
+        card.querySelector('[data-action="delete-user"]')?.addEventListener('click', () => {
+            // Pass 'user' as the itemType
+            window.openConfirmModal(`Are you sure you want to deactivate user '${window.escapeHtml(user.username)}'?`, 'delete', user.id, 'user');
+        });
+    });
+    window.filterUsers();
+};
+
+window.renderRoles = function(roles) {
+    const roleList = document.getElementById('role-list');
+    if (!roleList) return;
+    
+    const roleArray = Array.isArray(roles) ? roles : [];
+    roleList.innerHTML = ''; // Clear previous
+
+    if (roleArray.length === 0) {
+        roleList.innerHTML = '<div class="no-results text-center p-6 text-gray-400">No roles found.</div>';
+        return;
+    }
+
+    roleArray.forEach(role => {
+        const card = document.createElement('div');
+        // Use CSS classes instead of hardcoded bg-gray-700
+        card.className = 'role-card rounded-lg shadow p-4 space-y-2';
+        card.dataset.id = role.id;
+        card.dataset.name = role.name;
+
+        card.innerHTML = `
+            <h3 class="text-lg font-semibold card-title">${window.escapeHtml(role.name)}</h3>
+            <p class="text-sm card-content">${window.escapeHtml(role.description || 'No description')}</p>
+            <div class="role-users pt-2 mt-2 card-footer">
+                <div class="text-xs font-medium label mb-1">Users with this role:</div>
+                <div class="role-users-list flex flex-wrap gap-1" id="role-users-${role.id}">
+                    <div class="role-users-loading text-xs opacity-60 italic">Loading...</div>
+                </div>
+            </div>
+            <!-- Role Actions Placeholder -->
+        `;
+        roleList.appendChild(card);
+        window.loadUsersForRole(role.id); // Fetch users for this role
+    });
+};
+
+window.renderUsersForRole = function(roleId, users) {
+    const usersListContainer = document.getElementById(`role-users-${roleId}`);
+    if (!usersListContainer) return;
+    
+    const loadingIndicator = usersListContainer.querySelector('.role-users-loading');
+    if(loadingIndicator) loadingIndicator.remove(); // Remove loading indicator
+
+    const userArray = Array.isArray(users) ? users : [];
+
+    if (userArray.length === 0) {
+        usersListContainer.innerHTML = '<span class="text-xs text-gray-500 italic">None</span>';
+        return;
+    }
+
+    usersListContainer.innerHTML = ''; // Clear container
+    userArray.forEach(user => {
+        const chip = document.createElement('span');
+        // Tailwind chip style
+        chip.className = 'user-chip text-xs bg-gray-600 text-gray-200 px-2 py-0.5 rounded-full';
+        chip.textContent = window.escapeHtml(user.username);
+        usersListContainer.appendChild(chip);
+    });
+};
+
+window.loadUsersForRole = function(roleId) {
+    const usersListContainer = document.getElementById(`role-users-${roleId}`);
+    if (!usersListContainer) return;
+    
+    const loadingIndicator = usersListContainer.querySelector('.role-users-loading');
+    if(loadingIndicator) loadingIndicator.style.display = 'inline';
+
+    fetch(`/api/admin/roles/${roleId}/users`)
+        .then(window.handleResponse)
+        .then(users => {
+            // Pass array (or null) to render function
+            window.renderUsersForRole(roleId, Array.isArray(users) ? users : []);
+        })
+        .catch(error => {
+            console.error(`Error loading users for role ${roleId}:`, error);
+            if (usersListContainer) usersListContainer.innerHTML = '<span class="text-xs text-red-500 italic">Error</span>';
         })
         .finally(() => {
-            // Reset button state
-            ollamaImportSubmit.textContent = 'Import Models';
-            ollamaImportSubmit.disabled = false;
+            // Loading indicator is removed by render function if it exists
+            if(loadingIndicator && usersListContainer.contains(loadingIndicator)) {
+                loadingIndicator.remove();
+            }
         });
-    }
+};
 
-    // Add event listeners for Ollama import modal
-    if (ollamaImportForm) {
-        ollamaImportForm.addEventListener('submit', handleOllamaImportSubmit);
-    }
-
-    if (ollamaImportCancel) {
-        ollamaImportCancel.addEventListener('click', closeOllamaImportModal);
-    }
-
-    if (ollamaModalCloseBtns) {
-        ollamaModalCloseBtns.forEach(btn => {
-            btn.addEventListener('click', closeOllamaImportModal);
-        });
-    }
-
-    // Utility functions
-    function showLoading() {
-        console.log("[Debug] showLoading called"); // Log entry
-        // If a loading element doesn't exist, create one
-        let loadingOverlay = document.querySelector('.loading-overlay'); // Use let
-        if (!loadingOverlay) {
-            loadingOverlay = document.createElement('div');
-            loadingOverlay.className = 'loading-overlay';
-            loadingOverlay.innerHTML = '<div class="loading"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div><p>Loading...</p>';
-            document.body.appendChild(loadingOverlay);
-            console.log("[Debug] showLoading: Created new overlay.");
-        } else {
-            console.log("[Debug] showLoading: Reusing existing overlay.");
+window.toggleModelStatus = function(modelId, newStatus) {
+    window.showLoading();
+    fetch(`/api/admin/models/${modelId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: newStatus }) // Send only the field to update
+    })
+    .then(window.handleResponse) // Check if PUT was successful (status 2xx)
+    .then(putResponseData => { // Optional: Check putResponseData if API returns something useful beyond status
+        // PUT successful, now fetch the complete updated data using GET
+        console.log(`PUT successful for model ${modelId}. Fetching complete data...`);
+        return fetch(`/api/admin/models/${modelId}`); // *** Make GET request ***
+    })
+    .then(window.handleResponse) // Handle response of the GET request
+    .then(completeModelData => {
+        console.log('Complete Model Data Received:', JSON.stringify(completeModelData, null, 2)); // *** ADD LOGGING ***
+        if (!completeModelData) {
+            throw new Error("API did not return complete model data after update.");
         }
-        loadingOverlay.style.display = 'flex';
-    }
+        window.showSuccess(`Model ${completeModelData.is_active ? 'enabled' : 'disabled'} successfully.`);
 
-    function hideLoading() {
-        console.log("[Debug] hideLoading called"); // Log entry
-        const loadingOverlay = document.querySelector('.loading-overlay');
-        if (loadingOverlay) {
-            loadingOverlay.style.display = 'none';
-            console.log("[Debug] hideLoading: Set overlay display to none.");
-        } else {
-             console.log("[Debug] hideLoading: Overlay not found.");
-        }
-    }
+        // Replace the old card with a new one rendered from completeModelData
+        const oldCard = document.querySelector(`.model-card[data-id="${modelId}"]`);
+        if (oldCard) {
+            const newCard = document.createElement('div');
+            const isActive = completeModelData.is_active;
+            const providerType = completeModelData.provider ? completeModelData.provider.type : 'unknown';
 
-    function showError(message) {
-        showNotification(message, 'error');
-    }
+            // Set necessary classes and data attributes for the new card container
+            newCard.className = `model-card card rounded-lg shadow p-4 flex flex-col justify-between space-y-3 ${!isActive ? 'opacity-60' : ''}`;
+            newCard.dataset.id = completeModelData.id;
+            newCard.dataset.providerId = String(completeModelData.provider_id);
+            newCard.dataset.active = isActive;
+            newCard.dataset.name = completeModelData.name;
+            newCard.dataset.providerType = providerType;
 
-    function showSuccess(message) {
-        showNotification(message, 'success');
-    }
+            // Generate the inner HTML using the full complete model data
+            newCard.innerHTML = window.createModelCardHTML(completeModelData);
 
-    function showNotification(message, type) {
-        // Remove any existing notifications
-        const existingNotifications = document.querySelectorAll('.notification');
-        existingNotifications.forEach(notification => {
-            notification.remove();
-        });
-
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        notification.textContent = message;
-
-        // Add close button
-        const closeBtn = document.createElement('span');
-        closeBtn.className = 'notification-close';
-        closeBtn.innerHTML = '&times;';
-        closeBtn.addEventListener('click', () => {
-            notification.remove();
-        });
-
-        notification.appendChild(closeBtn);
-        document.body.appendChild(notification);
-
-        // Auto-remove after 5 seconds
-        setTimeout(() => {
-            notification.classList.add('fade-out');
-            setTimeout(() => {
-                notification.remove();
-            }, 500); // Match transition time in CSS
-        }, 5000);
-    }
-
-    function escapeHtml(unsafe) {
-        return unsafe
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-
-    // Add dynamic styles for notifications
-    const style = document.createElement('style');
-    style.textContent = `
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            color: var(--primary-color);
-        }
-
-        .notification {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 15px 40px 15px 15px;
-            border-radius: 5px;
-            color: white;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            z-index: 1000;
-            animation: notification-slide 0.3s ease forwards;
-            transition: opacity 0.5s ease;
-        }
-
-        .notification.fade-out {
-            opacity: 0;
-        }
-
-        .notification.success {
-            background-color: rgba(0, 255, 65, 0.2);
-            border: 1px solid var(--primary-color);
-            color: var(--primary-color);
-        }
-
-        .notification.error {
-            background-color: rgba(255, 7, 58, 0.2);
-            border: 1px solid var(--danger-color);
-            color: var(--danger-color);
-        }
-
-        .notification-close {
-            position: absolute;
-            top: 5px;
-            right: 10px;
-            cursor: pointer;
-            font-size: 18px;
-        }
-
-        @keyframes notification-slide {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .no-results, .no-results-filter {
-            grid-column: 1 / -1;
-            padding: 2rem;
-            text-align: center;
-            font-style: italic;
-            color: var(--text-color);
-        }
-    `;
-    document.head.appendChild(style);
-
-    // --- NEW: Provider Management Functions ---
-
-    let currentProviderId = null; // Track provider being edited
-
-    function loadProviders() {
-        showLoading(); // Use general loader
-        fetch('/api/admin/providers') // CORRECTED PATH
-            .then(response => {
-                if (!response.ok) throw new Error('Failed to load providers');
-                return response.json();
-            })
-            .then(providers => {
-                const providerArray = Array.isArray(providers) ? providers : [];
-                renderProviders(providerArray);
-                populateModelProviderDropdown(providerArray); // For model modal
-                populateModelFilterDropdown(providerArray);   // For model list filter
-            })
-            .catch(error => showError(error.message))
-            .finally(() => {
-                 hideLoading(); // Use general loader
+            // Re-attach listeners to the new card's buttons
+            newCard.querySelector('[data-action="edit"]')?.addEventListener('click', () => {
+                window.openModelModal('edit', completeModelData.id);
+                window.dispatchEvent(new CustomEvent('open-model-modal'));
             });
-    }
+            newCard.querySelector('[data-action="delete"]')?.addEventListener('click', () => {
+                // Pass 'model' as the itemType
+                window.openConfirmModal(`Are you sure you want to delete model '${window.escapeHtml(completeModelData.name)}'?`, 'delete', completeModelData.id, 'model');
+            });
+            newCard.querySelector('[data-action="toggle"]')?.addEventListener('click', (e) => {
+                const button = e.currentTarget;
+                const currentIsActive = button.dataset.active === 'true';
+                window.toggleModelStatus(completeModelData.id, !currentIsActive);
+            });
 
-    function renderProviders(providers) {
-        // Use the renamed variable
-        const targetList = providersListElement;
-        if (!targetList) return;
-        if (providers.length === 0) {
-            targetList.innerHTML = '<div class="no-results">No providers configured.</div>';
-            return;
+            // Replace the old card with the new one in the DOM
+            oldCard.parentNode.replaceChild(newCard, oldCard);
+            window.filterModels(); // Re-apply filters if necessary
+        } else {
+            console.warn(`Could not find model card with ID ${modelId} to update in UI after GET.`);
+            // Fallback: Reload all models if card replacement fails
+            window.loadModelsPromise();
         }
-        targetList.innerHTML = ''; // Clear loading/previous
-        providers.forEach(provider => {
-            const card = document.createElement('div');
-            card.className = 'provider-card';
-            card.dataset.id = provider.id;
-            card.dataset.type = provider.type;
+    })
+    .catch(error => {
+        window.showError(`Failed to update model status: ${error.message}`);
+        // Optional: Reload models on failure to potentially reset state
+        window.loadModelsPromise();
+    })
+    .finally(() => {
+        window.hideLoading();
+    });
+};
 
-            // Add provider type as a class for additional styling
-            card.classList.add(`provider-${provider.type}`);
-
-            let syncButtonHTML = '';
-            if (provider.type === 'ollama' || provider.type === 'openai') {
-                syncButtonHTML = `<button class="cyber-btn sync-btn" data-action="sync" data-id="${provider.id}">Sync Models</button>`;
-            }
-
-            card.innerHTML = `
-                <div class="provider-type-badge ${provider.type}">${escapeHtml(provider.type)}</div>
-                <h3>${escapeHtml(provider.name)}</h3>
-                <div class="provider-details">
-                    ${provider.base_url ? `<p>URL: <span>${escapeHtml(provider.base_url)}</span></p>` : ''}
-                    <p>Created: <span>${new Date(provider.created_at).toLocaleString()}</span></p>
-                </div>
-                <div class="provider-card-actions">
-                    <button class="cyber-btn info" data-action="view-models" data-id="${provider.id}">View Models</button>
-                    ${syncButtonHTML}
-                    <button class="cyber-btn" data-action="edit-provider" data-id="${provider.id}">Edit</button>
-                    <button class="cyber-btn danger" data-action="delete-provider" data-id="${provider.id}">Delete</button>
-                </div>
-            `;
-            targetList.appendChild(card);
-
-            // Add event listeners
-            const viewBtn = card.querySelector('[data-action="view-models"]');
-            if (viewBtn) viewBtn.addEventListener('click', () => viewProviderModels(provider.id));
-
-            const editBtn = card.querySelector('[data-action="edit-provider"]');
-            if (editBtn) editBtn.addEventListener('click', () => editProvider(provider.id));
-
-            const deleteBtn = card.querySelector('[data-action="delete-provider"]');
-            if (deleteBtn) {
-                deleteBtn.addEventListener('click', (event) => { // Added event parameter
-                    event.stopPropagation(); // Prevent potential conflicts
-                    console.log(`[Debug] Delete provider button clicked for provider element:`, card); // Log the card element
-                    deleteProvider(provider.id);
-                });
-            } else {
-                console.error(`Could not find delete button for provider card: ${provider.name}`); // Log error if button not found
-            }
-
-            const syncBtn = card.querySelector('[data-action="sync"]');
-            if (syncBtn) {
-                syncBtn.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    console.log(`[Debug] Sync provider button clicked for provider element:`, card); // Log click
-                    syncProvider(provider.id, syncBtn);
-                });
-            }
-        });
+window.syncProvider = function(providerId, buttonElement) {
+    if (buttonElement) {
+        buttonElement.disabled = true;
+        buttonElement.textContent = 'Syncing...';
     }
-
-    function openProviderModal(action, providerId = null) {
-        const modal = document.getElementById('provider-modal');
-        const modalTitle = document.getElementById('provider-modal-title');
-
-        modalTitle.textContent = action === 'add' ? 'Add New Provider' : 'Edit Provider';
-
-        // Clear the form
-        document.getElementById('provider-form').reset();
-        document.getElementById('provider-id').value = '';
-
-        // Hide all conditional fields initially
-        toggleProviderConditionalFields();
-
-        if (action === 'edit' && providerId) {
-            // Fetch and populate provider details
-            fetchProviderDetails(providerId);
+    
+    window.showLoading();
+    fetch(`/api/admin/providers/${providerId}/sync`, {
+        method: 'POST'
+    })
+    .then(window.handleResponse)
+    .then(result => {
+        const addedCount = result?.models_created || 0;
+        const message = addedCount > 0
+            ? `Successfully synced provider! Added ${addedCount} new model(s).`
+            : 'Provider synced. No new models found.';
+        window.showSuccess(message);
+        
+        // Refresh the models list
+        window.loadModelsPromise();
+    })
+    .catch(error => {
+        window.showError(`Failed to sync provider: ${error.message}`);
+    })
+    .finally(() => {
+        if (buttonElement) {
+            buttonElement.disabled = false;
+            buttonElement.textContent = 'Sync Models';
         }
+        window.hideLoading();
+    });
+};
 
-        // Show the modal
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
+window.viewProviderModels = function(providerId) {
+    console.log(`View models clicked for provider ID: ${providerId}`); // Add log
+    // Dispatch an event to be caught by the root Alpine component
+    window.dispatchEvent(new CustomEvent('set-active-section', {
+        detail: {
+            section: 'models',
+            filterProviderId: providerId
+        }
+    }));
+    // --- REMOVED ALPINE DIRECT ACCESS, FILTERING, SCROLLING --- 
+    // const providerFilter = document.getElementById('provider-filter');
+    // if (providerFilter) {
+    //     providerFilter.value = providerId;
+    //     const rootDataElement = document.body;
+    //     if (rootDataElement && rootDataElement.__x) { ... }
+    // }
+};
+
+// Function to create a single model card HTML (Extracted from renderModels)
+window.createModelCardHTML = function(model) {
+    const providerName = model.provider ? window.escapeHtml(model.provider.name) : `Provider ID: ${model.provider_id}`;
+    const providerType = model.provider ? model.provider.type : 'unknown';
+    const isActive = model.is_active;
+
+    let formattedLastSynced = 'Never';
+    if (model.last_synced_at) {
+        try {
+            const syncDate = new Date(model.last_synced_at);
+            if (!isNaN(syncDate.getTime())) formattedLastSynced = syncDate.toLocaleString();
+            else formattedLastSynced = 'Invalid Date';
+        } catch (e) { formattedLastSynced = 'Parsing Error'; }
     }
 
-    function closeProviderModal() {
-        const modal = document.getElementById('provider-modal');
-        modal.classList.remove('active');
-        document.body.style.overflow = '';
+    return `
+        <div>
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="text-lg font-semibold card-title">${window.escapeHtml(model.name)}</h3>
+                <span class="text-xs uppercase font-bold px-2 py-1 rounded ${providerType === 'ollama' ? 'provider-badge ollama' : providerType === 'openai' ? 'provider-badge openai' : 'provider-badge other'}">${providerName}</span>
+            </div>
+            <div class="text-sm card-content space-y-1 card-details">
+                <p><span class="font-medium label">Model ID:</span> <code class="text-xs model-id-display">${window.escapeHtml(model.model_id)}</code></p>
+                <p><span class="font-medium label">Max Tokens:</span> <span>${model.max_tokens.toLocaleString()}</span></p>
+                <p><span class="font-medium label">Temp:</span> <span>${model.temperature === null ? 'N/A' : (model.temperature?.toFixed(2) ?? 'N/A')}</span></p>
+                <p><span class="font-medium label">Status:</span> <span class="font-bold ${isActive ? 'status-badge active' : 'status-badge inactive'}">${isActive ? 'Active' : 'Inactive'}</span></p>
+                <p><span class="font-medium label">Synced:</span> <span>${formattedLastSynced}</span></p>
+            </div>
+        </div>
+        <div class="flex justify-end space-x-2 pt-3 mt-3 card-footer">
+            <button class="text-xs py-1 px-2 ${isActive ? 'bg-yellow-500 hover:bg-yellow-600 text-black' : 'bg-cyan-500 hover:bg-cyan-600 text-black'} font-semibold rounded shadow toggle-btn"
+                data-action="toggle" data-id="${model.id}" data-active="${isActive}">
+                ${isActive ? 'Disable' : 'Enable'}
+            </button>
+            <button class="text-xs py-1 px-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded shadow" data-action="edit" data-id="${model.id}">Edit</button>
+            <button class="text-xs py-1 px-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded shadow" data-action="delete" data-id="${model.id}">Delete</button>
+        </div>
+    `;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // --- DOMContentLoaded Scope Starts Here ---
+    let currentAction = null; // Or use window.currentAction defined above
+    let currentItemId = null; // Or use window.currentItemId
+    let currentItemType = null; // Or use window.currentItemType
+
+    // --- Utility Functions ---
+    // Notification functions (REMOVED)
+    // function showNotification(message, type = 'info') { ... } // REMOVED
+    // function showSuccess(message) { ... } // REMOVED
+    // function showError(message) { ... } // REMOVED
+    // function showWarning(message) { ... } // REMOVED
+
+    // Loading indicator functions
+    // ... existing code ...
+
+    // --- Event Listener Setup Function (Static elements only) ---
+    function setupEventListeners() {
+        console.log("Setting up static event listeners...");
+
+        // --- DOM Element References ---
+        const addModelBtn = document.getElementById('add-model-btn');
+        const modelForm = document.getElementById('model-form');
+        const modelSearch = document.getElementById('model-search');
+        const providerFilterSelect = document.getElementById('provider-filter');
+        const activeOnlyCheckbox = document.getElementById('active-only');
+        const temperatureNACheckbox = document.getElementById('temperature-na'); // May need adjustment
+
+        const addUserBtn = document.getElementById('add-user-btn');
+        const userForm = document.getElementById('user-form');
+        const userSearch = document.getElementById('user-search');
+        const roleFilter = document.getElementById('role-filter');
+        const userActiveOnlyCheckbox = document.getElementById('user-active-only');
+        const changePasswordBtn = document.getElementById('change-password-btn'); // Button within user modal
+
+        const changePasswordForm = document.getElementById('change-password-form');
+
+        const addProviderBtn = document.getElementById('add-provider-btn');
+        const providerForm = document.getElementById('provider-form');
+        const providerTypeSelect = document.getElementById('provider-type');
+
+        const confirmYesBtn = document.getElementById('confirm-yes');
+        
+        // --- Attach Event Listeners ---
+        // Add/Edit buttons handled by Alpine + Global JS function
+        // if (addModelBtn) addModelBtn.addEventListener('click', () => openModelModal('add')); 
+        // if (addUserBtn) addUserBtn.addEventListener('click', () => openUserModal('add'));
+        // if (addProviderBtn) addProviderBtn.addEventListener('click', () => openProviderModal('add'));
+        
+        if (modelForm) modelForm.addEventListener('submit', handleModelFormSubmit);
+        if (modelSearch) modelSearch.addEventListener('input', filterModels);
+        if (providerFilterSelect) providerFilterSelect.addEventListener('change', filterModels);
+        if (activeOnlyCheckbox) activeOnlyCheckbox.addEventListener('change', filterModels);
+        if (temperatureNACheckbox) { /* Keep temp N/A checkbox logic if still needed */ }
+
+        if (userForm) userForm.addEventListener('submit', handleUserFormSubmit);
+        if (userSearch) userSearch.addEventListener('input', filterUsers);
+        if (roleFilter) roleFilter.addEventListener('change', filterUsers);
+        if (userActiveOnlyCheckbox) userActiveOnlyCheckbox.addEventListener('change', filterUsers);
+        // changePasswordBtn listener now handled by Alpine + Global JS function
+        // if (changePasswordBtn) { ... }
+        if (changePasswordForm) changePasswordForm.addEventListener('submit', handleChangePasswordSubmit);
+
+        if (providerForm) providerForm.addEventListener('submit', handleProviderFormSubmit);
+        if (providerTypeSelect) providerTypeSelect.addEventListener('change', toggleProviderConditionalFields);
+
+        if (confirmYesBtn) confirmYesBtn.addEventListener('click', handleConfirmAction);
+
+        // NO Event Delegation here anymore
     }
 
-    function fetchProviderDetails(providerId) {
+    // --- Form Submission Handlers ---
+    function handleModelFormSubmit(event) {
+        event.preventDefault();
+        const modelData = buildModelData();
+        if (!modelData) return;
+
+        const modelId = document.getElementById('model-id')?.value;
+        const action = modelId ? 'update' : 'add';
+
+        if (!validateModelData(modelData, action)) return;
+
         showLoading();
-        fetch(`/api/admin/providers/${providerId}`) // CORRECTED PATH
-            .then(response => {
-                if (!response.ok) throw new Error('Failed to fetch provider details.');
-                return response.json();
-            })
-            .then(provider => {
-                populateProviderForm(provider);
-            })
-            .catch(error => {
-                showError(error.message);
-                closeProviderModal();
-            })
-            .finally(hideLoading);
-    }
+        const apiUrl = action === 'add' ? '/api/admin/models' : `/api/admin/models/${modelId}`;
+        const method = action === 'add' ? 'POST' : 'PUT';
 
-    function populateProviderForm(provider) {
-        // TODO: Populate the provider modal form
-        document.getElementById('provider-id').value = provider.id;
-        document.getElementById('provider-name').value = provider.name;
-        document.getElementById('provider-type').value = provider.type;
-        document.getElementById('provider-base-url').value = provider.base_url || '';
-        // API Key is not populated for editing for security
-        document.getElementById('provider-api-key').value = '';
-        document.getElementById('provider-api-key').placeholder = 'Leave blank to keep existing key';
-        toggleProviderConditionalFields(); // Ensure correct fields show
+        fetch(apiUrl, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(modelData)
+        })
+        .then(handleResponse)
+        .then(() => {
+            showSuccess(`Model ${action === 'add' ? 'added' : 'updated'} successfully.`);
+            console.log('Dispatching close-model-modal event.');
+            window.dispatchEvent(new CustomEvent('close-model-modal')); 
+            loadModelsPromise(); // Refresh list
+        })
+        .catch(error => showError(`Failed to ${action} model: ${error.message}`))
+        .finally(hideLoading);
     }
+    window.handleModelFormSubmit = handleModelFormSubmit;
 
     function handleProviderFormSubmit(event) {
         event.preventDefault();
-
         const providerData = buildProviderData();
-        if (!providerData) {
-            console.warn("buildProviderData returned null, aborting form submission.");
-            return;
-        }
+        if (!providerData) return;
 
-        const providerId = document.getElementById('provider-id').value;
+        const providerId = document.getElementById('provider-id')?.value;
         const action = providerId ? 'update' : 'add';
 
-        if (!validateProviderData(providerData)) {
-            console.warn("Provider data validation failed");
-            return;
-        }
+        if (!validateProviderData(providerData, action)) return;
 
-        const apiCall = action === 'add'
-            ? addNewProvider(providerData)
-            : updateProvider(providerId, providerData);
+        showLoading();
+        const apiUrl = action === 'add' ? '/api/admin/providers' : `/api/admin/providers/${providerId}`;
+        const method = action === 'add' ? 'POST' : 'PUT';
 
-        apiCall.then(() => {
-                showSuccess(`Provider ${action} successfully.`);
-                closeProviderModal();
-                loadProviders();
-                // Also refresh dropdowns that depend on providers
-                loadProvidersAndPopulateDropdown();
-            })
-            .catch(error => {
-                showError(`Error ${action} provider: ${error.message}`);
-            });
-    }
-
-    function buildProviderData() {
-        const nameElement = document.getElementById('provider-name');
-        const typeElement = document.getElementById('provider-type');
-        const baseUrlElement = document.getElementById('provider-base-url');
-        const apiKeyElement = document.getElementById('provider-api-key');
-
-        // Check if critical elements exist
-        if (!nameElement || !typeElement) {
-            console.error("Error: Critical provider form elements not found.");
-            showError("An error occurred: Missing provider form elements.");
-            return null;
-        }
-
-        // Create provider data object
-        const providerData = {
-            name: nameElement.value,
-            type: typeElement.value,
-        };
-
-        // Add optional fields if they exist and have values
-        if (baseUrlElement && baseUrlElement.value) {
-            providerData.base_url = baseUrlElement.value;
-        }
-
-        if (apiKeyElement && apiKeyElement.value) {
-            providerData.api_key = apiKeyElement.value;
-        }
-
-        return providerData;
-    }
-
-    function validateProviderData(data) {
-        if (!data.name || data.name.trim() === '') {
-            showError('Provider name is required.');
-            return false;
-        }
-
-        if (!data.type || data.type.trim() === '') {
-            showError('Please select a provider type.');
-            return false;
-        }
-
-        // Check for Ollama base_url
-        if (data.type === 'ollama' && (!data.base_url || data.base_url.trim() === '')) {
-            showError('Base URL is required for Ollama providers.');
-            return false;
-        }
-
-        // For new OpenAI/Anthropic providers, API key is required
-        const providerIdElement = document.getElementById('provider-id');
-        const isNewProvider = !providerIdElement || !providerIdElement.value;
-
-        if (isNewProvider && (data.type === 'openai' || data.type === 'anthropic') && (!data.api_key || data.api_key.trim() === '')) {
-            showError(`API Key is required for new ${data.type === 'openai' ? 'OpenAI' : 'Anthropic'} providers.`);
-            return false;
-        }
-
-        return true;
-    }
-
-    function addNewProvider(providerData) {
-        showLoading(); // Use general loader
-        return fetch('/api/admin/providers', { // CORRECTED PATH
-            method: 'POST',
+        fetch(apiUrl, {
+            method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(providerData)
         })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(err => { throw new Error(err.error || `Failed to add provider (${response.status})` ); });
-            }
-            return response.json();
+        .then(handleResponse)
+        .then(() => {
+            showSuccess(`Provider ${action === 'add' ? 'added' : 'updated'}.`);
+            console.log('Dispatching close-provider-modal event.');
+            window.dispatchEvent(new CustomEvent('close-provider-modal')); 
+            loadProvidersPromise().then(loadModelsPromise); // Refresh both
         })
-        .then(newProvider => {
-            showSuccess(`Provider "${newProvider.name}" added successfully.`);
-            closeProviderModal();
-            // Return the promise from loadProviders to chain correctly
-            return loadProviders();
-        })
-        .catch(error => {
-             showError(error.message);
-             hideLoading(); // Hide on error
-        });
-        // No finally here, loadProviders handles hiding on success
-    }
-
-    function updateProvider(providerId, providerData) {
-        showLoading(); // Use general loader
-        return fetch(`/api/admin/providers/${providerId}`, { // CORRECTED PATH
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(providerData)
-        })
-        .then(response => {
-            console.log('Update response status:', response.status);
-            if (!response.ok) {
-                 return response.json().then(err => {
-                     console.error('Error response:', err);
-                     throw new Error(err.error || `Failed to update provider (${response.status})`);
-                 });
-            }
-            return response.json();
-        })
-        .then(updatedProvider => {
-            console.log('Provider updated successfully:', updatedProvider);
-            showSuccess(`Provider "${updatedProvider.name}" updated successfully.`);
-            closeProviderModal();
-            // Return the promise from loadProviders to chain correctly
-            return loadProviders();
-        })
-        .catch(error => {
-            console.error('Update error:', error);
-            showError(error.message);
-            hideLoading(); // Hide on error
-        });
-        // No finally here, loadProviders handles hiding on success
-    }
-
-    function editProvider(providerId) {
-        openProviderModal('edit', providerId);
-    }
-
-    function deleteProvider(providerId) {
-        console.log(`[Debug] deleteProvider called for ID: ${providerId}`); // Log entry
-        currentProviderId = providerId;
-        currentItemType = 'provider'; // Explicitly set context for confirmation
-        openConfirmModal('Are you sure you want to delete this provider and ALL associated models?', 'delete', providerId);
-    }
-
-    function performDeleteProvider(providerId) {
-        showLoading(); // Use general loader
-        return fetch(`/api/admin/providers/${providerId}`, { // CORRECTED PATH
-            method: 'DELETE'
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to delete provider');
-                }
-                showSuccess('Provider deleted successfully');
-                // Return the promise from loadProviders to chain correctly
-                return loadProviders();
-            })
-            .catch(error => {
-                showError(`Error deleting provider: ${error.message}`);
-                 hideLoading(); // Hide on error
-            });
-             // No finally here, loadProviders handles hiding on success
-    }
-
-    function syncProvider(providerId, buttonElement) {
-        if (!providerId) {
-            console.error("syncProvider called without providerId");
-            return;
-        }
-
-        // Disable button and show temporary loading state
-        const originalText = buttonElement.textContent;
-        buttonElement.disabled = true;
-        buttonElement.textContent = 'Syncing...';
-        buttonElement.classList.add('loading');
-
-        fetch(`/api/admin/providers/${providerId}/sync`, { // CORRECTED PATH
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-             // Optionally send sync parameters if needed
-             // body: JSON.stringify({ set_active: true, default_tokens: 8192 })
-        })
-        .then(response => {
-            console.log(`[Debug] syncProvider: Fetch response status: ${response.status}`); // Log response status
-            if (!response.ok) {
-                // Attempt to get text first, then try JSON if it fails
-                return response.text().then(text => {
-                    try {
-                        // Try parsing as JSON
-                        const errData = JSON.parse(text);
-                        throw new Error(errData.error || `Sync failed (${response.status})`);
-                    } catch (e) {
-                        // If JSON parsing fails, use the raw text as the error message
-                        // This handles cases where the server sends plain text errors
-                        throw new Error(text || `Sync failed with status: ${response.status}`);
-                    }
-                });
-            }
-            return response.json(); // If response is OK, expect JSON
-        })
-        .then(data => {
-            let message = `Sync complete. ${data.models_created} new models added.`;
-            if (data.errors_occurred) {
-                message += ` Some errors occurred during sync. Check server logs.`;
-                showNotification(message, 'warning');
-            } else {
-                showSuccess(message);
-            }
-            loadModels(); // Refresh model list as well
-        })
-        .catch(error => {
-            // Log the raw error for better debugging
-            console.error('[Error] syncProvider: Fetch failed:', error);
-            showError(`Sync error: ${error.message}`);
-        })
-        .finally(() => {
-            console.log(`[Debug] syncProvider: Fetch finally block executing for ID: ${providerId}`); // Log finally
-            buttonElement.textContent = originalText;
-            buttonElement.disabled = false;
-            buttonElement.classList.remove('loading');
-            hideLoading(); // Hide general loader after sync attempt
-        });
-    }
-
-    // --- Update Model Management Functions ---
-
-    function loadProvidersAndPopulateDropdown(callback) {
-        showLoading();
-        fetch('/api/admin/providers') // CORRECTED PATH
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to load providers for dropdown');
-                }
-                return response.json();
-            })
-            .then(providers => {
-                populateModelProviderDropdown(providers);
-                if (callback && typeof callback === 'function') {
-                    callback(providers);
-                }
-            })
-            .catch(error => {
-                console.error('Error loading providers:', error);
-                showError('Failed to load providers: ' + error.message);
-            });
-    }
-
-    function populateModelProviderDropdown(providers) {
-        if (!modelProviderSelect) return;
-        const currentValue = modelProviderSelect.value; // Preserve selection if already set
-        modelProviderSelect.innerHTML = '<option value="">Select Configured Provider</option>'; // Reset
-        providers.forEach(p => {
-            const option = document.createElement('option');
-            option.value = p.id;
-            option.textContent = `${p.name} (${p.type})`;
-            modelProviderSelect.appendChild(option);
-        });
-        modelProviderSelect.value = currentValue; // Restore selection
-    }
-
-    function populateModelFilterDropdown(providers) {
-        if (!providerFilterSelect) return;
-        const currentValue = providerFilterSelect.value; // Preserve selection if possible
-
-        console.log("Populating filter dropdown with providers:", providers);
-
-        // Clear existing options except the "All" option
-        while (providerFilterSelect.options.length > 1) {
-            providerFilterSelect.remove(1);
-        }
-        // Or reset completely if "All" wasn't hardcoded:
-        // providerFilterSelect.innerHTML = '<option value="">All Providers</option>';
-
-        providers.forEach(p => {
-            const option = document.createElement('option');
-            option.value = String(p.id); // Ensure provider ID is a string
-            option.textContent = `${p.name} (${p.type})`;
-            providerFilterSelect.appendChild(option);
-            console.log(`Added provider option: ${p.name} with ID: ${option.value}`);
-        });
-
-        // If there was a previously selected value, try to restore it
-        if (currentValue && providers.some(p => String(p.id) === currentValue)) {
-            providerFilterSelect.value = currentValue;
-            console.log(`Restored previous selection: ${currentValue}`);
-        } else {
-            // Default to empty (All Providers)
-            providerFilterSelect.value = "";
-            console.log("Set default selection: All Providers");
-        }
-    }
-
-    function viewProviderModels(providerId) {
-        // Convert to string to ensure proper matching
-        const providerIdStr = String(providerId);
-        console.log(`Viewing models for provider ID: ${providerIdStr}`);
-
-        // 1. Set the filter dropdown value
-        if (providerFilterSelect) {
-            providerFilterSelect.value = providerIdStr;
-            console.log(`Set provider filter to: ${providerIdStr}`);
-
-            // Important: Manually trigger the change event
-            const event = new Event('change');
-            providerFilterSelect.dispatchEvent(event);
-        } else {
-            // Fallback if element not found
-            console.error("Provider filter select element not found!");
-            // Still call filterModels directly just in case
-            filterModels();
-        }
-
-        // 2. Switch to the 'Models' tab
-        const modelsTabButton = document.querySelector('.tab-button[data-tab="models"]');
-        if (modelsTabButton) {
-            modelsTabButton.click(); // Simulate a click to switch tab
-        }
-
-        // 3. Optionally scroll to the models section
-        const modelsSection = document.getElementById('models-tab');
-        if (modelsSection) {
-            modelsSection.scrollIntoView({ behavior: 'smooth' });
-        }
-    }
-
-    // Direct update function that bypasses form data building
-    function handleDirectProviderUpdate() {
-        if (!currentProviderId) {
-            showError('No provider selected for update');
-            return;
-        }
-
-        // FORCE a specific key for testing - ALWAYS include this key
-        const testApiKey = "FORCED-TEST-KEY-" + new Date().getTime();
-
-        // Get basic provider data but hardcode API key
-        const data = {
-            name: document.getElementById('provider-name').value,
-            type: document.getElementById('provider-type').value,
-            base_url: document.getElementById('provider-base-url').value,
-            api_key: testApiKey // Always include our test key
-        };
-
-        console.log('************ DIRECT UPDATE TEST ************');
-        console.log('Direct update - sending data:', JSON.stringify(data));
-
-        showLoading();
-        fetch(`/api/admin/providers/${currentProviderId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-        .then(response => {
-            console.log('Direct update response status:', response.status);
-
-            // Log the complete response for debugging
-            return response.text().then(text => {
-                try {
-                    const responseObj = JSON.parse(text);
-                    console.log('Response JSON:', responseObj);
-                    return responseObj;
-                } catch (e) {
-                    console.error('Failed to parse response as JSON:', text);
-                    throw new Error('Invalid response format');
-                }
-            });
-        })
-        .then(updatedProvider => {
-            console.log('Provider directly updated successfully:', updatedProvider);
-            showSuccess(`Provider "${updatedProvider.name}" updated with test key: ${testApiKey}`);
-
-            // Check the database immediately
-            checkDatabase(currentProviderId, testKey);
-
-            closeProviderModal();
-            loadProviders(); // Refresh list
-        })
-        .catch(error => {
-            console.error('Direct update error:', error);
-            showError(`Error: ${error.message}`);
-        })
+        .catch(error => showError(`Failed to ${action} provider: ${error.message}`))
         .finally(hideLoading);
     }
+    window.handleProviderFormSubmit = handleProviderFormSubmit;
+    
+    function handleUserFormSubmit(event) {
+        event.preventDefault();
+        const userDetails = buildUserData();
+        if (!userDetails) return;
 
-    // Helper function to show a notification with database checking instructions
-    function checkDatabase(providerId, testKey) {
-        const checkCmd = `sqlite3 data/cyberai.db "SELECT id, name, type, base_url, api_key FROM providers WHERE id = ${providerId};"`;
-        const notification = document.createElement('div');
-        notification.className = 'notification info';
-        notification.innerHTML = `
-            <p><strong>Test Key Sent:</strong> ${testKey}</p>
-            <p>Check the database to verify it updated:</p>
-            <code>${checkCmd}</code>
-            <span class="notification-close">&times;</span>
-        `;
-        document.body.appendChild(notification);
+        const userId = document.getElementById('user-id')?.value;
+        const action = userId ? 'update' : 'add';
 
-        // Add close button handler
-        notification.querySelector('.notification-close').addEventListener('click', () => {
-            notification.remove();
-        });
+        if (!validateUserData(userDetails)) return;
 
-        // Auto-remove after 20 seconds
-        setTimeout(() => {
-            if (document.body.contains(notification)) {
-                notification.remove();
+        let apiCall;
+        showLoading();
+        if (action === 'add') {
+            const passwordInput = document.getElementById('new-password');
+            const confirmPasswordInput = document.getElementById('confirm-password');
+            const passwordValue = passwordInput?.value;
+            const confirmPasswordValue = confirmPasswordInput?.value;
+
+            if (!passwordValue || passwordValue.length < 8) {
+                showError("Password (min 8 chars) required for new user."); hideLoading(); return;
             }
-        }, 20000);
-    }
-
-    function setupProviderManagement() {
-        // Load providers
-        loadProviders();
-
-        // Provider form event listeners
-        const providerForm = document.getElementById('provider-form');
-        if (providerForm) {
-            providerForm.addEventListener('submit', handleProviderFormSubmit);
-            console.log('Provider form submit handler attached');
+            if (passwordValue !== confirmPasswordValue) {
+                showError("Passwords do not match."); hideLoading(); return;
+            }
+            
+            const payloadForAdd = { user: userDetails, password: passwordValue };
+            apiCall = fetch('/api/admin/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payloadForAdd)
+             });
         } else {
-            console.error('Provider form element not found');
-        }
-
-        // Provider add button
-        const addProviderBtn = document.getElementById('add-provider-btn');
-        if (addProviderBtn) {
-            addProviderBtn.addEventListener('click', function() {
-                openProviderModal('add');
+            apiCall = fetch(`/api/admin/users/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userDetails)
             });
-            console.log('Add provider button handler attached');
         }
 
-        // Provider modal close buttons
-        const providerCloseButtons = document.querySelectorAll('#provider-modal .provider-close, #provider-cancel-btn');
-        providerCloseButtons.forEach(button => {
-            button.addEventListener('click', closeProviderModal);
-        });
-        console.log('Provider close button handlers attached');
-
-        // Provider type change - to toggle relevant fields
-        const providerTypeSelect = document.getElementById('provider-type');
-        if (providerTypeSelect) {
-            providerTypeSelect.addEventListener('change', toggleProviderConditionalFields);
-            console.log('Provider type change handler attached');
-        }
+        apiCall
+            .then(handleResponse)
+            .then(() => {
+                showSuccess(`User ${action === 'add' ? 'added' : 'updated'}.`);
+                console.log('Dispatching close-user-modal event.');
+                window.dispatchEvent(new CustomEvent('close-user-modal')); 
+                loadUsersPromise(); // Refresh list
+            })
+            .catch(error => showError(`Failed to ${action} user: ${error.message}`))
+            .finally(hideLoading);
     }
-
-    // --- Password Change Functions ---
-
-    function openChangePasswordModal(userId, username) {
-        // Close the main user modal first if open
-        closeUserModal();
-        // Set hidden user ID and update title
-        if (changePasswordUserIdInput) changePasswordUserIdInput.value = userId;
-        if (changePasswordModalTitle) changePasswordModalTitle.textContent = `Change Password for ${username}`;
-        // Clear previous password inputs
-        if (changePasswordForm) changePasswordForm.reset();
-        // Show the password modal
-        if (changePasswordModal) {
-            changePasswordModal.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        }
-    }
-
-    function closeChangePasswordModal() {
-        if (changePasswordModal) {
-            changePasswordModal.classList.remove('active');
-            document.body.style.overflow = '';
-        }
-    }
+    window.handleUserFormSubmit = handleUserFormSubmit;
 
     function handleChangePasswordSubmit(event) {
         event.preventDefault();
-        const userId = changePasswordUserIdInput.value;
-        const newPassword = newPasswordInput.value;
-        const confirmPassword = confirmPasswordInput.value;
+        const userId = document.getElementById('change-password-user-id')?.value;
+        const newPassword = document.getElementById('change-new-password')?.value;
+        const confirmPassword = document.getElementById('change-confirm-password')?.value;
 
-        if (!userId) {
-            showError("Cannot change password: User ID is missing.");
-            return;
-        }
-        if (newPassword.length < 8) {
-            showError("Password must be at least 8 characters long.");
-            return;
-        }
-        if (newPassword !== confirmPassword) {
-            showError("Passwords do not match.");
-            return;
-        }
+        if (!userId) { showError("User ID missing for password change."); return; }
+        if (!newPassword || newPassword.length < 8) { showError("Password must be at least 8 characters."); return; }
+        if (newPassword !== confirmPassword) { showError("New passwords do not match."); return; }
 
-        // Call the API to set the password
         setUserPassword(userId, newPassword);
     }
-
-    function setUserPassword(userId, password) {
-        showLoading();
-        fetch(`/api/admin/users/${userId}/password`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ password: password })
-        })
-        .then(response => {
-            if (!response.ok) {
-                 // Try to parse error
-                 return response.text().then(text => {
-                     try {
-                         const errData = JSON.parse(text);
-                         throw new Error(errData.error || `Failed to set password (${response.status})`);
-                     } catch (e) {
-                         throw new Error(text || `Failed to set password (${response.status})`);
-                     }
-                 });
+    window.handleChangePasswordSubmit = handleChangePasswordSubmit;
+    
+    // --- Build/Validate Functions ---
+    function buildModelData() {
+        try {
+            const temperatureNACheckbox = document.getElementById('temperature-na');
+            let temperatureValue;
+            if (temperatureNACheckbox && temperatureNACheckbox.checked) {
+                temperatureValue = null; // Use null for N/A
+            } else {
+                temperatureValue = parseFloat(document.getElementById('temperature')?.value || '0');
             }
-            // No body expected on success (204 No Content)
-            return null;
-        })
-        .then(() => {
-            showSuccess("Password updated successfully.");
-            closeChangePasswordModal();
-            // No need to reload user list, password isn't shown
-        })
-        .catch(error => {
-            showError(`Error setting password: ${error.message}`);
-        })
-        .finally(() => {
-            hideLoading();
-        });
-    }
 
-    // Add this function to handle model activation/deactivation
-    function toggleModelStatus(modelId, newStatus) {
-        // Show loading indicator
-        showLoading();
-
-        // First fetch the current model data
-        fetch(`/api/admin/models/${modelId}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to fetch model details');
-                }
-                return response.json();
-            })
-            .then(model => {
-                // Update only the is_active field
-                model.is_active = newStatus;
-
-                // Send the update request
-                return fetch(`/api/admin/models/${modelId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(model)
-                });
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to update model status');
-                }
-                return response.json();
-            })
-            .then(updatedModel => {
-                // Show success message
-                showSuccess(`Model ${updatedModel.name} ${newStatus ? 'enabled' : 'disabled'} successfully`);
-
-                // Update the UI
-                updateModelStatusInUI(modelId, newStatus);
-
-                // Hide loading indicator
-                hideLoading();
-            })
-            .catch(error => {
-                console.error('Error toggling model status:', error);
-                showError(`Failed to update model status: ${error.message}`);
-                hideLoading();
-            });
-    }
-
-    // Helper function to update model status in the UI without reloading
-    function updateModelStatusInUI(modelId, isActive) {
-        const modelCard = document.querySelector(`.model-card[data-id="${modelId}"]`);
-        if (!modelCard) return;
-
-        // Update data attribute
-        modelCard.dataset.active = isActive;
-
-        // Update status badge
-        const statusBadge = modelCard.querySelector('.status-badge');
-        if (statusBadge) {
-            statusBadge.className = `status-badge ${isActive ? 'active' : 'inactive'}`;
-            statusBadge.textContent = isActive ? 'Active' : 'Inactive';
-        }
-
-        // Update toggle button
-        const toggleBtn = modelCard.querySelector('[data-action="toggle"]');
-        if (toggleBtn) {
-            toggleBtn.className = `cyber-btn toggle-btn ${isActive ? 'warning' : 'success'}`;
-            toggleBtn.dataset.active = isActive;
-            toggleBtn.innerHTML = `<span class="btn-icon">${isActive ? '⏻' : '⭘'}</span> ${isActive ? 'Disable' : 'Enable'}`;
+            const data = {
+                provider_id: parseInt(document.getElementById('model-provider-id')?.value || '0'),
+                name: document.getElementById('name')?.value || '',
+                model_id: document.getElementById('model_id')?.value || '',
+                max_tokens: parseInt(document.getElementById('max-tokens')?.value || '0'),
+                temperature: temperatureValue,
+                default_system_prompt: document.getElementById('system-prompt')?.value || '',
+                is_active: document.getElementById('is-active')?.checked ?? true,
+            };
+            return data; // Validation happens separately
+        } catch (error) {
+             console.error("Error building model data:", error);
+             showError("Error reading model form data.");
+             return null;
         }
     }
-});
+    window.buildModelData = buildModelData;
+    
+    function validateModelData(modelData, action) {
+         if (!modelData) return false;
+         if (action === 'add' && (!modelData.provider_id || isNaN(modelData.provider_id) || modelData.provider_id <= 0)) {
+            showError('Please select a valid provider.'); return false;
+        }
+        if (!modelData.name) { showError("Model Display Name is required."); return false; }
+        if (!modelData.model_id) { showError("Model ID (Provider Specific) is required."); return false; }
+        if (isNaN(modelData.max_tokens) || modelData.max_tokens <= 0) {
+            showError('Max Tokens must be a positive number.'); return false;
+        }
+        if (modelData.temperature !== null && (isNaN(modelData.temperature) || modelData.temperature < 0 || modelData.temperature > 1)) {
+             showError('Temperature must be between 0.0 and 1.0 (or N/A).'); return false;
+        }
+        return true;
+    }
+    window.validateModelData = validateModelData;
+
+    function buildUserData() {
+        try {
+            const userDetails = {
+                username: document.getElementById('username')?.value || '',
+                email: document.getElementById('email')?.value || '',
+                role_id: parseInt(document.getElementById('role-id')?.value || '0'),
+                is_active: document.getElementById('user-is-active')?.checked ?? true,
+                first_name: document.getElementById('first-name')?.value || null,
+                last_name: document.getElementById('last-name')?.value || null,
+            };
+             return userDetails; // Validation happens separately
+        } catch (error) {
+             console.error("Error building user data:", error);
+             showError("Error reading user form data.");
+             return null;
+        }
+    }
+    window.buildUserData = buildUserData;
+
+    function validateUserData(userData) {
+        if (!userData) return false;
+        if (!userData.username) { showError("Username is required."); return false; }
+        if (!userData.email) { showError("Email is required."); return false; }
+        if (!/\S+@\S+\.\S+/.test(userData.email)) {
+             showError('Please enter a valid email address.'); return false;
+        }
+        if (isNaN(userData.role_id) || userData.role_id <= 0) {
+             showError("Please select a valid role."); return false;
+        }
+        return true;
+    }
+    window.validateUserData = validateUserData;
+
+    function buildProviderData() {
+        try {
+            const providerData = {
+                name: document.getElementById('provider-name')?.value || '',
+                type: document.getElementById('provider-type')?.value || '',
+            };
+            const baseUrl = document.getElementById('provider-base-url')?.value;
+            const apiKey = document.getElementById('provider-api-key')?.value;
+
+            if (baseUrl && baseUrl.trim() !== '') providerData.base_url = baseUrl;
+            // Only include api_key if it's not empty (prevents accidentally clearing it on update)
+            if (apiKey && apiKey.trim() !== '') providerData.api_key = apiKey;
+
+            return providerData; // Validation happens separately
+        } catch (error) {
+             console.error("Error building provider data:", error);
+             showError("Error reading provider form data.");
+             return null;
+        }
+    }
+    window.buildProviderData = buildProviderData;
+
+    function validateProviderData(data, action) {
+        if (!data) return false;
+        if (!data.name) { showError("Provider Name is required."); return false; }
+        if (!data.type) { showError("Provider Type is required."); return false; }
+        
+        // Base URL required for Ollama (both add and update)
+        if (data.type === 'ollama' && (!data.base_url || data.base_url.trim() === '')) {
+            showError('Base URL is required for Ollama providers.'); return false;
+        }
+        
+        // API Key required for NEW OpenAI/Anthropic, optional otherwise
+        const providerId = document.getElementById('provider-id')?.value;
+        const isNewProvider = !providerId;
+        if (isNewProvider && (data.type === 'openai' || data.type === 'anthropic') && (!data.api_key || data.api_key.trim() === '')) {
+            showError(`API Key is required for new ${data.type} providers.`); return false;
+        }
+        return true;
+    }
+    window.validateProviderData = validateProviderData;
+    
+    // --- Expose additional functions to global scope ---
+    // Notification functions - Now handled by event dispatch
+    // window.showNotification = showNotification; // REMOVED
+    // window.showSuccess = showSuccess; // REMOVED
+    // window.showError = showError; // REMOVED
+    // window.showWarning = showWarning; // REMOVED
+    
+    // Loading indicators
+    window.showLoading = showLoading;
+    window.hideLoading = hideLoading;
+    
+    // Helper functions
+    window.loadProvidersAndPopulateDropdown = loadProvidersAndPopulateDropdown;
+    window.loadRolesAndPopulateDropdown = loadRolesAndPopulateDropdown;
+    window.fetchModelDetails = fetchModelDetails;
+    window.fetchProviderDetails = fetchProviderDetails;
+    window.fetchUserDetails = fetchUserDetails;
+    window.handleConfirmAction = handleConfirmAction;
+    window.setUserPassword = setUserPassword;
+    
+    // Other helpers can be added here as needed
+    
+    // --- Initial Load (Waits for Alpine) ---
+    function initialLoad() {
+        console.log("DOM content loaded. Initializing admin panel.");
+        // Directly setup listeners and load data
+        setupEventListeners(); 
+        loadAllData(); 
+    }
+
+    // --- Call Initial Load --- 
+    initialLoad();
+
+}); // End DOMContentLoaded

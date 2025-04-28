@@ -318,15 +318,29 @@ Authentication/Authorization: *TODO: All admin routes should require administrat
 
 *   **`PUT /api/admin/models/{id}`**
     *   **Implementation**: `server/handlers/admin_handlers.go`
-    *   Description: Updates an existing model's configuration. `provider_id` cannot be changed.
+    *   Description: Updates an existing model's configuration based on the fields provided in the request body. It performs a partial update (merge/patch); only the fields included in the request JSON will be modified. The `provider_id` cannot be changed via this endpoint.
     *   Path Parameter: `{id}` - The integer ID of the model to update.
-    *   Request Body (`application/json`): Model object with fields to update.
-    *   Response Body (`application/json`): The updated Model object.
+    *   Request Body (`application/json`): JSON object containing only the fields to update. Example for toggling status:
+        ```json
+        {
+          "is_active": true 
+        }
+        ``` 
+        Example for updating multiple fields:
+        ```json
+        {
+          "name": "Updated Model Name",
+          "max_tokens": 16384,
+          "temperature": 0.65
+        }
+        ```
+    *   Response Body (`application/json`): The complete, updated Model object as fetched from the database *after* the update is applied.
     *   Status Codes:
         *   `200 OK`: Success.
-        *   `400 Bad Request`: Invalid model ID format or invalid request body.
+        *   `400 Bad Request`: Invalid model ID format or invalid field value in request body (e.g., bad configuration JSON).
         *   `404 Not Found`: Model with the given ID does not exist.
-        *   `500 Internal Server Error`: Failed to update model (e.g., DB error, constraint violation).
+        *   `409 Conflict`: Update failed due to unique constraint violation (e.g., duplicate Model ID for the provider).
+        *   `500 Internal Server Error`: Failed to save updated model.
 
 *   **`DELETE /api/admin/models/{id}`**
     *   **Implementation**: `server/handlers/admin_handlers.go`

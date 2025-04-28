@@ -131,7 +131,14 @@ ui.renderChatsList = function(chats) {
         titleWrapper.classList.add('chat-title-text');
         titleWrapper.textContent = chat.title || 'Untitled Chat';
         // Click handler calls function assumed to be in api.js or chat.js
-        titleWrapper.addEventListener('click', () => loadChat(chat.id));
+        titleWrapper.addEventListener('click', () => {
+            console.log(`[UI] Chat item clicked: ${chat.id}`);
+            if (currentChatId !== chat.id) {
+                api.loadChat(chat.id); // Use the correct function name: loadChat
+            } else {
+                console.log(`[UI] Clicked on already active chat (${chat.id}), no action needed.`);
+            }
+        });
         chatItem.appendChild(titleWrapper);
 
         // Add delete button
@@ -657,7 +664,7 @@ function showDeleteConfirmation(chatId, chatTitle) {
 }
 */
 
-// --- Notification Function --- */
+// --- Notification Function ---
 /**
  * Displays a temporary notification tile in the top-right corner.
  * @param {string} message - The message to display.
@@ -713,8 +720,53 @@ ui.showNotification = function(message, type = 'success') {
     };
 }
 
+// --- Event Listeners Setup ---
+
+ui.setupEventListeners = function() {
+    const logoutButton = document.getElementById('logout-button');
+    const purgeChatsButton = document.getElementById('purge-chats-button');
+    const newChatButton = document.getElementById('new-chat-button');
+
+    if (logoutButton) {
+        logoutButton.addEventListener('click', async () => {
+            console.log('Logout button clicked');
+            try {
+                const response = await fetch('/logout', {
+                    method: 'POST', // Or GET, depending on backend handler
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (response.ok) {
+                    console.log('Logout successful, redirecting to login...');
+                    window.location.href = '/login'; // Redirect to login page
+                } else {
+                    console.error('Logout failed:', response.status, await response.text());
+                    ui.showNotification('Logout failed. Please try again.', 'error');
+                }
+            } catch (error) {
+                console.error('Error during logout:', error);
+                ui.showNotification('An error occurred during logout.', 'error');
+            }
+        });
+    }
+
+    if (purgeChatsButton) {
+        purgeChatsButton.addEventListener('click', () => {
+            ui.showConfirmationDialog(
+                'Purge All Chats?',
+                'Are you sure you want to permanently delete ALL your chats? This cannot be undone.',
+                (confirmationEl) => api.confirmPurgeChats(confirmationEl) // Correct namespace: API call in api.js
+            );
+        });
+    }
+
+    if (newChatButton) {
+        newChatButton.addEventListener('click', chat.startNewChat); // Use the namespaced function
+    }
+}
+
 // --- Utility Functions ---
-// ... existing code ...
 
 /**
  * Adds a message element directly to the UI, typically for optimistic updates.
@@ -737,7 +789,7 @@ ui.addMessageToUI = function(type, content, tempId = null) {
 
     if (contentElement) {
         // Set the raw content attribute, crucial for user message copy
-         messageWrapper.dataset.rawContent = content;
+        messageWrapper.dataset.rawContent = content;
 
         // Render the content (assuming simple text for optimistic user message)
         // If markdown rendering is needed here, use marked.parse(content)
@@ -751,7 +803,7 @@ ui.addMessageToUI = function(type, content, tempId = null) {
 
     // Scroll to the bottom to show the new message
     requestAnimationFrame(() => {
-         requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
             chatHistory.scrollTop = chatHistory.scrollHeight;
         });
     });
@@ -817,90 +869,6 @@ ui.displayChatError = function(chatId, errorMessage) {
     ui.showNotification(`Error: ${errorMessage}`, 'error');
 }
 
-// Mobile Responsive Helper function - Added for better mobile usability
-ui.initMobileToggles = function() {
-    // Only execute on mobile/small screens
-    const isMobile = window.innerWidth <= 768;
-
-    if (isMobile) {
-        // Get all section titles
-        const sectionTitles = document.querySelectorAll('.sidebar .title');
-
-        sectionTitles.forEach(title => {
-            // Add click event listener
-            title.addEventListener('click', function() {
-                // Toggle collapsed class on the parent element
-                const section = this.nextElementSibling;
-                if (section && (section.classList.contains('chats-list') || section.classList.contains('models-list'))) {
-                    section.classList.toggle('collapsed');
-
-                    // Toggle visibility
-                    if (section.classList.contains('collapsed')) {
-                        section.style.maxHeight = '0px';
-                        section.style.overflow = 'hidden';
-                        this.classList.add('collapsed');
-                    } else {
-                        section.style.maxHeight = '35vh';
-                        section.style.overflow = 'auto';
-                        this.classList.remove('collapsed');
-                    }
-                }
-            });
-        });
-    }
-}
-
-// Call the function when the document is loaded
-document.addEventListener('DOMContentLoaded', ui.initMobileToggles);
-// Also call it on resize events to handle orientation changes
-window.addEventListener('resize', ui.initMobileToggles);
-
-// --- Event Listeners Setup ---
-
-ui.setupEventListeners = function() {
-    const logoutButton = document.getElementById('logout-button');
-    const purgeChatsButton = document.getElementById('purge-chats-button');
-    const newChatButton = document.getElementById('new-chat-button');
-
-    if (logoutButton) {
-        logoutButton.addEventListener('click', async () => {
-            console.log('Logout button clicked');
-            try {
-                const response = await fetch('/logout', {
-                    method: 'POST', // Or GET, depending on backend handler
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                if (response.ok) {
-                    console.log('Logout successful, redirecting to login...');
-                    window.location.href = '/login'; // Redirect to login page
-                } else {
-                    console.error('Logout failed:', response.status, await response.text());
-                    ui.showNotification('Logout failed. Please try again.', 'error');
-                }
-            } catch (error) {
-                console.error('Error during logout:', error);
-                ui.showNotification('An error occurred during logout.', 'error');
-            }
-        });
-    }
-
-    if (purgeChatsButton) {
-        purgeChatsButton.addEventListener('click', () => {
-             ui.showConfirmationDialog(
-                'Purge All Chats?',
-                'Are you sure you want to permanently delete ALL your chats? This cannot be undone.',
-                (confirmationEl) => api.confirmPurgeChats(confirmationEl) // Correct namespace: API call in api.js
-            );
-        });
-    }
-
-    if (newChatButton) {
-        newChatButton.addEventListener('click', chat.startNewChat); // Use the namespaced function
-    }
-}
-
 // --- Sidebar Resizing Logic ---
 ui.initializeSidebarResizing = function() {
     const sidebar = document.querySelector('.sidebar');
@@ -964,12 +932,39 @@ ui.initializeSidebarResizing = function() {
         }
     }
 }
-// --- End Sidebar Resizing Logic ---
 
 // Initialize the UI
 ui.initializeUI = function() {
-    ui.initializeSidebarResizing(); // Add this call
-    // ... existing code ...
+    ui.initializeSidebarResizing();
+    
+    // Mobile responsive helper - Added for better mobile usability
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+        // Get all section titles
+        const sectionTitles = document.querySelectorAll('.sidebar .title');
+
+        sectionTitles.forEach(title => {
+            // Add click event listener
+            title.addEventListener('click', function() {
+                // Toggle collapsed class on the parent element
+                const section = this.nextElementSibling;
+                if (section && (section.classList.contains('chats-list') || section.classList.contains('models-list'))) {
+                    section.classList.toggle('collapsed');
+
+                    // Toggle visibility
+                    if (section.classList.contains('collapsed')) {
+                        section.style.maxHeight = '0px';
+                        section.style.overflow = 'hidden';
+                        this.classList.add('collapsed');
+                    } else {
+                        section.style.maxHeight = '35vh';
+                        section.style.overflow = 'auto';
+                        this.classList.remove('collapsed');
+                    }
+                }
+            });
+        });
+    }
 }
 
 // Expose ui namespace globally
