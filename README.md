@@ -2,13 +2,14 @@
 <table>
   <tr>
     <td>
-      <img src="media/screen.png" alt="chat interface">
+      <img src="media/screen2.png" alt="chat interface">
     </td>
     <td>
-      <img src="media/dashboard.png" alt="admin dashboard">
+      <img src="media/dashboard2.png" alt="admin dashboard">
     </td>
   </tr>
 </table>
+<p><em>Note: Screenshots may not reflect the latest UI/UX rework.</em></p>
 </div>
 
 <div align="center">
@@ -63,12 +64,13 @@ CyberAI is a powerful, secure multi-user chat platform that integrates multiple 
   <tr>
     <td>
       <ul>
-        <li>Cyberpunk S3270 terminal-inspired design</li>
-        <li>Responsive chat interface</li>
-        <li>Dynamic model selection</li>
+        <li>Modern, responsive UI built with Tailwind CSS</li>
+        <li>Cyberpunk S3270 terminal-inspired design (Penguin UI theme)</li>
+        <li>Unified style across Chat and Admin interfaces</li>
+        <li>Dynamic model selection dropdowns</li>
         <li>Admin dashboard for system management</li>
-        <li>Agent creation/selection UI</li>
-        <li>Metrics display component</li>
+        <li>Agent creation/selection UI (Planned/Not Implemented)</li>
+        <li>Metrics display component (Planned/Not Implemented)</li>
       </ul>
     </td>
     <td>
