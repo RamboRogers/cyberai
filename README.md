@@ -24,6 +24,8 @@
   </p>
 </div>
 
+[Link to Video](https://x.com/rogerscissp/status/1917092440068047334)
+
 CyberAI is a powerful, secure multi-user chat platform that integrates multiple AI models through a cyberpunk-inspired terminal interface. Built with performance, security, and flexibility in mind, it provides a centralized interface for interacting with various language models.
 
 > The intention is to provide a sleek, secure, and efficient way to interact with AI language models through a unified interface.
