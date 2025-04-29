@@ -3,7 +3,7 @@
     /* Core Surface & Text */
     --color-surface: #0D0D0D; /* Near black */
     --color-surface-alt: #1A1A1A; /* Dark Gray */
-    --color-on-surface: #E0E0E0; /* Light Gray/Off-white for general text */
+    --color-on-surface: #FFFFFF; /* Bright White for general text */
     --color-on-surface-strong: #FFFFFF; /* Bright White for data */
 
     /* Primary Accent (Cyberpunk Green) */
@@ -512,3 +512,93 @@ textarea:focus { /* Add textarea explicitly */
 .admin-tabs { display: none; }
 .tab-button { display: none; }
 .tab-content { display: block; } /* Ensure content shows by default */
+
+/* Add spacing within message content after removing prose */
+.message .content p {
+    margin-bottom: 1em; /* Add space after paragraphs */
+}
+
+/* Add list styling within message content */
+.message .content ul,
+.message .content ol {
+    padding-left: 1.5em; /* Indentation */
+    margin-bottom: 1em; /* Space after list */
+}
+.message .content ul {
+    list-style-type: disc; /* Standard disc bullets */
+}
+.message .content ol {
+    list-style-type: decimal; /* Standard numbers */
+}
+.message .content li {
+    margin-bottom: 0.5em; /* Space between list items */
+}
+
+/* Style for the <pre> container to position the button */
+.message .content pre {
+    position: relative;
+    background-color: var(--color-surface); /* Use main background for contrast */
+    padding: 1em; /* Ensure padding */
+    border-radius: var(--radius-radius); /* Ensure radius */
+    margin-bottom: 1em; /* Ensure spacing */
+    overflow-x: auto; /* Allow horizontal scrolling */
+}
+
+/* Style for the copy code button */
+.copy-code-button {
+    position: absolute;
+    top: 0.5em;
+    right: 0.5em;
+    padding: 0.25em 0.5em;
+    background-color: var(--color-outline);
+    color: var(--color-on-surface);
+    border: 1px solid var(--color-outline-strong);
+    border-radius: 0.25rem;
+    font-size: 0.75em;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+
+.copy-code-button:hover {
+    opacity: 1;
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+    border-color: var(--color-primary);
+}
+
+.copy-code-button.copied {
+    background-color: var(--color-secondary);
+    color: var(--color-on-primary);
+    border-color: var(--color-secondary);
+    opacity: 1;
+}
+
+/* Basic Syntax Highlighting Theme Adjustments (if needed) */
+.hljs {
+    background: none; /* Let <pre> handle background */
+    padding: 0; /* Let <pre> handle padding */
+    /* color: var(--color-on-surface); /* Default code text color - Inherited or set by theme */
+    /* border-radius: var(--radius-radius); /* Handled by pre */
+}
+
+/* Styling for inline code elements */
+.message .content > code, /* Direct child code (less common) */
+.message .content p > code, /* Code inside paragraphs */
+.message .content li > code /* Code inside list items */
+{
+    background-color: var(--color-outline); /* Slightly different background */
+    color: var(--color-primary); /* Green text for inline code */
+    padding: 0.1em 0.4em; /* Small padding */
+    border-radius: 0.25rem; /* Subtle rounding */
+    font-size: 0.9em; /* Slightly smaller */
+    border: 1px solid var(--color-outline-strong);
+}
+
+/* Style for the user prompt indicator */
+.user-prompt-indicator {
+    color: var(--color-primary); /* Use primary green */
+    font-weight: bold;
+    margin-right: 0.5em; /* Add space after the symbol */
+}

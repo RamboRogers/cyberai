@@ -4,14 +4,16 @@
 const ui = {};
 
 // --- DOM Element References (Assume these are available globally from chat.js) ---
+// Note: Some IDs might change based on the new HTML structure. Verify in chat.js.
 // const chatHistory = document.getElementById('chat-history');
-// const modelsListContainer = document.getElementById('models-list');
-// const chatsListContainer = document.getElementById('chats-list');
-// const newChatButton = document.getElementById('new-chat-button');
-// const chatTitle = document.getElementById('chat-title');
+// const modelsListContainer = document.getElementById('models-list'); // Now a UL
+// const chatsListContainer = document.getElementById('chats-list'); // Now a UL
+// const newChatButton = document.getElementById('new-chat-button'); // Now an A tag inside LI
+// const chatTitle = document.getElementById('chat-title'); // Now an H1
 // const userNameElement = document.querySelector('.user-name');
 // const userRoleElement = document.querySelector('.user-role');
 // const userAvatarElement = document.querySelector('.user-avatar');
+const activeModelIndicator = document.getElementById('active-model-indicator'); // New element
 
 // --- State Variables (Assume these are available globally from chat.js) ---
 // let modelsList = [];
@@ -21,352 +23,455 @@ const ui = {};
 
 // --- UI Rendering Functions ---
 
-// Render the models list in the sidebar, grouped by provider
-ui.renderModelsList = function(models) {
-    // Clear the current models list
-    if (!modelsListContainer) return;
-
-    console.log(`Rendering ${models.length} models:`, models.map(m => `${m.id}: ${m.name}`).join(', '));
-
-    // Remove existing model items
-    while (modelsListContainer.firstChild) {
-        modelsListContainer.removeChild(modelsListContainer.firstChild);
+// Render the PROVIDER select dropdown based on the fetched models
+ui.renderProviderSelect = function() {
+    // Uses the global modelsList from chat.js
+    const providerSelect = document.getElementById('provider-select');
+    if (!providerSelect) {
+        console.error("Provider select dropdown not found.");
+        return;
     }
 
-    // Add each model to the list
-    models.forEach(model => {
-        const modelItem = document.createElement('div');
-        modelItem.classList.add('model-item');
-        modelItem.dataset.modelId = model.id;
+    console.log(`Rendering providers from ${modelsList.length} models.`);
 
-        // Add status indicator
-        const statusIndicator = document.createElement('span');
-        statusIndicator.classList.add('status-indicator', 'status-available');
-        modelItem.appendChild(statusIndicator);
+    // Clear existing options (except the default "Select Provider")
+    const defaultOption = providerSelect.options[0]; // Assume first is default
+    providerSelect.innerHTML = ''; // Clear
+    if (defaultOption) providerSelect.appendChild(defaultOption); // Add default back
 
-        // Add model name
-        modelItem.appendChild(document.createTextNode(model.name));
+    // --- UPDATED: Extract provider name from model name --- 
+    const providers = modelsList.reduce((acc, model) => {
+        // Extract provider name from parentheses in model.name
+        const match = model.name?.match(/\(([^)]+)\)/);
+        const providerName = match ? match[1] : model.provider_type; // Fallback to provider_type if no match
+        const providerKey = providerName || 'Unknown'; // Use a key for grouping
 
-        // Set active state if this is the current model
-        if (activeModel === model.id) {
-            modelItem.classList.add('active');
+        if (!acc[providerKey]) {
+            acc[providerKey] = { 
+                id: providerKey, // Use the extracted name/type as the ID for selection
+                name: providerKey // Display name
+            };
         }
+        return acc;
+    }, {});
+    // --- END UPDATE --- 
 
-        // Add click handler (calls function assumed to be in chat.js)
-        modelItem.addEventListener('click', () => chat.selectModel(model.id));
-
-        // Add to container
-        modelsListContainer.appendChild(modelItem);
+    // Sort providers alphabetically by name
+    const sortedProviders = Object.values(providers).sort((a, b) => {
+        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
     });
 
-    // If no models were found, show message
-    if (models.length === 0) {
-        const noModelsItem = document.createElement('div');
-        noModelsItem.classList.add('model-item');
+    // Populate provider select
+    sortedProviders.forEach(provider => {
+        const option = document.createElement('option');
+        option.value = provider.id;
+        option.textContent = provider.name;
+        providerSelect.appendChild(option);
+    });
 
-        const statusIndicator = document.createElement('span');
-        statusIndicator.classList.add('status-indicator', 'status-offline');
-        noModelsItem.appendChild(statusIndicator);
+    console.log("Provider dropdown populated.");
+}
 
-        noModelsItem.appendChild(document.createTextNode('No models available'));
-        modelsListContainer.appendChild(noModelsItem);
+// Populate the MODEL select dropdown based on the selected provider
+ui.populateModelSelect = function(providerId, initialModelId = null) {
+    const modelSelect = document.getElementById('model-select');
+    if (!modelSelect) {
+        console.error("Model select dropdown not found.");
+        return;
     }
 
-    // Update active model indicator in chat header
-    ui.updateActiveModelIndicator();
+    // Clear existing options (except the default)
+    const defaultOption = modelSelect.options[0]; // Assume first is default
+    modelSelect.innerHTML = ''; // Clear
+    if (defaultOption) {
+         modelSelect.appendChild(defaultOption);
+         // Update default option text based on whether a provider is selected
+         defaultOption.textContent = providerId ? 'Select Model' : 'Select Provider First';
+    }
+
+    modelSelect.disabled = true; // Disable initially
+
+    if (!providerId) {
+        console.log("No provider selected, model dropdown cleared and disabled.");
+        modelSelect.value = ''; // Ensure value is cleared
+        // Trigger Alpine refresh for disabled state
+        modelSelect.dispatchEvent(new Event('change'));
+        return; // Do nothing further if no provider is selected
+    }
+
+    // --- UPDATED: Filter models based on provider name extracted from model.name ---
+    const filteredModels = modelsList.filter(m => {
+        const match = m.name?.match(/\(([^)]+)\)/);
+        const modelProviderName = match ? match[1] : m.provider_type; // Extract or fallback
+        return modelProviderName === providerId;
+    });
+    // --- END UPDATE ---
+
+    if (filteredModels.length === 0) {
+        console.log(`No models found for provider type: ${providerId}`);
+        if(defaultOption) defaultOption.textContent = 'No models for provider';
+        modelSelect.value = ''; // Ensure value is cleared
+        // Trigger Alpine refresh for disabled state
+        modelSelect.dispatchEvent(new Event('change'));
+        return; // Keep disabled
+    }
+
+    // Sort models alphabetically by name
+    filteredModels.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+
+    // Populate model select
+    filteredModels.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.id;
+        option.textContent = model.name;
+        modelSelect.appendChild(option);
+    });
+
+    // Re-enable the select
+    modelSelect.disabled = false;
+
+    // Set the initially selected model if provided and found
+    const modelExists = filteredModels.some(m => m.id == initialModelId);
+    if (initialModelId && modelExists) {
+        modelSelect.value = initialModelId;
+    } else {
+        // If no initialModelId or it wasn't found for this provider, ensure value is cleared
+        modelSelect.value = '';
+        // Clear activeModel in global state if initial selection is invalid
+        if (activeModel == initialModelId) {
+            activeModel = null;
+            localStorage.removeItem('activeModelId');
+        }
+    }
+
+    console.log(`Model dropdown populated for provider type: ${providerId}. Initial model ID: ${initialModelId}`);
+    // Trigger Alpine refresh after population and potential selection
+    modelSelect.dispatchEvent(new Event('change'));
+    ui.updateActiveModelUI(); // Update header indicator
 }
 
 // Update active model indicator in chat header
 ui.updateActiveModelIndicator = function() {
-    // Now just log which model is active for debugging if needed
+    if (!activeModelIndicator) return;
+    console.log(`[UI Update] Updating header indicator. Current activeModel ID: ${activeModel}`);
+
     const selectedModel = modelsList.find(m => m.id == activeModel);
     if (selectedModel) {
+        activeModelIndicator.textContent = `${selectedModel.name}`;
+        
+        // --- UPDATED: Extract provider name from model name --- 
+        const match = selectedModel.name?.match(/\(([^)]+)\)/);
+        const providerName = match ? match[1] : (selectedModel.provider_type || 'N/A');
+        // --- END UPDATE ---
+        
+        activeModelIndicator.title = `Using ${selectedModel.name} (Provider: ${providerName})`;
+        activeModelIndicator.style.display = 'inline-block'; // Show it
         console.log(`[UI Update] Active model indicator updated: ${selectedModel.name} (ID: ${activeModel})`);
     } else {
+        activeModelIndicator.textContent = 'No Model Selected';
+        activeModelIndicator.title = 'Select a model from the sidebar';
+        activeModelIndicator.style.display = 'inline-block'; // Show placeholder
         console.log(`[UI Update] No active model or model not found.`);
     }
-    // Actual UI update for indicator might go here if needed
 }
 
-// Update UI to reflect active model selection in the list
+// Update UI to reflect active model selection (Now only updates the header indicator)
 ui.updateActiveModelUI = function() {
-    document.querySelectorAll('.model-item').forEach(item => {
-        if (item.dataset.modelId == activeModel) {
-            item.classList.add('active');
-        } else {
-            item.classList.remove('active');
-        }
-    });
-    ui.updateActiveModelIndicator(); // Update any header indicator too
+    // Dropdown UI state is managed by Alpine.js x-model and @change handlers in index.html.
+    // This function just ensures the header indicator reflects the global `activeModel` state.
+    ui.updateActiveModelIndicator();
 }
 
 // Render the chats list in the sidebar
 ui.renderChatsList = function(chats) {
     if (!chatsListContainer) return;
 
-    // Keep the "New Chat" button
-    const newChatBtn = document.getElementById('new-chat-button');
+    const newChatListItem = chatsListContainer.querySelector('#new-chat-button')?.closest('li'); // Find the LI containing the button
 
-    // Clear the current chats list
-    while (chatsListContainer.firstChild) {
-        chatsListContainer.removeChild(chatsListContainer.firstChild);
-    }
-
-    // Add the new chat button back
-    chatsListContainer.appendChild(newChatBtn);
+    // Clear existing chat items (excluding the "New Chat" button's LI)
+    const existingItems = chatsListContainer.querySelectorAll('li:not(:first-child)'); // Assumes New Chat is always first
+    existingItems.forEach(item => item.remove());
 
     // Add each chat to the list
     chats.forEach(chat => {
-        const chatItem = document.createElement('div');
-        chatItem.classList.add('chat-item');
-        chatItem.dataset.chatId = chat.id;
+        const chatListItem = document.createElement('li');
 
-        // Add status indicator
-        const statusIndicator = document.createElement('span');
-        statusIndicator.classList.add('status-indicator', 'status-available');
-        chatItem.appendChild(statusIndicator);
+        const chatLink = document.createElement('a');
+        chatLink.href = '#'; // Prevent page jump
+        chatLink.dataset.chatId = chat.id;
+        chatLink.className = 'group relative flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-on-surface hover:bg-surface-alt hover:text-primary';
 
-        // Create wrapper for title (to handle click separately from delete)
-        const titleWrapper = document.createElement('span');
-        titleWrapper.classList.add('chat-title-text');
-        titleWrapper.textContent = chat.title || 'Untitled Chat';
-        // Click handler calls function assumed to be in api.js or chat.js
-        titleWrapper.addEventListener('click', () => {
+        // Active state styling managed by updateActiveChatUI
+
+        // Icon/Indicator (Example: using a generic chat bubble)
+        const icon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0 text-on-surface/60 group-hover:text-primary"><path fill-rule="evenodd" d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16ZM4.75 7.75a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5ZM6 11.25a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" /></svg>`;
+        chatLink.innerHTML = icon;
+
+        // Chat Title Span
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'truncate chat-title-text'; // Keep class for potential targeting
+        titleSpan.textContent = chat.title || 'Untitled Chat';
+        chatLink.appendChild(titleSpan);
+
+        // Click handler for selecting chat
+        chatLink.addEventListener('click', (e) => {
+            e.preventDefault(); // Prevent '#' navigation
             console.log(`[UI] Chat item clicked: ${chat.id}`);
             if (currentChatId !== chat.id) {
-                api.loadChat(chat.id); // Use the correct function name: loadChat
+                api.loadChat(chat.id);
             } else {
                 console.log(`[UI] Clicked on already active chat (${chat.id}), no action needed.`);
             }
+             // Optionally close sidebar on mobile after selection
+             if (window.innerWidth < 1024) { // lg breakpoint
+                 const alpineData = chatLink.closest('[x-data]');
+                 if (alpineData && alpineData.__x) {
+                      alpineData.__x.$data.showSidebar = false;
+                 }
+             }
         });
-        chatItem.appendChild(titleWrapper);
 
-        // Add delete button
-        const deleteBtn = document.createElement('span');
-        deleteBtn.classList.add('chat-delete-btn');
-        deleteBtn.innerHTML = '&times;'; // × symbol
+        // Add delete button (absolutely positioned within the link/li)
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded text-on-surface/50 opacity-0 group-hover:opacity-100 hover:text-danger hover:bg-surface-alt focus:opacity-100 focus:text-danger focus:bg-surface-alt transition-opacity';
+        deleteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>';
         deleteBtn.title = 'Delete chat';
         deleteBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent triggering chat selection
-            // Calls function assumed to be in api.js or chat.js
+            e.preventDefault(); // Prevent link navigation
+            e.stopPropagation(); // Prevent chat selection handler
             ui.showConfirmationDialog(
                 'Delete Chat?',
                 `Are you sure you want to permanently delete the chat "${chat.title || 'Untitled Chat'}"? This cannot be undone.`,
-                (confirmationEl) => api.confirmDeleteChat(chat.id, chat.title, confirmationEl) // Correct namespace: API call in api.js
+                (confirmationEl) => api.confirmDeleteChat(chat.id, chat.title, confirmationEl)
             );
         });
-        chatItem.appendChild(deleteBtn);
+        chatLink.appendChild(deleteBtn); // Append button to the link
 
-        // Set active state if this is the current chat
-        if (currentChatId === chat.id) {
-            chatItem.classList.add('active');
+        chatListItem.appendChild(chatLink);
+
+        // Add to container (insert after the "New Chat" button's LI)
+        if (newChatListItem && newChatListItem.parentNode) {
+            newChatListItem.parentNode.insertBefore(chatListItem, newChatListItem.nextSibling);
+        } else {
+            chatsListContainer.appendChild(chatListItem); // Fallback if "New Chat" isn't found
         }
+    });
 
-        // Add to container right after the "New Chat" button
-        chatsListContainer.insertBefore(chatItem, newChatBtn.nextSibling);
+    // Update active chat styling
+    ui.updateActiveChatUI();
+}
+
+// Update UI to reflect active chat selection
+ui.updateActiveChatUI = function() {
+    document.querySelectorAll('#chats-list li a[data-chat-id]').forEach(link => {
+        if (link.dataset.chatId == currentChatId) {
+            link.classList.add('bg-surface-alt', 'text-primary');
+        } else {
+            link.classList.remove('bg-surface-alt', 'text-primary');
+        }
     });
 }
 
 // Clear all messages from the chat history
 ui.clearChatHistory = function() {
     if (!chatHistory) return;
-    // Preserve system message "Welcome to CyberAI Terminal"
-    const systemMessages = Array.from(chatHistory.querySelectorAll('.system-message'))
-        .filter(el => el.textContent.includes("Welcome to CyberAI Terminal"));
-
-    // Clear all messages
-    chatHistory.innerHTML = '';
-
-    // Re-add the welcome message if it existed
-    if (systemMessages.length > 0) {
-        chatHistory.appendChild(systemMessages[0]);
+    // Preserve system message "Welcome to CyberAI Terminal" if desired
+    const welcomeMessage = chatHistory.querySelector('.system-message .content')?.textContent.includes("Welcome to CyberAI");
+    chatHistory.innerHTML = ''; // Clear all messages
+    if (welcomeMessage) {
+         // Re-add a simplified welcome message structure
+         ui.addSystemMessage("Welcome to CyberAI Terminal. Select a model and start chatting.");
     }
 }
 
 // Helper function to create message elements (used by renderMessage and handleAssistantChunk)
 ui.createMessageElement = function(type, message_id, model_id = null) {
     const messageWrapper = document.createElement('div');
-    messageWrapper.classList.add('message', type === 'user' ? 'user-message' : 'bot-message');
-    if (message_id) { // Allow null ID for initial user message rendering
+    // Swap backgrounds: User messages match page bg but have border, Bot messages use alt bg.
+    messageWrapper.className = `message p-4 rounded-lg shadow-sm ${type === 'user' ? 'bg-surface border border-outline/30' : 'bg-surface-alt'} ${type}-message`;
+    if (message_id) {
          messageWrapper.id = `message-${message_id}`;
     }
     if (model_id) {
         messageWrapper.dataset.modelId = model_id;
     }
 
-    // Content Area
+    // Content Area - Remove prose classes for more direct control
     const contentElement = document.createElement('div');
-    contentElement.classList.add('content');
+    contentElement.className = 'content'; // Remove prose classes
     messageWrapper.appendChild(contentElement);
-    // Initialize raw content storage only if it's a bot message initially
-    // User messages don't accumulate raw content this way
+
+    // Initialize raw content storage/attribute
     if (type === 'bot') {
-        contentElement._rawContent = '';
-    }
-    // Initialize raw content dataset attribute for user messages here
-    // This will be populated by renderMessage or addMessageToUI
-    else if (type === 'user') {
-         messageWrapper.dataset.rawContent = ''; // Initialize
+        contentElement._rawContent = ''; // Internal storage for streaming
+        messageWrapper.dataset.rawContent = ''; // Attribute for copy button
+    } else if (type === 'user') {
+        messageWrapper.dataset.rawContent = ''; // Initialize attribute
     }
 
-
-    // Footer Area (Timestamp, Actions, Token Count)
+    // Footer Area (Flex layout)
     const footerElement = document.createElement('div');
-    footerElement.classList.add('message-footer');
+    footerElement.className = 'message-footer mt-2 flex items-center justify-between text-xs text-on-surface/60';
 
-    // Timestamp
+    // Timestamp & Model/User Info Container
+    const timeInfoContainer = document.createElement('div');
+    timeInfoContainer.className = 'flex items-center gap-x-1.5'; // Use flex for timestamp + badge/model
+
     const timestampElement = document.createElement('span');
-    timestampElement.classList.add('timestamp');
-    timestampElement.dataset.timestamp = new Date().toISOString(); // Store full timestamp
-    let timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    timestampElement.appendChild(document.createTextNode(timeString)); // Start with time text node
+    timestampElement.className = 'timestamp';
+    timestampElement.dataset.timestamp = new Date().toISOString();
+    timestampElement.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    timeInfoContainer.appendChild(timestampElement);
 
-    // Add model info *during creation* if available (for bot messages)
     if (type === 'bot' && model_id) {
-        timestampElement.appendChild(document.createTextNode(' - ')); // Add separator as text node
-        ui.addModelInfo(timestampElement, model_id); // addModelInfo appends the model span
+        // Model info is added later by renderMessage or handleAssistantChunk using addModelInfo
+        // Add a placeholder for the separator now for consistent layout
+        const separatorSpan = document.createElement('span');
+        separatorSpan.className = 'mx-1 model-separator hidden'; // Start hidden
+        separatorSpan.textContent = '·';
+        timeInfoContainer.appendChild(separatorSpan);
+        const modelBadgeSpan = document.createElement('span');
+        modelBadgeSpan.className = 'model-badge hidden'; // Start hidden
+        timeInfoContainer.appendChild(modelBadgeSpan);
+    } else if (type === 'user') {
+        // Add User Badge using Penguin UI classes (Soft Color Default)
+        const userBadge = document.createElement('span');
+        userBadge.className = 'user-badge inline-flex items-center rounded-md bg-surface-alt px-1.5 py-0.5 text-xs font-medium text-on-surface ring-1 ring-inset ring-outline';
+        userBadge.textContent = 'You';
+        timeInfoContainer.appendChild(userBadge); // Append badge after timestamp
     }
-    footerElement.appendChild(timestampElement);
+    footerElement.appendChild(timeInfoContainer);
+
+    // Actions Container (Copy buttons, Token count)
+    const actionsContainer = document.createElement('div');
+    actionsContainer.className = 'flex items-center space-x-2';
 
     // Add elements specific to bot messages
     if (type === 'bot') {
-        // Bot messages already store raw content for markdown copy
-        // messageWrapper.dataset.rawContent = ''; // Already initialized for bot messages earlier if needed
-
-        // Token Count Span (initially hidden)
         const tokenSpan = document.createElement('span');
-        tokenSpan.classList.add('token-count');
-        tokenSpan.style.display = 'none'; // Hide until final message arrives
-        footerElement.appendChild(tokenSpan);
+        tokenSpan.className = 'token-count hidden mr-2'; // Initially hidden
+        actionsContainer.appendChild(tokenSpan);
 
-        // Action Buttons (Copy Text, Copy Markdown)
-        const copyTextButton = document.createElement('button');
-        copyTextButton.classList.add('copy-text-btn', 'action-btn');
-        copyTextButton.title = 'Copy visible text';
-        copyTextButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'; // Simple copy icon
-        copyTextButton.onclick = () => {
-            // Get text from the main content element associated with this message
-            const visibleContentElement = messageWrapper.querySelector('.content');
-            const contentToCopy = visibleContentElement ? visibleContentElement.innerText || '' : ''; // Use innerText for better formatting
-            navigator.clipboard.writeText(contentToCopy).then(() => {
-                copyTextButton.innerHTML = 'Copied!';
-                setTimeout(() => { copyTextButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'; }, 1500);
-            }).catch(err => {
-                console.error('Failed to copy text:', err);
-                copyTextButton.innerHTML = 'Error';
-                 setTimeout(() => { copyTextButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'; }, 1500);
-            });
-        };
-        footerElement.appendChild(copyTextButton);
+        // Action Buttons (Copy Text, Copy Markdown) - Use Penguin button styling
+        const copyTextButton = ui.createActionButton('Copy text', '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>');
+        copyTextButton.onclick = () => ui.handleCopy(copyTextButton, messageWrapper.querySelector('.content')?.innerText || '', 'Copied Text!');
+        actionsContainer.appendChild(copyTextButton);
 
-        const copyMdButton = document.createElement('button');
-        copyMdButton.classList.add('copy-markdown-btn', 'action-btn');
-        copyMdButton.title = 'Copy raw Markdown';
-        copyMdButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"></path></svg>'; // Markdown icon (link)
-        copyMdButton.onclick = () => {
-            const rawContent = messageWrapper.dataset.rawContent || '';
-            navigator.clipboard.writeText(rawContent).then(() => {
-                copyMdButton.innerHTML = 'Copied!';
-                setTimeout(() => { copyMdButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"></path><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"></path></svg>'; }, 1500);
-            }).catch(err => {
-                console.error('Failed to copy raw markdown:', err);
-                copyMdButton.innerHTML = 'Error';
-                setTimeout(() => { copyMdButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"></path><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"></path></svg>'; }, 1500);
-            });
-        };
-        footerElement.appendChild(copyMdButton);
-    }
-    // Add elements specific to user messages
-    else if (type === 'user') {
-        const copyPromptButton = document.createElement('button');
-        copyPromptButton.classList.add('copy-prompt-btn', 'action-btn');
-        copyPromptButton.title = 'Copy prompt';
-        // Re-use the same copy icon as bot messages
-        copyPromptButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
-        copyPromptButton.onclick = () => {
-            const rawContent = messageWrapper.dataset.rawContent || '';
-            if (!rawContent) {
-                 console.warn("Copy prompt clicked, but data-raw-content is empty for message:", messageWrapper.id);
-                 // Attempt fallback to innerText just in case
-                 const fallbackContent = messageWrapper.querySelector('.content')?.innerText || '';
-                 if (!fallbackContent) return; // Nothing to copy
-                 navigator.clipboard.writeText(fallbackContent).then(() => { /* ... feedback ... */ }).catch(err => { /* ... error ... */ });
-                 return;
-            }
-            navigator.clipboard.writeText(rawContent).then(() => {
-                copyPromptButton.innerHTML = 'Copied!';
-                setTimeout(() => { copyPromptButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'; }, 1500);
-            }).catch(err => {
-                console.error('Failed to copy prompt:', err);
-                copyPromptButton.innerHTML = 'Error';
-                 setTimeout(() => { copyPromptButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'; }, 1500);
-            });
-        };
-        footerElement.appendChild(copyPromptButton);
+        const copyMdButton = ui.createActionButton('Copy raw Markdown', '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>');
+        copyMdButton.onclick = () => ui.handleCopy(copyMdButton, messageWrapper.dataset.rawContent || '', 'Copied MD!');
+        actionsContainer.appendChild(copyMdButton);
+
+    } else if (type === 'user') { // User message actions
+        const copyPromptButton = ui.createActionButton('Copy prompt', '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>');
+        copyPromptButton.onclick = () => ui.handleCopy(copyPromptButton, messageWrapper.dataset.rawContent || messageWrapper.querySelector('.content')?.innerText || '', 'Copied Prompt!');
+        actionsContainer.appendChild(copyPromptButton);
     }
 
-    // Add footer to message wrapper
-    messageWrapper.appendChild(footerElement);
+    footerElement.appendChild(actionsContainer); // Add actions to the footer
+
+    messageWrapper.appendChild(footerElement); // Add footer to wrapper
 
     return messageWrapper;
 }
 
+// Helper to create consistent action buttons
+ui.createActionButton = function(title, svgIcon) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    // Use subtle styling from Penguin examples (adjust as needed)
+    button.className = 'p-1 rounded text-on-surface/60 hover:text-primary hover:bg-surface-alt focus:outline-none focus:ring-1 focus:ring-primary focus:ring-offset-1 focus:ring-offset-surface';
+    button.title = title;
+    button.innerHTML = svgIcon;
+    // Store original icon for restoring after feedback
+    button.dataset.originalIcon = svgIcon;
+    return button;
+}
+
+// Helper to handle clipboard copy and feedback
+ui.handleCopy = function(buttonElement, textToCopy, successMessage) {
+     if (!textToCopy) {
+         console.warn("Copy clicked, but no text provided for:", buttonElement.title);
+                 return;
+            }
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        const originalIcon = buttonElement.dataset.originalIcon;
+        // Checkmark icon for success feedback
+        buttonElement.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        buttonElement.title = successMessage; // Update title briefly
+        setTimeout(() => {
+             buttonElement.innerHTML = originalIcon; // Restore original icon
+             buttonElement.title = title; // Restore original title
+         }, 1500);
+            }).catch(err => {
+        console.error(`Failed to copy (${buttonElement.title}):`, err);
+        // Error icon (optional)
+        // buttonElement.innerHTML = '<svg>...</svg>'; // Error icon
+        // ui.showNotification(`Error copying ${buttonElement.title}`, 'error');
+    });
+}
+
+
 // Render a single message object into the chat history
 ui.renderMessage = function(message) {
-    // Find or create the message element
     let messageWrapper = document.getElementById(`message-${message.id}`);
     let contentElement;
+    let isNew = false;
 
     if (!messageWrapper) {
-         // Assume message.role is 'user' or 'assistant' (map 'assistant' to 'bot' for UI)
          const type = message.role === 'user' ? 'user' : 'bot';
          messageWrapper = ui.createMessageElement(type, message.id, message.model_id);
-         if (!chatHistory) return; // Exit if chatHistory isn't available
+         if (!chatHistory) return;
          chatHistory.appendChild(messageWrapper);
          contentElement = messageWrapper.querySelector('.content');
+         isNew = true;
     } else {
         contentElement = messageWrapper.querySelector('.content');
     }
 
-    // Set the raw content attribute, which the copy button will use
+    // Store/Update raw content attribute (Original content without prefix)
     messageWrapper.dataset.rawContent = message.content || '';
 
-    // Update content using marked
+    // Prepare display content (add prefix for user messages)
+    let displayContentString = message.content || '';
+    if (message.role === 'user') {
+        displayContentString = `<span class="user-prompt-indicator">&gt;</span> ${displayContentString}`;
+    }
+
+    // Update rendered content using marked
     if (contentElement) {
         try {
-            contentElement.innerHTML = marked.parse(message.content || '');
+            // Use githubFlavored: true and breaks: true for better compatibility
+            contentElement.innerHTML = marked.parse(displayContentString, { gfm: true, breaks: true });
         } catch (error) {
             console.error('Error parsing markdown content:', error);
-            contentElement.textContent = message.content || ''; // Fallback to text content
+            // Fallback: Render the potentially prefixed string as text
+            contentElement.innerHTML = displayContentString.replace(/</g, "&lt;").replace(/>/g, "&gt;"); // Basic HTML escaping
         }
     } else {
          console.warn("Could not find content element for message:", message.id);
     }
 
-
     // Update timestamp and potentially model info in the footer
     const timestampElement = messageWrapper.querySelector('.message-footer .timestamp');
     if (timestampElement) {
         const timeString = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        timestampElement.dataset.timestamp = message.created_at; // Update full timestamp
+        timestampElement.dataset.timestamp = message.created_at;
+        timestampElement.textContent = timeString; // Set time directly
 
-        // Clear existing content except the time text node
-        let textNode = timestampElement.firstChild;
-        while (textNode && textNode.nodeType !== Node.TEXT_NODE) {
-            textNode.remove(); // Remove elements like old model info
-            textNode = timestampElement.firstChild;
-        }
-         if (textNode) {
-             textNode.nodeValue = timeString; // Update time
-         } else {
-              timestampElement.appendChild(document.createTextNode(timeString)); // Add time if missing
-         }
+        // Find the container for model info
+        const timeInfoContainer = timestampElement.parentNode;
+        // Remove existing model info/badge if present (we re-add if needed)
+        timeInfoContainer?.querySelector('.model-badge')?.remove();
+        timeInfoContainer?.querySelector('span.model-separator')?.remove(); // Remove separator too
 
-
-        // If it's a bot message and has a model_id, add/update the model info
         if (message.role === 'assistant' && message.model_id) {
-             timestampElement.appendChild(document.createTextNode(' - ')); // Add separator
-             ui.addModelInfo(timestampElement, message.model_id);
+             // Ensure the container exists before adding model info
+             if (timeInfoContainer) {
+                 ui.addModelInfo(timeInfoContainer, message.model_id);
+             } else {
+                 console.error('Could not find timeInfoContainer for message:', message.id);
+             }
         }
     }
 
@@ -374,372 +479,353 @@ ui.renderMessage = function(message) {
     if (message.role === 'assistant') {
         const tokenSpan = messageWrapper.querySelector('.token-count');
         if (tokenSpan && message.tokens_used != null) {
-            tokenSpan.textContent = `Tokens: ${message.tokens_used}`;
-            tokenSpan.style.display = 'inline';
+            tokenSpan.textContent = `${message.tokens_used} tokens`;
+            tokenSpan.classList.remove('hidden'); // Show it
         } else if (tokenSpan) {
-             tokenSpan.style.display = 'none'; // Hide if no token info
+             tokenSpan.classList.add('hidden'); // Ensure it's hidden
         }
     }
 
-    // Apply syntax highlighting to code blocks within the newly rendered content
+    // Apply syntax highlighting
     contentElement.querySelectorAll('pre code').forEach((block) => {
          try {
              if (typeof hljs !== 'undefined') {
+                // Check if already highlighted
+                 if (!block.classList.contains('hljs')) {
                  hljs.highlightElement(block);
+                 }
              }
          } catch (e) {
              console.error("Highlight.js error:", e);
          }
      });
 
-    // Scroll to the bottom only if the message is the last one (or nearly last)
-    // Avoid scrolling if rendering historical messages further up
-    // Consider adding logic here if needed, maybe based on whether it's the last message in the fetch batch
+    // Add copy buttons to code blocks after highlighting
+    ui.addCopyCodeButtons(contentElement);
+
+    // Scroll only if the message is new and near the bottom
+    if (isNew) {
+        // Use a slight delay to ensure rendering is complete before scrolling
+        setTimeout(() => ui.scrollToBottom(chatHistory), 50);
+    }
+
+    // --- Update regenerate button state after rendering message ---
+    ui.updateRegenerateButtonState();
 }
 
-// Add system message to chat (uses createMessageElement structure)
-ui.addSystemMessage = function(content, type = 'info') { // Added type parameter back
-    // Create a system message element similar to renderMessage
+// Add system message to chat
+ui.addSystemMessage = function(content, type = 'info') { // type might be used for styling later
     const messageWrapper = document.createElement('div');
-    messageWrapper.classList.add('message', 'system-message');
+    // Simple styling for system messages - USE THE LARGER STYLE
+    messageWrapper.className = 'message system-message text-center text-lg text-on-surface/60 py-1 italic'; // Updated classes
     messageWrapper.id = `message-system-${Date.now()}`;
 
     const contentElement = document.createElement('div');
-    contentElement.classList.add('content');
+    contentElement.className = 'content';
     contentElement.textContent = content;
     messageWrapper.appendChild(contentElement);
 
-     // Add simple timestamp footer for system messages
-     const footerElement = document.createElement('div');
-     footerElement.classList.add('message-footer');
-     const timestampElement = document.createElement('span');
-     timestampElement.classList.add('timestamp');
-     timestampElement.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-     footerElement.appendChild(timestampElement);
-     messageWrapper.appendChild(footerElement);
+    // No footer needed for this minimal style, but could add timestamp if desired
 
     if(chatHistory) {
         chatHistory.appendChild(messageWrapper);
-        // Scroll to bottom
-         requestAnimationFrame(() => {
-             requestAnimationFrame(() => {
-                chatHistory.scrollTop = chatHistory.scrollHeight;
-            });
-        });
+        // Ensure scroll after adding system message
+        setTimeout(() => ui.scrollToBottom(chatHistory), 50);
     } else {
         console.error("chatHistory element not found, cannot add system message to UI.");
     }
 
-
-    // Also log to console as before
     console.log(`[System Message - ${type}]: ${content}`);
 }
+
 
 // Update the UI with user information
 ui.updateUserUI = function(user) {
     if (!user) return;
 
-    // Update user name display
-    if (userNameElement) {
-        const displayName = (user.first_name && user.last_name) ?
-            `${user.first_name} ${user.last_name}` : user.username;
-        userNameElement.textContent = displayName;
-    }
-
-    // Update role display
-    if (userRoleElement) {
-        // Check if user.role exists and has a name property
-        const roleName = (user.role && user.role.name) ? user.role.name : 'User';
-        userRoleElement.textContent = roleName.charAt(0).toUpperCase() + roleName.slice(1); // Capitalize role name
-    }
-
-    // Update avatar
-    if (userAvatarElement) {
-        const firstLetter = (user.first_name && user.first_name.length > 0) ?
-            user.first_name.charAt(0).toUpperCase() :
-            (user.username ? user.username.charAt(0).toUpperCase() : 'U');
-        userAvatarElement.textContent = firstLetter;
-    }
-
-    // Show admin link if the user is an admin
+    const nameEl = document.querySelector('.user-name');
+    const roleEl = document.querySelector('.user-role');
+    const avatarEl = document.querySelector('.user-avatar');
     const adminLink = document.getElementById('admin-link');
+
+    if (nameEl) {
+        nameEl.textContent = (user.first_name && user.last_name)
+            ? `${user.first_name} ${user.last_name}` : user.username;
+    }
+    if (roleEl) {
+        const roleName = (user.role && user.role.name) ? user.role.name : 'User';
+        roleEl.textContent = roleName.charAt(0).toUpperCase() + roleName.slice(1);
+    }
+    if (avatarEl) {
+        const firstLetter = (user.first_name?.charAt(0) || user.username?.charAt(0) || '?').toUpperCase();
+        avatarEl.textContent = firstLetter;
+    }
     if (adminLink) {
-        // Check role name (case-insensitive comparison for robustness)
-        if (user.role && user.role.name && user.role.name.toLowerCase() === 'admin') {
-            adminLink.style.display = 'inline-block'; // Or 'block' depending on styling
-        } else {
-            adminLink.style.display = 'none';
-        }
+        const isAdmin = user.role && user.role.name && user.role.name.toLowerCase() === 'admin';
+        adminLink.style.display = isAdmin ? 'inline-block' : 'none';
     }
 }
 
 // --- UI Helpers ---
 
-// Helper function to add or update model info in the timestamp span
-ui.addModelInfo = function(timestampElement, model_id) {
-    // Find existing model info span within the timestamp span
-    let modelInfo = timestampElement.querySelector('.model-info');
+// Helper function to add or update model info in the message footer
+ui.addModelInfo = function(containerElement, model_id) {
+    // Ensure containerElement is valid
+    if (!containerElement) return;
 
-    // If it doesn't exist, create it
-    if (!modelInfo) {
-        modelInfo = document.createElement('span');
-        modelInfo.classList.add('model-info');
-        // Append the span to the timestamp element
-        timestampElement.appendChild(modelInfo);
+    const model = modelsList.find(m => m.id == model_id);
+    // Defensive check in case model is not found
+    const modelName = model ? model.name : (model_id ? `Model #${model_id}` : 'Unknown Model');
+    
+    // --- UPDATED: Extract provider name from model name --- 
+    const match = model?.name?.match(/\(([^)]+)\)/);
+    const providerName = match ? match[1] : (model?.provider_type || 'Unknown Provider');
+    // --- END UPDATE ---
+
+    let modelBadgeSpan = containerElement.querySelector('.model-badge'); // Use a specific class for the badge
+    let separatorSpan = containerElement.querySelector('span.model-separator');
+
+    // Create separator if it doesn't exist
+    if (!separatorSpan) {
+        separatorSpan = document.createElement('span');
+        separatorSpan.className = 'mx-1 model-separator';
+        separatorSpan.textContent = '·';
+        const timestampSpan = containerElement.querySelector('.timestamp');
+        timestampSpan?.parentNode?.insertBefore(separatorSpan, timestampSpan.nextSibling);
     }
 
-    // Set or update content
-    const model = modelsList.find(m => m.id == model_id);
-    const modelName = model ? model.name : `Model #${model_id}`;
-    // Ensure we set the text content of the span itself
-    modelInfo.textContent = `Generated by ${modelName}`;
-    return modelInfo; // Return the span in case it's needed
+    // Create model badge span if it doesn't exist
+    if (!modelBadgeSpan) {
+        modelBadgeSpan = document.createElement('span');
+        // Apply Penguin UI primary soft badge classes
+        modelBadgeSpan.className = 'model-badge inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary ring-1 ring-inset ring-primary/30';
+        // Append after the separator
+        separatorSpan.parentNode?.insertBefore(modelBadgeSpan, separatorSpan.nextSibling);
+    }
+
+    // Set the badge text (Model Name) and title (Provider)
+    modelBadgeSpan.textContent = modelName;
+    modelBadgeSpan.title = `Provider: ${providerName}`; // Use extracted name
+
+    // Ensure visibility
+    separatorSpan.style.display = 'inline';
+    modelBadgeSpan.classList.remove('hidden'); // Ensure visible
+    modelBadgeSpan.style.display = 'inline-flex'; // Use inline-flex for badges
 }
 
-
-// Helper to ensure thinking box exists and return its text element
+// Helper to ensure thinking box exists (simplified)
 ui.ensureThinkingBoxExists = function(messageElement) {
-    let thinkingElement = messageElement.querySelector('.thinking-content'); // Use local var
+    let thinkingElement = messageElement.querySelector('.thinking-content');
     if (!thinkingElement) {
-        // console.log('[Debug] Creating thinking box structure.');
         thinkingElement = document.createElement('div');
-        thinkingElement.classList.add('thinking-content');
+        // Subtle styling for the thinking box
+        thinkingElement.className = 'thinking-content mt-2 p-3 border border-dashed border-outline/50 rounded bg-surface-alt/50';
+
         const thinkingLabel = document.createElement('div');
-        thinkingLabel.classList.add('thinking-label');
-        thinkingLabel.innerHTML = '<span class="thinking-icon">⚙️</span> AI Thinking Process';
+        thinkingLabel.className = 'thinking-label text-xs font-semibold text-on-surface/70 mb-1 flex items-center gap-1.5';
+        // Animated SVG or simpler icon
+        thinkingLabel.innerHTML = `<svg class="animate-spin h-3 w-3 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Thinking...`;
         thinkingElement.appendChild(thinkingLabel);
+
         const thinkingContentEl = document.createElement('div');
-        thinkingContentEl.classList.add('thinking-content-text');
+        thinkingContentEl.className = 'thinking-content-text text-xs prose prose-invert prose-sm max-w-none'; // Apply prose for formatting
         thinkingElement.appendChild(thinkingContentEl);
+
+        // Insert thinking box *after* the main content
         const mainContentElement = messageElement.querySelector('.content');
-        if (mainContentElement) {
-            // Insert thinking box *before* the main content element
-            messageElement.insertBefore(thinkingElement, mainContentElement);
-        } else {
-            console.error('[Debug] Could not find .content to insert thinking box before.');
-            // Fallback: append to the message wrapper if .content is missing
-            messageElement.appendChild(thinkingElement);
+        mainContentElement?.parentNode?.insertBefore(thinkingElement, mainContentElement.nextSibling);
         }
-    }
-    // Return the specific text element inside the thinking box
     return thinkingElement.querySelector('.thinking-content-text');
 }
 
+
+// Show or hide the thinking indicator (now integrated into message streaming)
 let thinkingIndicatorTimeout = null;
-
-// Show or hide the thinking indicator
 ui.showThinkingIndicator = function(show) {
-    // Always try to remove any existing indicator first
-    const existingIndicator = document.getElementById('thinking-indicator');
-    if (existingIndicator) {
-        console.log("[UI showThinkingIndicator] Removing existing indicator.");
-        existingIndicator.remove();
-    }
+     // The thinking indicator is now primarily handled by the streaming message itself.
+     // This function might be used for the brief period *before* the first chunk arrives.
+     const indicatorId = 'initial-thinking-indicator';
+     const existingIndicator = document.getElementById(indicatorId);
 
-    // If we are showing the indicator, create and append a new one
+     clearTimeout(thinkingIndicatorTimeout); // Clear previous timeout
+
     if (show) {
-        console.log(`[UI showThinkingIndicator] Called with show = true. Creating and appending new indicator.`);
+         if (!existingIndicator) {
+             console.log("[UI] Showing initial thinking indicator.");
         const indicator = document.createElement('div');
-        indicator.id = 'thinking-indicator';
-        indicator.classList.add('thinking-indicator');
-        indicator.innerHTML = `<span>.</span><span>.</span><span>.</span>`; // Simpler dots
+             indicator.id = indicatorId;
+             // Use Penguin UI XL spinner (Primary color variant)
+             indicator.className = 'message system-message flex justify-center items-center py-4'; // Center the spinner
+             indicator.innerHTML = `
+                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" class="animate-spin h-8 w-8 text-primary">
+                     <path d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25" fill="currentColor"/>
+                     <path d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z" fill="currentColor"/>
+                 </svg>
+             `;
 
-        // Insert the indicator at the end of the chat history
         if (chatHistory) {
             chatHistory.appendChild(indicator);
-            console.log("[UI showThinkingIndicator] Appended new indicator.");
-            // Make it visible immediately
-            indicator.style.display = 'flex';
-
-            // Scroll down to show it - deferred
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    if(chatHistory) chatHistory.scrollTop = chatHistory.scrollHeight;
-                });
-            });
-
-            // Optional: Timeout to hide if no response received
-            clearTimeout(thinkingIndicatorTimeout);
+                 ui.scrollToBottom(chatHistory);
+                 // Timeout to remove this initial indicator if no message stream starts
             thinkingIndicatorTimeout = setTimeout(() => {
-                console.log("[UI showThinkingIndicator] Hiding indicator due to timeout.");
-                const currentIndicator = document.getElementById('thinking-indicator');
-                if (currentIndicator) currentIndicator.remove(); // Remove on timeout
-                console.warn('Thinking indicator timed out.');
-            }, 30000); // 30-second timeout
-
+                     const currentIndicator = document.getElementById(indicatorId);
+                     if (currentIndicator) {
+                          console.warn("[UI] Initial thinking indicator timed out.");
+                          currentIndicator.remove();
+                     }
+                 }, 10000); // 10 seconds
         } else {
-            console.error("chatHistory element not found, cannot show thinking indicator.");
-            return; // Exit if we can't add it
+                 console.error("chatHistory element not found, cannot show initial thinking indicator.");
+             }
         }
     } else {
-        // If hiding, we already removed any existing one at the start.
-        console.log(`[UI showThinkingIndicator] Called with show = false. Indicator already removed.`);
-        // Clear any pending timeout
+         if (existingIndicator) {
+             console.log("[UI] Hiding initial thinking indicator.");
+             existingIndicator.remove();
+         }
+         // Clear timeout regardless
         clearTimeout(thinkingIndicatorTimeout);
     }
 }
 
-
 // --- User Interaction Functions ---
 
 /**
- * Displays a generic confirmation dialog.
- * @param {string} title - The title for the dialog.
- * @param {string} message - The confirmation message text.
- * @param {function(HTMLElement): void} onConfirm - Callback function executed when confirm is clicked. It receives the dialog element as an argument.
+ * Displays a confirmation dialog using the Penguin modal structure.
  */
 ui.showConfirmationDialog = function(title, message, onConfirm) {
-    // Remove any existing confirmation dialogs first
-    const existingDialog = document.querySelector('.delete-confirmation');
-    if (existingDialog) {
-        existingDialog.remove();
-    }
+    // Dispatch an event that the Alpine component in admin.html listens for
+    // We need to add a similar Alpine modal component to index.html or a shared layout
+    // For now, using the old method as a fallback until the modal is added.
+    console.warn("showConfirmationDialog: Penguin modal structure not yet implemented in index.html. Using fallback.");
+    ui.showFallbackConfirmationDialog(title, message, onConfirm);
 
-    // Create confirmation dialog elements
-    const confirmationEl = document.createElement('div');
-    confirmationEl.classList.add('delete-confirmation'); // Reuse existing class for styling
+    /* // Ideal Implementation (requires Alpine modal in index.html)
+    window.dispatchEvent(new CustomEvent('open-confirm-modal', {
+        detail: {
+            title: title,
+            message: message,
+            onConfirmCallback: onConfirm // Pass the callback reference
+        }
+    }));
+    */
+}
 
-    const contentEl = document.createElement('div');
-    contentEl.classList.add('delete-confirmation-content');
+// Fallback confirmation (similar to old style, but slightly improved)
+ui.showFallbackConfirmationDialog = function(title, message, onConfirm) {
+    const existingDialog = document.querySelector('.fallback-confirmation-dialog');
+    if (existingDialog) existingDialog.remove();
 
-    const titleEl = document.createElement('div');
-    titleEl.classList.add('delete-title'); // Reuse class
-    titleEl.textContent = title; // Use passed title
+    const overlay = document.createElement('div');
+    overlay.className = 'fallback-confirmation-dialog fixed inset-0 z-[99] bg-black/60 flex items-center justify-center p-4';
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity 0.3s ease-out';
 
-    const messageEl = document.createElement('div');
-    messageEl.classList.add('delete-message'); // Reuse class
-    messageEl.textContent = message; // Use passed message
+    const dialog = document.createElement('div');
+    dialog.className = 'bg-surface-alt border border-outline rounded-lg shadow-xl p-6 max-w-sm w-full';
+    dialog.style.transform = 'scale(0.95)';
+    dialog.style.opacity = '0';
+    dialog.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+
+    const titleEl = document.createElement('h3');
+    titleEl.className = 'text-lg font-semibold text-warning mb-3 border-b border-outline pb-2';
+    titleEl.textContent = title;
+
+    const messageEl = document.createElement('p');
+    messageEl.className = 'text-sm text-on-surface mb-6';
+    messageEl.textContent = message;
 
     const actionsEl = document.createElement('div');
-    actionsEl.classList.add('delete-actions'); // Reuse class
+    actionsEl.className = 'flex justify-end space-x-3';
 
     const cancelBtn = document.createElement('button');
-    cancelBtn.classList.add('cancel-btn'); // Reuse class
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'py-2 px-4 bg-surface hover:bg-outline text-on-surface font-semibold rounded shadow text-sm';
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.onclick = () => {
-        confirmationEl.classList.remove('visible');
-        // Allow transition to finish before removing
-        setTimeout(() => confirmationEl.remove(), 300);
-    };
+    cancelBtn.onclick = () => closeDialog();
 
     const confirmBtn = document.createElement('button');
-    confirmBtn.classList.add('delete-btn'); // Reuse class - maybe rename class later?
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'py-2 px-4 bg-danger hover:bg-opacity-90 text-on-danger font-semibold rounded shadow text-sm';
     confirmBtn.textContent = 'Confirm';
     confirmBtn.onclick = () => {
-        // Call the provided confirmation callback
         if (typeof onConfirm === 'function') {
-            onConfirm(confirmationEl); // Pass the element for potential removal in callback
+            onConfirm(overlay); // Pass overlay so callback can close it
         }
-         // Optionally hide immediately, or let the callback handle removal
-         // confirmationEl.classList.remove('visible');
-         // setTimeout(() => confirmationEl.remove(), 300);
+        // Close dialog *after* callback, unless callback handles it
+        // closeDialog();
     };
 
     actionsEl.appendChild(cancelBtn);
     actionsEl.appendChild(confirmBtn);
+    dialog.appendChild(titleEl);
+    dialog.appendChild(messageEl);
+    dialog.appendChild(actionsEl);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
 
-    contentEl.appendChild(titleEl);
-    contentEl.appendChild(messageEl);
-    contentEl.appendChild(actionsEl);
-
-    confirmationEl.appendChild(contentEl);
-    document.body.appendChild(confirmationEl);
-
-    // Trigger visibility with a slight delay for transition
-    requestAnimationFrame(() => {
-         requestAnimationFrame(() => {
-            confirmationEl.classList.add('visible');
-        });
-    });
-}
-
-// Remove the old function (or keep as a wrapper if preferred)
-/*
-function showDeleteConfirmation(chatId, chatTitle) {
-    showConfirmationDialog(
-        'Delete Chat?',
-        `Are you sure you want to permanently delete the chat "${chatTitle || 'Untitled Chat'}"? This cannot be undone.`,
-        (confirmationEl) => confirmDeleteChat(chatId, chatTitle, confirmationEl)
-    );
-}
-*/
-
-// --- Notification Function ---
-/**
- * Displays a temporary notification tile in the top-right corner.
- * @param {string} message - The message to display.
- * @param {string} type - 'info', 'error', or 'success' (default: 'success').
- */
-ui.showNotification = function(message, type = 'success') {
-    const container = document.getElementById('notification-container');
-    if (!container) {
-        console.error("Notification container not found!");
-        return;
-    }
-
-    const tile = document.createElement('div');
-    tile.classList.add('notification-tile');
-    const textSpan = document.createElement('span');
-    textSpan.textContent = message;
-    tile.appendChild(textSpan);
-
-    // Apply type styling
-    if (type === 'error') {
-        tile.classList.add('error');
-    } else if (type === 'info') {
-        tile.classList.add('info');
-    } else { // 'success' or default
-        // Uses default green style
-    }
-
-    // Add to container
-    container.appendChild(tile);
-
-    // Make it visible (triggers transition)
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            tile.classList.add('visible');
-        });
-    });
-
-    // Auto-dismiss after a delay
-    const dismissDelay = 5000; // 5 seconds
-    const fadeOutDelay = dismissDelay - 500; // Start fade out before removing
-
-    const timeoutId = setTimeout(() => {
-        tile.classList.remove('visible');
-        // Remove from DOM after transition
-        setTimeout(() => tile.remove(), 500);
-    }, dismissDelay);
-
-    // Allow clicking to dismiss early
-    tile.onclick = () => {
-        clearTimeout(timeoutId); // Cancel auto-dismiss
-        tile.classList.remove('visible');
-        setTimeout(() => tile.remove(), 500);
+    const closeDialog = () => {
+        overlay.style.opacity = '0';
+        dialog.style.transform = 'scale(0.95)';
+        dialog.style.opacity = '0';
+        setTimeout(() => overlay.remove(), 300); // Remove after transition
     };
+
+    // Close on clicking overlay background
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            closeDialog();
+        }
+    });
+
+    // Trigger enter animation
+    requestAnimationFrame(() => {
+        overlay.style.opacity = '1';
+        dialog.style.transform = 'scale(1)';
+        dialog.style.opacity = '1';
+    });
 }
+
+
+// --- Notification Function (Using Alpine Event) ---
+/**
+ * Displays a notification using the Penguin UI Toast component via an Alpine event.
+ * @param {string} message - The message to display.
+ * @param {'info' | 'success' | 'warning' | 'danger' | 'error'} type - Type of notification.
+ * @param {string|null} title - Optional title for the notification.
+ */
+ui.showNotification = function(message, type = 'success', title = null) {
+    // Map 'error' to 'danger' if needed for Penguin component variants
+    const variant = (type === 'error') ? 'danger' : type;
+
+    // Dispatch event for Alpine x-on:notify.window
+    window.dispatchEvent(new CustomEvent('notify', {
+        detail: {
+            variant: variant,
+            title: title,
+            message: message,
+        }
+    }));
+
+    console.log(`[Notification - ${variant}] ${title ? title + ': ' : ''}${message}`);
+}
+
 
 // --- Event Listeners Setup ---
 
 ui.setupEventListeners = function() {
     const logoutButton = document.getElementById('logout-button');
     const purgeChatsButton = document.getElementById('purge-chats-button');
-    const newChatButton = document.getElementById('new-chat-button');
+    const newChatButton = document.getElementById('new-chat-button'); // This is now an <a> tag
 
     if (logoutButton) {
         logoutButton.addEventListener('click', async () => {
             console.log('Logout button clicked');
             try {
-                const response = await fetch('/logout', {
-                    method: 'POST', // Or GET, depending on backend handler
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
+                const response = await fetch('/logout', { method: 'POST' }); // Assume POST
                 if (response.ok) {
-                    console.log('Logout successful, redirecting to login...');
-                    window.location.href = '/login'; // Redirect to login page
+                    console.log('Logout successful, redirecting...');
+                    window.location.href = '/login';
                 } else {
                     console.error('Logout failed:', response.status, await response.text());
                     ui.showNotification('Logout failed. Please try again.', 'error');
@@ -753,222 +839,240 @@ ui.setupEventListeners = function() {
 
     if (purgeChatsButton) {
         purgeChatsButton.addEventListener('click', () => {
-            ui.showConfirmationDialog(
+            ui.showConfirmationDialog( // Using fallback for now
                 'Purge All Chats?',
                 'Are you sure you want to permanently delete ALL your chats? This cannot be undone.',
-                (confirmationEl) => api.confirmPurgeChats(confirmationEl) // Correct namespace: API call in api.js
+                (confirmationEl) => api.confirmPurgeChats(confirmationEl)
             );
         });
     }
 
     if (newChatButton) {
-        newChatButton.addEventListener('click', chat.startNewChat); // Use the namespaced function
+        // The click listener might be attached in renderChatsList or here
+        // Ensure it calls chat.startNewChat and prevents default link behavior
+        if (!newChatButton._listenerAttached) { // Prevent multiple listeners
+             newChatButton.addEventListener('click', (e) => {
+                 e.preventDefault();
+                 chat.startNewChat();
+                 // Optionally close sidebar on mobile
+                 if (window.innerWidth < 1024) {
+                     const alpineData = newChatButton.closest('[x-data]');
+                     if (alpineData && alpineData.__x) alpineData.__x.$data.showSidebar = false;
+                 }
+             });
+             newChatButton._listenerAttached = true;
+        }
     }
+
+    // Add listener for chat title rename
+    if (chatTitle) {
+        chatTitle.addEventListener('dblclick', function() {
+             if (currentChatId) { // Only allow rename if a chat is active
+                const currentTitleText = this.textContent;
+                 const newTitle = prompt('Enter new chat title:', currentTitleText);
+                 if (newTitle && newTitle.trim() !== '' && newTitle !== currentTitleText) {
+                    this.textContent = newTitle; // Optimistic update
+                    api.updateChatTitle(currentChatId, newTitle);
+                 }
+             } else {
+                 ui.showNotification("Select a chat before renaming.", "info");
+             }
+        });
+    }
+
+    // Initialize Highlight.js dynamically after content might be loaded
+    if (typeof hljs !== 'undefined') {
+        // Maybe trigger this after messages are rendered?
+        // For now, just log availability
+        console.log("Highlight.js is available.");
+        // Consider using MutationObserver on #chat-history to highlight new code blocks
+    }
+
+     // Remove old mobile collapse logic
+     // ui.initializeMobileCollapse();
 }
+
 
 // --- Utility Functions ---
 
 /**
- * Adds a message element directly to the UI, typically for optimistic updates.
- * @param {string} type - 'user' or 'bot'.
- * @param {string} content - The raw message content.
- * @param {string|null} tempId - A temporary ID for the element before confirmation (optional).
+ * Adds a message element directly to the UI for optimistic updates (e.g., user message).
  */
 ui.addMessageToUI = function(type, content, tempId = null) {
-    if (!chatHistory) {
-        console.error("chatHistory element not found, cannot add message to UI.");
-        return;
-    }
+    if (!chatHistory) return;
 
-    // Use existing function to create the basic structure
-    // Pass null for model_id for user messages
     const messageWrapper = ui.createMessageElement(type, tempId, null);
-
-    // Find the content element within the created wrapper
     const contentElement = messageWrapper.querySelector('.content');
 
     if (contentElement) {
-        // Set the raw content attribute, crucial for user message copy
-        messageWrapper.dataset.rawContent = content;
-
-        // Render the content (assuming simple text for optimistic user message)
-        // If markdown rendering is needed here, use marked.parse(content)
+        messageWrapper.dataset.rawContent = content; // Store original raw content
+        
+        // --- FIX: Render HTML directly for user message indicator --- 
+        if (type === 'user') {
+            // Construct the string with the HTML span
+            const displayContentString = `<span class="user-prompt-indicator">&gt;</span> ${content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}`; // Escape only the user content part
+            // Set innerHTML directly to render the span
+            contentElement.innerHTML = displayContentString;
+        } else {
+            // For other types (if this function were used for them), just set text content
         contentElement.textContent = content;
+        }
+        // --- END FIX ---
+
     } else {
         console.warn("Could not find content element in newly created message wrapper.");
     }
 
-    // Append the new message to the chat history
     chatHistory.appendChild(messageWrapper);
-
-    // Scroll to the bottom to show the new message
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-        });
-    });
-
+    // Ensure scroll after adding optimistic message
+    setTimeout(() => ui.scrollToBottom(chatHistory), 50);
     console.log(`[UI] Added optimistic ${type} message to UI.`);
+
+    // --- Update regenerate button state after adding message ---
+    ui.updateRegenerateButtonState();
 }
 
 /**
  * Displays an error message within the chat history area.
- * @param {number|string} chatId - The ID of the chat this error belongs to (used for potential context, though not directly used for rendering here).
- * @param {string} errorMessage - The text of the error message to display.
  */
 ui.displayChatError = function(chatId, errorMessage) {
-    console.error(`[Chat Error - Chat ID: ${chatId}] ${errorMessage}`);
-
+    console.error(`[Chat Error - Chat ID: ${chatId || 'N/A'}] ${errorMessage}`);
     if (!chatHistory) {
-        console.error("chatHistory element not found, cannot display error message in UI.");
-        // Fallback: Use a general notification if chat history isn't available
-        ui.showNotification(`Error: ${errorMessage}`, 'error');
+        ui.showNotification(`Error: ${errorMessage}`, 'error'); // Fallback notification
         return;
     }
 
-    // Check if this specific error message is already displayed to avoid duplicates rapidly
-    const existingErrors = chatHistory.querySelectorAll('.error-message .content');
-    const alreadyShown = Array.from(existingErrors).some(el => el.textContent.includes(errorMessage));
-    if (alreadyShown) {
-        console.warn("Duplicate error message detected, skipping display:", errorMessage);
-        return;
-    }
-
-    // Create the error message element
+    // Simple error display using system message style but with error indication
     const errorWrapper = document.createElement('div');
-    errorWrapper.classList.add('message', 'error-message');
+    errorWrapper.className = 'message error-message text-center text-sm text-danger py-2';
     errorWrapper.id = `message-error-${Date.now()}`;
 
-    // Content Area
     const contentElement = document.createElement('div');
-    contentElement.classList.add('content');
-    // The ::before pseudo-element in CSS adds the "[ERROR] " prefix
-    contentElement.textContent = errorMessage;
+    contentElement.className = 'content';
+    contentElement.innerHTML = `<span class="font-semibold">[ERROR]</span> ${errorMessage}`;
     errorWrapper.appendChild(contentElement);
 
-    // Footer Area (Timestamp only for errors)
+    // Add timestamp
     const footerElement = document.createElement('div');
-    footerElement.classList.add('message-footer');
+    footerElement.className = 'message-footer text-xs text-on-surface/60 mt-1';
     const timestampElement = document.createElement('span');
-    timestampElement.classList.add('timestamp');
+    timestampElement.className = 'timestamp';
     timestampElement.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     footerElement.appendChild(timestampElement);
     errorWrapper.appendChild(footerElement);
 
-    // Add to chat history
     chatHistory.appendChild(errorWrapper);
+    ui.scrollToBottom(chatHistory);
 
-    // Scroll to the bottom
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-        });
-    });
-
-    // Also show a notification tile for higher visibility
+    // Show notification tile as well
     ui.showNotification(`Error: ${errorMessage}`, 'error');
 }
 
-// --- Sidebar Resizing Logic ---
-ui.initializeSidebarResizing = function() {
-    const sidebar = document.querySelector('.sidebar');
-    const resizer = document.getElementById('sidebar-resizer');
-    const chatContainer = document.querySelector('.chat-container');
-    const minWidth = parseInt(getComputedStyle(sidebar).minWidth, 10);
-    const maxWidth = parseInt(getComputedStyle(sidebar).maxWidth, 10);
-    const localStorageKey = 'sidebarWidth';
+// --- Scroll Helpers ---
+/**
+ * Checks if the chat history is scrolled to the bottom (or very close).
+ * @param {HTMLElement} element - The scrollable element.
+ * @returns {boolean} - True if scrolled to bottom, false otherwise.
+ */
+ui.isScrolledToBottom = function(element) {
+    if (!element) return false;
+    // Allow a small tolerance (e.g., 10 pixels)
+    const tolerance = 10;
+    return element.scrollHeight - element.scrollTop - element.clientHeight <= tolerance;
+};
 
-    let isResizing = false;
-    let startX = 0;
-    let startWidth = 0;
-
-    // Load saved width on initialization
-    const savedWidth = localStorage.getItem(localStorageKey);
-    if (savedWidth) {
-        const newWidth = Math.max(minWidth, Math.min(maxWidth, parseInt(savedWidth, 10)));
-        sidebar.style.flexBasis = `${newWidth}px`;
-    }
-
-    resizer.addEventListener('mousedown', (e) => {
-        isResizing = true;
-        startX = e.clientX;
-        startWidth = sidebar.offsetWidth;
-        // Prevent text selection during resize
-        document.body.style.userSelect = 'none';
-        document.body.style.pointerEvents = 'none'; // Disable pointer events on underlying elements
-        resizer.style.backgroundColor = 'var(--accent-color)'; // Highlight during drag
-
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-    });
-
-    function handleMouseMove(e) {
-        if (!isResizing) return;
-
-        const currentX = e.clientX;
-        const diffX = currentX - startX;
-        let newWidth = startWidth + diffX;
-
-        // Clamp width between min and max
-        newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
-
-        sidebar.style.flexBasis = `${newWidth}px`;
-        // Optionally, add real-time adjustments to chat container if needed,
-        // but flexbox should handle it automatically.
-    }
-
-    function handleMouseUp() {
-        if (isResizing) {
-            isResizing = false;
-            document.body.style.userSelect = ''; // Re-enable text selection
-            document.body.style.pointerEvents = '';
-            resizer.style.backgroundColor = ''; // Reset handle color
-
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-
-            // Save the final width
-            localStorage.setItem(localStorageKey, sidebar.offsetWidth.toString());
-        }
-    }
-}
-
-// Initialize the UI
-ui.initializeUI = function() {
-    ui.initializeSidebarResizing();
-    
-    // Mobile responsive helper - Added for better mobile usability
-    const isMobile = window.innerWidth <= 768;
-    if (isMobile) {
-        // Get all section titles
-        const sectionTitles = document.querySelectorAll('.sidebar .title');
-
-        sectionTitles.forEach(title => {
-            // Add click event listener
-            title.addEventListener('click', function() {
-                // Toggle collapsed class on the parent element
-                const section = this.nextElementSibling;
-                if (section && (section.classList.contains('chats-list') || section.classList.contains('models-list'))) {
-                    section.classList.toggle('collapsed');
-
-                    // Toggle visibility
-                    if (section.classList.contains('collapsed')) {
-                        section.style.maxHeight = '0px';
-                        section.style.overflow = 'hidden';
-                        this.classList.add('collapsed');
-                    } else {
-                        section.style.maxHeight = '35vh';
-                        section.style.overflow = 'auto';
-                        this.classList.remove('collapsed');
-                    }
-                }
-            });
+/**
+ * Scrolls an element smoothly to the bottom.
+ * @param {HTMLElement} element - The element to scroll.
+ */
+ui.scrollToBottom = function(element) {
+    if (!element) return;
+    // Use requestAnimationFrame for smoother scrolling, especially during rapid updates
+    requestAnimationFrame(() => {
+        element.scrollTo({
+            top: element.scrollHeight,
+            behavior: 'smooth' // Use smooth scrolling
         });
-    }
-}
+    });
+};
+
+// --- Initialization ---
+
+// Removed initializeSidebarResizing - Handled by standard CSS/Flexbox now.
+// Removed initializeUI - Event listeners setup is now the main init part.
 
 // Expose ui namespace globally
 window.ui = ui;
 
-// Call initialization
-document.addEventListener('DOMContentLoaded', ui.initializeUI);
+// Call event listener setup on DOMContentLoaded (moved to chat.js init)
+// document.addEventListener('DOMContentLoaded', ui.setupEventListeners);
+
+// Helper to create and add copy button to code blocks
+ui.addCopyCodeButtons = function(contentElement) {
+    if (!contentElement) return;
+
+    contentElement.querySelectorAll('pre').forEach(preElement => {
+        // Check if button already exists to avoid duplicates
+        if (preElement.querySelector('.copy-code-button')) {
+            return;
+        }
+
+        const codeElement = preElement.querySelector('code');
+        if (!codeElement) return; // Skip if no code element found
+
+        const button = document.createElement('button');
+        button.className = 'copy-code-button';
+        button.textContent = 'Copy';
+        button.title = 'Copy code snippet';
+
+        button.addEventListener('click', () => {
+            const codeToCopy = codeElement.innerText || '';
+            navigator.clipboard.writeText(codeToCopy).then(() => {
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy code:', err);
+                button.textContent = 'Error';
+                setTimeout(() => {
+                     button.textContent = 'Copy';
+                 }, 2000);
+            });
+        });
+
+        // Append button to the <pre> element
+        preElement.appendChild(button);
+    });
+}
+
+// Update the enabled/disabled state of the Regenerate button
+ui.updateRegenerateButtonState = function() {
+    const regenerateButton = document.getElementById('regenerate-button');
+    if (!regenerateButton) return;
+
+    const messages = chatHistory ? chatHistory.querySelectorAll('.message') : [];
+    let canRegenerate = false;
+
+    if (messages.length >= 2) {
+        const lastMessage = messages[messages.length - 1];
+        // Check if the last message is from the bot (assistant)
+        if (lastMessage.classList.contains('bot-message')) {
+            canRegenerate = true;
+        }
+    }
+
+    // Enable/disable button
+    if (canRegenerate) {
+        regenerateButton.disabled = false;
+        regenerateButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        regenerateButton.title = 'Regenerate last response';
+                    } else {
+        regenerateButton.disabled = true;
+        regenerateButton.classList.add('opacity-50', 'cursor-not-allowed');
+        regenerateButton.title = 'Cannot regenerate (requires a previous assistant response)';
+    }
+    console.log(`[UI Update] Regenerate button ${canRegenerate ? 'enabled' : 'disabled'}`);
+};

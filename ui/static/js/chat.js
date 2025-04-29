@@ -10,19 +10,18 @@ let currentUser = null; // Populated by api.js, Used by ui.js
 let isInsideThinkBlock = false; // WebSocket message handling state (websocket.js)
 
 // --- DOM Element References ---
-// These are used by various functions across the different files.
-// Declaring them here makes them globally accessible.
+// Updated selectors based on new HTML structure
 const chatHistory = document.getElementById('chat-history');
 const messageInput = document.getElementById('message-input');
 const sendButton = document.getElementById('send-button');
-const modelsListContainer = document.getElementById('models-list');
-const chatsListContainer = document.getElementById('chats-list');
-const newChatButton = document.getElementById('new-chat-button');
-const chatTitle = document.getElementById('chat-title');
+// const modelsListContainer = document.getElementById('models-list'); // Removed - Replaced by dropdowns
+const chatsListContainer = document.getElementById('chats-list');   // UL element
+const newChatButton = document.getElementById('new-chat-button'); // A tag
+const chatTitle = document.getElementById('chat-title');         // H1 element
 const regenerateButton = document.getElementById('regenerate-button');
-const userNameElement = document.querySelector('.user-name');
-const userRoleElement = document.querySelector('.user-role');
-const userAvatarElement = document.querySelector('.user-avatar');
+const userNameElement = document.querySelector('.user-name');     // Span inside user section
+const userRoleElement = document.querySelector('.user-role');     // Span inside user section
+const userAvatarElement = document.querySelector('.user-avatar'); // Div inside user section
 
 // --- Chat Namespace ---
 const chat = {};

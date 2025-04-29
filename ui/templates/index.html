@@ -1,99 +1,274 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-surface">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CyberAI</title>
     <link rel="icon" href="/static/images/cyberai.png" type="image/png">
-    <!-- Google Fonts: Tinos -->
+    <!-- Google Fonts: Source Code Pro for terminal feel (adjust if needed) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+    <link href="/static/css/vendor/source-code-pro.css" rel="stylesheet">
     <!-- Highlight.js CSS (for code highlighting) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-    <!-- Tailwind Styles -->
+    <link rel="stylesheet" href="/static/css/vendor/atom-one-dark.min.css">
+    <!-- Tailwind Styles (compiled) -->
     <link rel="stylesheet" href="/static/css/styles.css">
-    <!-- Custom Styles (Must come after Tailwind) -->
-    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Link Admin CSS for shared theme variables and styles -->
+    <link rel="stylesheet" href="/static/css/admin.css">
     <!-- Add Marked.js for markdown parsing -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="/static/js/vendor/marked.min.js"></script>
     <!-- Add highlight.js for code highlighting -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="/static/js/vendor/highlight.min.js"></script>
+    <!-- Alpine.js Core -->
+    <script defer src="/static/js/vendor/alpine.min.js"></script>
+    <!-- Potentially add Alpine plugins if needed later (e.g., Collapse for sidebar sections) -->
+    <!-- <script defer src="/static/js/alpine-collapse.min.js"></script> -->
 </head>
-<body>
-    <div class="grid-overlay"></div>
-    <div id="notification-container"></div> <!-- Notification Area -->
+<body class="h-full text-on-surface font-mono bg-surface" x-data="{ showSidebar: false }">
+    <!-- Grid overlay (Optional - keep if desired, style with CSS) -->
+    <!-- <div class="grid-overlay"></div> -->
 
-    <div class="container">
-        <div class="sidebar">
-            <div class="title">
-                <span>CHATS</span>
-                <button id="purge-chats-button" class="purge-btn" title="Delete All Chats">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg> <!-- Fire Icon -->
+    <!-- Skip link -->
+    <a class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-3 focus:bg-primary focus:text-on-primary" href="#main-content">Skip to main content</a>
+
+    <!-- Mobile Overlay -->
+    <div x-cloak x-show="showSidebar" class="fixed inset-0 z-30 bg-black/50 lg:hidden" aria-hidden="true" @click="showSidebar = false" x-transition.opacity></div>
+
+    <!-- Hamburger Menu Toggle -->
+    <button type="button" class="fixed top-4 left-4 z-50 -m-2.5 p-2.5 text-on-surface lg:hidden" @click="showSidebar = true">
+        <span class="sr-only">Open sidebar</span>
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+        </svg>
                 </button>
-            </div>
-            <div class="chats-list" id="chats-list">
-                <div class="chat-item new-chat-button" id="new-chat-button">
-                    <span class="status-indicator status-available"></span>
-                    + New Chat
-                </div>
-                <!-- Chats will be added here dynamically -->
+
+    <!-- Sidebar -->
+    <nav x-cloak
+         class="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-outline bg-surface transition-transform duration-300 lg:translate-x-0"
+         :class="showSidebar ? 'translate-x-0' : '-translate-x-full'"
+         aria-label="sidebar navigation">
+
+        <!-- Logo / Title -->
+        <div class="flex h-16 shrink-0 items-center gap-x-2 justify-center px-4 border-b border-outline">
+            <img class="h-8 w-auto" src="/static/images/cyberai.png" alt="CyberAI Logo">
+            <span class="text-xl font-bold text-primary">CyberAI</span>
             </div>
 
-            <div class="title">MODELS</div>
-            <div class="models-list" id="models-list">
-                <!-- Models will be added here dynamically -->
-                <div class="model-item loading">
-                    <span class="status-indicator status-busy"></span>
-                    Loading...
-                </div>
-            </div>
+        <!-- Navigation Content -->
+        <div class="flex flex-1 flex-col gap-y-7 overflow-y-auto px-4 py-4">
 
-            <div class="user-section">
-                <div class="user-profile">
-                    <div class="user-avatar">U</div>
-                    <div class="user-info">
-                        <div class="user-name">Anonymous</div>
-                        <div class="user-role">Guest</div>
+            <!-- Models Section (MOVED HERE) -->
+            <div x-data="{ selectedProviderId: localStorage.getItem('activeProviderId') || '', selectedModelId: localStorage.getItem('activeModelId') || '' }" x-init="
+                    /* 
+                    REMOVED: This logic is now handled in api.fetchModels after data is loaded.
+                    */
+                ">
+                <div class="text-xs font-semibold leading-6 text-on-surface/60 px-2 py-1">MODELS</div>
+                <div class="mt-1 space-y-3 px-2">
+                    <!-- Provider Select -->
+                    <div class="relative">
+                        <label for="provider-select" class="sr-only">Provider</label>
+                        <select id="provider-select" name="provider-select"
+                                class="block w-full appearance-none rounded-md border-0 bg-surface-alt py-1.5 pl-3 pr-8 text-on-surface ring-1 ring-inset ring-outline focus:ring-2 focus:ring-primary sm:text-sm sm:leading-6"
+                                x-model="selectedProviderId"
+                                @change="selectedModelId = ''; localStorage.removeItem('activeModelId'); $nextTick(() => { ui.populateModelSelect(selectedProviderId) }); localStorage.setItem('activeProviderId', selectedProviderId)">
+                            <option value="">Select Provider</option>
+                            <!-- Provider options added by ui.js -->
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-on-surface/60">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+                                <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
                     </div>
-                    <!-- Admin Link (hidden by default) -->
-                    <a href="/admin" id="admin-link" class="admin-link" title="Admin Panel" style="display: none;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                    </a>
-                    <!-- Logout Button -->
-                    <button id="logout-button" class="logout-btn" title="Logout">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+
+                    <!-- Model Select -->
+                    <div class="relative">
+                         <label for="model-select" class="sr-only">Model</label>
+                        <select id="model-select" name="model-select"
+                                class="block w-full appearance-none rounded-md border-0 bg-surface-alt py-1.5 pl-3 pr-8 text-on-surface ring-1 ring-inset ring-outline focus:ring-2 focus:ring-primary sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                                x-model="selectedModelId"
+                                x-bind:disabled="!selectedProviderId"
+                                @change="if (selectedModelId) { chat.selectModel(selectedModelId); localStorage.setItem('activeModelId', selectedModelId) } else { localStorage.removeItem('activeModelId'); activeModel = null; ui.updateActiveModelUI(); /* Clear header if no model selected */ }">
+                            <option value="" x-text="selectedProviderId ? 'Select Model' : 'Select Provider First'">Select Provider First</option>
+                            <!-- Model options added by ui.js -->
+                        </select>
+                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-on-surface/60">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+                                <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chats Section -->
+            <div>
+                <div class="flex items-center justify-between px-2 py-1">
+                    <div class="text-xs font-semibold leading-6 text-on-surface/60">CHATS</div>
+                    <button id="purge-chats-button"
+                            class="p-1 rounded text-on-surface/60 hover:text-danger hover:bg-surface-alt focus:outline-none focus:ring-1 focus:ring-danger focus:ring-offset-1 focus:ring-offset-surface"
+                            title="Delete All Chats">
+                        <span class="sr-only">Delete All Chats</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>
                     </button>
                 </div>
+                <ul role="list" class="mt-1 space-y-1" id="chats-list">
+                    <li>
+                        <a href="#" id="new-chat-button"
+                           class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-primary hover:bg-surface-alt">
+                           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 shrink-0">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                            </svg>
+                           New Chat
+                        </a>
+                    </li>
+                    <!-- Chat items will be dynamically inserted here by ui.js -->
+                     <li class="px-2 py-4 text-center text-xs text-on-surface/50">Loading chats...</li>
+                </ul>
+            </div>
+
+            <!-- User Section (at the bottom) -->
+            <div class="mt-auto border-t border-outline -mx-4 pt-4">
+                 <ul class="space-y-1 px-4">
+                    <li>
+                        <div class="group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-on-surface">
+                            <div class="user-avatar flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-on-primary text-lg font-medium">?</div>
+                            <div class="flex-1">
+                                <div class="user-name truncate">Anonymous</div>
+                                <div class="user-role text-xs text-on-surface/60">Guest</div>
+                    </div>
+                            <div class="flex items-center space-x-1">
+                                <a href="/admin" id="admin-link" class="p-1 rounded text-on-surface/60 hover:text-primary hover:bg-surface-alt focus:outline-none focus:ring-1 focus:ring-primary" title="Admin Panel" style="display: none;">
+                                    <span class="sr-only">Admin Panel</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </a>
+                                <button id="logout-button" class="p-1 rounded text-on-surface/60 hover:text-primary hover:bg-surface-alt focus:outline-none focus:ring-1 focus:ring-primary" title="Logout">
+                                    <span class="sr-only">Logout</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    </button>
+                </div>
+                        </div>
+                    </li>
+                </ul>
             </div>
         </div>
+    </nav>
 
-        <div class="resizer" id="sidebar-resizer"></div> <!-- RESIZE HANDLE -->
+    <!-- Main Content Area -->
+    <div class="flex flex-1 flex-col lg:pl-64"> <!-- Adjust padding to match sidebar width -->
 
-        <div class="chat-container">
-            <div class="chat-header">
-                <div class="chat-title" id="chat-title">New Chat</div>
-                <div class="chat-actions">
-                    <button id="regenerate-button" title="Regenerate last response">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <!-- Chat Header -->
+        <header class="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-outline bg-surface px-4 shadow-sm sm:px-6 lg:px-8">
+            <!-- Left side: Chat Title (Double-click to rename) -->
+            <h1 id="chat-title" class="text-lg font-semibold text-primary cursor-pointer hover:opacity-80 truncate pr-4" title="Double-click to rename chat">New Chat</h1>
+
+            <!-- Right side: Actions (Regenerate, Active Model) -->
+            <div class="flex items-center gap-x-4">
+                <!-- Active Model Indicator -->
+                <span id="active-model-indicator" class="hidden rounded-md bg-surface-alt px-2 py-1 text-xs font-medium text-primary ring-1 ring-inset ring-primary/30" title="Select a model from the sidebar">No Model Selected</span>
+
+                <!-- Regenerate Button -->
+                <button id="regenerate-button"
+                        class="p-1.5 rounded text-on-surface/70 hover:text-primary hover:bg-surface-alt focus:outline-none focus:ring-1 focus:ring-primary"
+                        title="Regenerate last response">
+                    <span class="sr-only">Regenerate</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-5 w-5">
                             <path d="M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Chat Area -->
+        <main id="main-content" class="flex flex-1 flex-col overflow-hidden">
+            <!-- Chat History (Scrollable) -->
+            <div id="chat-history" class="flex-1 overflow-y-auto space-y-4 p-4 md:p-6 lg:p-8">
+                 <!-- System Welcome Message -->
+                 <div class="message system-message text-center text-lg text-on-surface/60 py-1 italic">
+                    <div class="content">Welcome to CyberAI Terminal. Select a model and start chatting.</div>
+                 </div>
+                <!-- Messages will be added here dynamically by ui.js -->
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-container border-t border-outline bg-surface p-4">
+                <div class="flex items-center space-x-3">
+                    <input type="text" id="message-input"
+                           placeholder="> Type your message or command here..."
+                           autocomplete="off"
+                           class="flex-1 block w-full rounded-md border-0 bg-surface-alt py-2 px-3 text-on-surface placeholder:text-on-surface/50 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6 transition-shadow shadow-sm">
+                    <button id="send-button"
+                            class="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Send Message">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                         </svg>
+                        <span class="sr-only">Send</span>
                     </button>
                 </div>
             </div>
+        </main>
 
-            <div class="chat-history" id="chat-history">
-                <!-- Messages will be added here dynamically -->
             </div>
 
-            <div class="input-container">
-                <input type="text" id="message-input" placeholder="> Type your message or command here..." autocomplete="off">
-                <button id="send-button">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+    <!-- Penguin UI Toast Notification Container (Copied from admin.html) -->
+    <div x-data="{
+            notifications: [],
+            displayDuration: 5000,
+            addNotification({ variant = 'info', title = null, message = null }) {
+                const id = Date.now() + Math.random();
+                this.notifications.push({ id, variant, title, message });
+            },
+            removeNotification(id) {
+                setTimeout(() => {
+                    this.notifications = this.notifications.filter(
+                        (notification) => notification.id !== id,
+                    )
+                }, 400);
+            },
+        }"
+        x-on:notify.window="addNotification($event.detail)"
+        class="fixed bottom-4 right-4 z-[100] flex w-full max-w-xs flex-col-reverse items-end space-y-2 space-y-reverse">
+
+        <template x-for="(notification, index) in notifications" x-bind:key="notification.id">
+            <div x-data="{ isVisible: false, timeout: null }"
+                x-cloak x-show="isVisible"
+                class="relative w-full overflow-hidden rounded-md border border-outline bg-surface p-4 shadow-lg"
+                role="alert"
+                x-on:mouseenter="clearTimeout(timeout)"
+                x-on:mouseleave="timeout = setTimeout(() => { isVisible = false; removeNotification(notification.id) }, displayDuration)"
+                x-init="$nextTick(() => { isVisible = true }); timeout = setTimeout(() => { isVisible = false; removeNotification(notification.id) }, displayDuration)"
+                x-transition:enter="transition duration-300 ease-out"
+                x-transition:enter-start="translate-y-4 opacity-0"
+                x-transition:enter-end="translate-y-0 opacity-100"
+                x-transition:leave="transition duration-300 ease-in"
+                x-transition:leave-start="translate-y-0 opacity-100"
+                x-transition:leave-end="translate-y-4 opacity-0">
+
+                <div class="flex items-start gap-3">
+                    <!-- Icon -->
+                    <div class="shrink-0" aria-hidden="true">
+                        <template x-if="notification.variant === 'info'"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-info"><path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clip-rule="evenodd" /></svg></template>
+                        <template x-if="notification.variant === 'success'"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-success"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" /></svg></template>
+                        <template x-if="notification.variant === 'warning'"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-warning"><path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" /></svg></template>
+                        <template x-if="notification.variant === 'danger' || notification.variant === 'error'"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-danger"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" /></svg></template>
+                    </div>
+                    <!-- Text -->
+                    <div class="flex-1">
+                        <h3 x-cloak x-show="notification.title" class="text-sm font-semibold text-on-surface-strong" x-text="notification.title"></h3>
+                        <p x-cloak x-show="notification.message" class="mt-1 text-sm text-on-surface" x-text="notification.message"></p>
+                    </div>
+                    <!-- Dismiss Button -->
+                    <button type="button" class="ml-auto shrink-0 rounded p-1 text-on-surface/80 hover:text-on-surface" aria-label="dismiss notification" x-on:click="isVisible = false; removeNotification(notification.id)">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" class="h-5 w-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
         </div>
+        </template>
     </div>
+    <!-- End Penguin UI Toast Notification Container -->
 
     <!-- Load external JavaScript -->
     <!-- Load order: API logic, UI rendering, WebSocket, then Chat orchestration -->

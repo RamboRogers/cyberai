@@ -10,7 +10,8 @@ let ws = null;
 
 // --- UI Functions (now namespaced with ui.) ---
 // ui.addSystemMessage(content, type = 'info');
-// ui.renderModelsList(models);
+// ui.renderProviderSelect();
+// ui.populateModelSelect(providerId, initialModelId);
 // ui.renderChatsList(chats);
 // ui.createMessageElement(type, message_id, model_id = null);
 // ui.addModelInfo(timestampElement, model_id);
@@ -45,7 +46,9 @@ websocket.connect = function() {
             console.log("[System WS] Connection established. CyberAI terminal ready.");
             // Fetch initial data after connection
             api.fetchModels().then(() => {
-                api.fetchChats(); // fetchChats will handle loading or creating a chat
+                // Fetch chats AFTER models are fetched and processed by the handler
+                // The model_list handler should populate the dropdowns now.
+                api.fetchChats();
             });
         };
 
@@ -175,11 +178,13 @@ websocket.handleWebSocketMessage = function(message) {
             }
             break;
         case 'model_list':
-            // Update the model list in the sidebar
+            // Update the model list state
             const modelListPayload = message.model_list_payload;
             if (modelListPayload) {
-                chat.updateModelsList(modelListPayload); // Call function in chat.js
-                ui.renderModelsList(chat.getModelsList()); // Re-render UI
+                console.log("[WS] Received model_list update. Updating global state and rendering provider select.");
+                chat.updateModelsList(modelListPayload); // Update global modelsList in chat.js
+                // Render the PROVIDER dropdown, which will trigger model dropdown population
+                ui.renderProviderSelect();
             } else {
                 console.warn('Received model_list without payload.');
             }
@@ -191,8 +196,8 @@ websocket.handleWebSocketMessage = function(message) {
 
 // Handle streaming chunks of assistant responses
 websocket.handleAssistantChunk = function(payload) {
-    console.log(`[WS] handleAssistantChunk START - MsgID: ${payload.message_id}, Final: ${payload.is_final}, Content:`, JSON.stringify(payload.content));
-    const { chat_id, message_id, content, is_final, model_id } = payload;
+    // console.log(`[WS] handleAssistantChunk START - MsgID: ${payload.message_id}, Final: ${payload.is_final}, Content:`, JSON.stringify(payload.content)); // Silenced verbose log
+    const { chat_id, message_id, content, is_final, model_id, tokens_used } = payload;
 
     if (currentChatId !== chat_id) {
          console.warn(`Received chunk for inactive chat ${chat_id}, current is ${currentChatId}. Ignoring.`);
@@ -212,7 +217,7 @@ websocket.handleAssistantChunk = function(payload) {
         isNewElement = true;
         console.log(`[WS] Message element ${message_id} not found. Calling createMessageElement.`);
         // Use the UI function to create the element
-        messageElement = ui.createMessageElement('bot', message_id, model_id);
+        messageElement = ui.createMessageElement('bot', message_id, model_id); // Ensure type is 'bot'
         contentElement = messageElement.querySelector('.content');
         if (chatHistory) chatHistory.appendChild(messageElement);
         // Initialize raw content dataset for the whole message
@@ -230,84 +235,91 @@ websocket.handleAssistantChunk = function(payload) {
         setTimeout(() => { messageElement.classList.remove('message-updated'); }, 600);
     }
 
-    // --- FIX: Ensure Model Info is Added/Updated ---
-    // Check if model_id is available in the payload AND if the model info hasn't been added yet
-    // or if the element is new.
-    const timestampElement = messageElement.querySelector('.message-footer .timestamp');
-    const modelInfoExists = timestampElement && timestampElement.querySelector('.model-info');
-
-    if (model_id && timestampElement && (!modelInfoExists || isNewElement)) {
-        console.log(`[WS] Adding/Updating model info for MsgID: ${message_id}, ModelID: ${model_id}`);
-        // Call addModelInfo (from ui.js) to ensure the model name is displayed
-        ui.addModelInfo(timestampElement, model_id);
-        // Also ensure the model ID is stored on the element's dataset if missing
-        if (!messageElement.dataset.modelId) {
-            messageElement.dataset.modelId = model_id;
-        }
+    // --- Ensure contentElement exists ---
+    if (!contentElement) {
+        console.error(`[WS][Error] Content element not found for message ${message_id} after setup.`);
+        return;
     }
-    // --- END FIX ---
+    // Ensure internal raw content accumulator exists
+    if (typeof contentElement._rawContent === 'undefined') {
+        contentElement._rawContent = '';
+    }
+    // ------------------------------------
+
+    // --- Update Model Info (if needed) --- 
+    const timestampElement = messageElement.querySelector('.message-footer .timestamp');
+    const modelInfoExists = timestampElement && timestampElement.querySelector('.model-badge'); // Use class selector
+    if (model_id && timestampElement && (!modelInfoExists || isNewElement)) {
+        ui.addModelInfo(timestampElement.parentNode, model_id); // Pass container
+    }
+    // ------------------------------------
 
     // Append raw content for copy markdown (whole message)
     if (messageElement.dataset.rawContent !== undefined) {
         messageElement.dataset.rawContent += content;
     }
 
-    // --- Process chunk for display ---
+    // --- Scrolling Check --- PRE-computation
+    const shouldScroll = ui.isScrolledToBottom(chatHistory);
+
+    // --- Process chunk for display (SIMPLIFIED) ---
+    // This section assumes the main content element handles regular text
+    // and a separate thinking element handles <think> blocks.
     let currentChunk = content;
     while (currentChunk.length > 0) {
         if (isInsideThinkBlock) {
+            // --- Handle content inside <think> block ---
             const endTagIndex = currentChunk.indexOf('</think>');
             let chunkToProcess;
             if (endTagIndex !== -1) {
                 chunkToProcess = currentChunk.substring(0, endTagIndex);
                 currentChunk = currentChunk.substring(endTagIndex + '</think>'.length);
-                isInsideThinkBlock = false;
+                isInsideThinkBlock = false; // Exit think block
             } else {
-                chunkToProcess = currentChunk;
+                chunkToProcess = currentChunk; // Process rest of chunk
                 currentChunk = '';
             }
             if (chunkToProcess) {
-                thinkingContentEl = ui.ensureThinkingBoxExists(messageElement); // UI function
+                thinkingContentEl = ui.ensureThinkingBoxExists(messageElement); // Get or create thinking area
                 thinkingElement = messageElement.querySelector('.thinking-content');
                 if (thinkingContentEl && thinkingElement) {
                     let rawThinking = thinkingElement._rawThinkingContent || '';
                     rawThinking += chunkToProcess;
                     thinkingElement._rawThinkingContent = rawThinking;
                     try {
-                        thinkingContentEl.innerHTML = marked.parse(rawThinking);
+                        thinkingContentEl.innerHTML = marked.parse(rawThinking, { gfm: true, breaks: true });
                     } catch (error) {
                         console.error('Error parsing thinking markdown:', error);
-                        thinkingContentEl.textContent = rawThinking;
+                        thinkingContentEl.textContent = rawThinking; // Fallback to text
                     }
                 }
             }
-        } else { // Not inside think block
+        } else {
+            // --- Handle content OUTSIDE <think> block ---
             const startTagIndex = currentChunk.indexOf('<think>');
             let chunkToProcess;
             if (startTagIndex !== -1) {
                 chunkToProcess = currentChunk.substring(0, startTagIndex);
                 currentChunk = currentChunk.substring(startTagIndex + '<think>'.length);
-                isInsideThinkBlock = true;
-                thinkingContentEl = ui.ensureThinkingBoxExists(messageElement); // UI function
+                isInsideThinkBlock = true; // Enter think block
+                // Ensure thinking box exists but don't write to it yet
+                ui.ensureThinkingBoxExists(messageElement); 
                 thinkingElement = messageElement.querySelector('.thinking-content');
-                if (thinkingElement) { thinkingElement._rawThinkingContent = ''; }
+                if (thinkingElement) { thinkingElement._rawThinkingContent = ''; } // Initialize raw content for thinking box
             } else {
-                chunkToProcess = currentChunk;
+                chunkToProcess = currentChunk; // Process entire chunk
                 currentChunk = '';
             }
             if (chunkToProcess) {
-                if (!contentElement) {
-                     console.error("[Error] Content element is null!");
-                     return;
-                }
-                let currentRaw = contentElement._rawContent || '';
-                currentRaw += chunkToProcess;
-                contentElement._rawContent = currentRaw;
+                // Append to the main content element's raw buffer
+                contentElement._rawContent += chunkToProcess;
                 try {
-                    contentElement.innerHTML = marked.parse(currentRaw);
+                    // Parse the accumulated raw content and render as HTML
+                    contentElement.innerHTML = marked.parse(contentElement._rawContent, { gfm: true, breaks: true });
                 } catch (error) {
                     console.error('Error parsing regular markdown chunk:', error);
-                    contentElement.textContent = currentRaw;
+                    // Fallback: render accumulated raw content as text
+                    contentElement.textContent = contentElement._rawContent;
                 }
             }
         }
@@ -317,14 +329,70 @@ websocket.handleAssistantChunk = function(payload) {
     // Update timestamp and handle final state actions
     websocket.updateTimestampAndFinalState(messageElement, contentElement, thinkingElement, is_final);
 
-    // Scroll logic
-    const shouldScroll = isNewElement || (chatHistory.scrollHeight - chatHistory.scrollTop <= chatHistory.clientHeight + 150);
+    // --- Scrolling Execution --- POST-computation
     if (shouldScroll && chatHistory) {
         requestAnimationFrame(() => {
              requestAnimationFrame(() => {
-                chatHistory.scrollTop = chatHistory.scrollHeight;
-            });
+                // Use the helper function for smooth scroll
+                ui.scrollToBottom(chatHistory);
+             });
         });
+    }
+
+    // Add copy buttons to any new code blocks (idempotent check inside)
+    ui.addCopyCodeButtons(contentElement);
+    if (thinkingContentEl) ui.addCopyCodeButtons(thinkingContentEl); // Also check thinking area
+
+    // --- Final Chunk Handling ---
+    if (is_final) {
+        console.log(`[WS] Final chunk for message ${message_id}.`);
+        messageElement.classList.add('message-finalized'); // Add final marker
+
+        // Ensure Model Info is present/updated in the footer 
+        if (model_id && timestampElement?.parentNode) {
+            ui.addModelInfo(timestampElement.parentNode, model_id); 
+        } else if (!model_id) {
+            console.warn(`[WS] Final chunk for ${message_id} missing model_id.`);
+        } else if (!timestampElement) {
+            console.error(`[WS] Could not find time/model container in footer for ${message_id}.`);
+        }
+
+        // Update token count 
+        const tokenSpan = messageElement.querySelector('.token-count');
+        if (tokenSpan && tokens_used != null) {
+            tokenSpan.textContent = `${tokens_used} tokens`;
+            tokenSpan.classList.remove('hidden');
+        } else if (tokenSpan) {
+            tokenSpan.classList.add('hidden');
+        }
+
+        // Apply syntax highlighting now to all code blocks
+        messageElement.querySelectorAll('.content pre code, .thinking-content-text pre code').forEach((block) => { 
+            try {
+                if (typeof hljs !== 'undefined' && !block.classList.contains('hljs')) { // Check if not already highlighted
+                    hljs.highlightElement(block);
+                }
+            } catch (e) {
+                console.error("Highlight.js error:", e);
+            }
+        });
+        
+        // Add copy buttons one last time after highlighting
+        ui.addCopyCodeButtons(contentElement);
+        if (thinkingContentEl) ui.addCopyCodeButtons(thinkingContentEl);
+
+        // Reset internal raw content accumulators (memory cleanup)
+        if (contentElement) { delete contentElement._rawContent; } 
+        if (thinkingElement) { delete thinkingElement._rawThinkingContent; }
+        
+        // Reset think block state just in case
+        if (isInsideThinkBlock) {
+             console.warn('[WS Debug] Final chunk received but state was still inside think block! Resetting.');
+             isInsideThinkBlock = false;
+         }
+
+         // --- Update regenerate button state after final chunk ---
+         ui.updateRegenerateButtonState();
     }
 };
 
