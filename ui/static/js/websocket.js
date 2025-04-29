@@ -354,6 +354,14 @@ websocket.handleAssistantChunk = function(payload) {
         console.log(`[WS] Final chunk for message ${message_id}.`);
         messageElement.classList.add('message-finalized'); // Add final marker
 
+        // --- ADDED: Remove thinking spinner --- 
+        const thinkingSpinner = messageElement.querySelector('.thinking-spinner-icon');
+        if (thinkingSpinner) {
+            thinkingSpinner.remove();
+            console.log(`[WS] Removed thinking spinner for message ${message_id}.`);
+        }
+        // --- END ADDED ---
+
         // Ensure Model Info is present/updated in the footer 
         if (model_id && timestampElement?.parentNode) {
             ui.addModelInfo(timestampElement.parentNode, model_id); 
