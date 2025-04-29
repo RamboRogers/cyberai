@@ -895,12 +895,6 @@ func (h *ChatHandlers) RegenerateMessage(w http.ResponseWriter, r *http.Request)
 			log.Printf("[Regen Chat %d] No user message found before the last assistant message - unusual state", chatID)
 		}
 
-		if len(historyToResubmit) == 0 {
-			log.Printf("[Regen Chat %d] No message history found to use for regeneration.", chatID)
-			h.sendWsError(userID, chatID, "Cannot regenerate: No suitable history found to regenerate from.")
-			return
-		}
-
 		// Check if the last message in our history is a user message, which is required for regeneration
 		lastMsgInHistory := historyToResubmit[len(historyToResubmit)-1]
 		if lastMsgInHistory.Role != "user" {

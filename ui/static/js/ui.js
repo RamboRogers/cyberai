@@ -479,7 +479,7 @@ ui.renderMessage = function(message) {
     if (message.role === 'assistant') {
         const tokenSpan = messageWrapper.querySelector('.token-count');
         if (tokenSpan && message.tokens_used != null) {
-            tokenSpan.textContent = `${message.tokens_used} tokens`;
+            tokenSpan.textContent = `${message.tokens_used} chars`;
             tokenSpan.classList.remove('hidden'); // Show it
         } else if (tokenSpan) {
              tokenSpan.classList.add('hidden'); // Ensure it's hidden

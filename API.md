@@ -580,7 +580,7 @@ Authentication/Authorization: *TODO: All user routes should require standard use
               "role": "assistant",
               "content": "Go is a statically typed, compiled programming language...",
               "model_id": 1, // ID of the model that generated this
-              "tokens_used": 150,
+              "tokens_used": 150, // NOTE: Currently represents character count, not actual tokens.
               "created_at": "2023-10-28T15:00:05Z"
             }
             // ... more messages

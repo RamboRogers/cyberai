@@ -360,7 +360,7 @@ websocket.handleAssistantChunk = function(payload) {
         // Update token count 
         const tokenSpan = messageElement.querySelector('.token-count');
         if (tokenSpan && tokens_used != null) {
-            tokenSpan.textContent = `${tokens_used} tokens`;
+            tokenSpan.textContent = `${tokens_used} chars`;
             tokenSpan.classList.remove('hidden');
         } else if (tokenSpan) {
             tokenSpan.classList.add('hidden');

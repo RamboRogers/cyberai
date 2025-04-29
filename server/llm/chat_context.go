@@ -103,12 +103,23 @@ func (s *ChatContextService) BuildContextForModelRequest(
 		})
 	}
 
-	// 7. Add the new user message
+	// 7. Add the new user message (if provided and not already the last message in history)
 	if newMessageContent != "" {
-		llmMessages = append(llmMessages, Message{
-			Role:    "user",
-			Content: newMessageContent,
-		})
+		addMesg := true
+		if len(messages) > 0 {
+			lastHistoryMsg := messages[len(messages)-1]
+			if lastHistoryMsg.Role == "user" && lastHistoryMsg.Content == newMessageContent {
+				addMesg = false
+				log.Printf("[Chat %d] Skipping duplicate user message addition from newMessageContent", chatID)
+			}
+		}
+
+		if addMesg {
+			llmMessages = append(llmMessages, Message{
+				Role:    "user",
+				Content: newMessageContent,
+			})
+		}
 	}
 
 	log.Printf("[Chat %d] Built context with %d messages for LLM request", chatID, len(llmMessages))
