@@ -439,7 +439,7 @@ ui.renderMessage = function(message) {
     }
 
     // --- ADDED: Preprocess for \\boxed{} ---
-    displayContentString = displayContentString.replace(/\\\[?\\s*\\\\boxed\\{([^}]+)\\}\\s*\\\]?/g, '<span class="boxed-answer">$1</span>');
+    displayContentString = displayContentString.replace(/\\\\boxed\\{([^}]+)\\}/g, '<span class="boxed-answer">$1</span>');
     // --- END ADDED ---
 
     // Update rendered content using marked

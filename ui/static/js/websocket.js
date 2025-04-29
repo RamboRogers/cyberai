@@ -288,7 +288,7 @@ websocket.handleAssistantChunk = function(payload) {
                     thinkingElement._rawThinkingContent = rawThinking;
                     try {
                         // --- ADDED: Preprocess for \\boxed{} ---
-                        const processedThinking = rawThinking.replace(/\\\[?\\s*\\\\boxed\\{([^}]+)\\}\\s*\\\]?/g, '<span class="boxed-answer">$1</span>');
+                        const processedThinking = rawThinking.replace(/\\\\boxed\\{([^}]+)\\}/g, '<span class="boxed-answer">$1</span>');
                         // --- END ADDED ---
                         thinkingContentEl.innerHTML = marked.parse(processedThinking, { gfm: true, breaks: true });
                     } catch (error) {
@@ -318,7 +318,7 @@ websocket.handleAssistantChunk = function(payload) {
                 contentElement._rawContent += chunkToProcess;
                 try { 
                     // --- ADDED: Preprocess for \\boxed{} ---
-                    const processedContent = contentElement._rawContent.replace(/\\\[?\\s*\\\\boxed\\{([^}]+)\\}\\s*\\\]?/g, '<span class="boxed-answer">$1</span>');
+                    const processedContent = contentElement._rawContent.replace(/\\\\boxed\\{([^}]+)\\}/g, '<span class="boxed-answer">$1</span>');
                     // --- END ADDED ---
                     // Parse the accumulated raw content and render as HTML
                     contentElement.innerHTML = marked.parse(processedContent, { gfm: true, breaks: true });
