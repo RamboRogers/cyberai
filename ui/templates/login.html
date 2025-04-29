@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CyberAI - Login</title>
+    <!-- Add Source Code Pro Font CSS -->
+    <link href="/static/css/vendor/source-code-pro.css" rel="stylesheet">
     <!-- Tailwind Styles -->
     <link rel="stylesheet" href="/static/css/styles.css">
     <!-- Custom Styles -->
@@ -104,7 +106,6 @@
             border: 1px solid rgba(0, 255, 102, 0.4);
             border-radius: 3px;
             color: var(--text-color);
-            font-family: 'Tinos', serif;
             font-size: 1em;
             transition: border-color 0.3s, box-shadow 0.3s;
             outline: none;
@@ -122,7 +123,6 @@
             color: var(--bg-color);
             border: none;
             border-radius: 3px;
-            font-family: 'Courier New', monospace;
             font-weight: bold;
             font-size: 1.1em;
             text-transform: uppercase;
@@ -161,11 +161,11 @@
 
     </style>
 </head>
-<body>
+<body class="font-mono">
     <div class="grid-overlay"></div>
     <div class="login-container">
         <div class="logo-container">
-            <img src="/static/images/cyberai.png" alt="CyberAI Logo">
+            <img src="/static/images/cyberai.png" alt="CyberAI Logo" class="block mx-auto">
         </div>
         <h1 class="login-title">Access Terminal</h1>
         <form id="login-form">
