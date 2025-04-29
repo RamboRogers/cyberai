@@ -52,28 +52,26 @@
 
 ## Edit Log
 
-**2025-04-27 ~15:15**
+**Task:** Refactor Model Management in Admin Panel (Split JS, Update API)
 
-*   **File:** `server/handlers/admin_handlers.go`
-    *   **Function:** `UpdateModel(w http.ResponseWriter, r *http.Request)`
-    *   **Change:** Refactored the function to correctly handle partial updates (PUT requests).
-        *   Now fetches the existing model from the database first.
-        *   Decodes the request body into a temporary struct with pointers to detect which fields were provided.
-        *   Merges only the provided fields onto the existing model data.
-        *   Saves the merged model using `ModelService.UpdateModel`.
-        *   Fetches the final model state again before responding to ensure consistency.
-        *   Corrected type handling for `Configuration` field (unmarshaling `json.RawMessage` into `map[string]interface{}`).
-    *   **Reason:** To fix a 500 Internal Server Error caused by the previous implementation attempting to save an incomplete model struct, which overwrote data and likely violated DB constraints.
+*   **Files Modified:**
+    *   `ui/templates/admin.html`: Removed inline `<script>`, added `<script src="/static/js/admin.js"></script>`
+    *   `ui/static/js/admin.js`: Created file, moved JS logic, added API calls, refactored rendering.
+    *   `app.py`: Updated `PUT /api/admin/models/{id}` endpoint to handle partial updates, added comments.
+    *   `API.md`: Updated `PUT /api/admin/models/{id}` documentation.
 
-*   **File:** `ui/static/js/admin.js`
-    *   **Function:** `toggleModelStatus(modelId, newStatus)`
-    *   **Change:** Modified the function to fetch the complete model data via GET *after* the PUT request succeeds. Replaced the previous partial UI update with a full card re-render using the complete data retrieved from the GET request.
-    *   **Reason:** To ensure the UI accurately reflects the model state after an update, resolving issues where the card appeared blank because the PUT response might not contain all necessary data (like provider details).
-    *   **Function:** `createModelCardHTML(model)`
-    *   **Change:** Extracted card HTML generation logic from `renderModels` into this reusable function.
-    *   **Reason:** To simplify `renderModels` and allow `toggleModelStatus` to easily re-render a card.
+**Task:** Fix Regenerate Button Logic & User Message Indicator
 
-*   **File:** `API.md`
-    *   **Section:** `PUT /api/admin/models/{id}`
-    *   **Change:** Updated the description, request body examples, and response body description to accurately reflect the partial update (merge) behavior of the corresponding backend handler.
-    *   **Reason:** To keep API documentation aligned with implementation.
+*   **Files Modified:**
+    *   `ui/static/js/ui.js`: Updated `ui.updateRegenerateButtonState` logic; Fixed user message rendering in `ui.addMessageToUI` to correctly display the `>` indicator.
+
+**Task:** Reposition Thinking Block & Add Boxed Formatting
+
+*   **Files Modified:**
+    *   `ui/static/js/ui.js`:
+        *   In `ui.ensureThinkingBoxExists`, changed DOM insertion to place the thinking block *before* the main content block.
+        *   Added `.replace(/\\boxed\{([^}]+)\}/g, '<span class="boxed-answer">$1</span>')` before `marked.parse` in `ui.renderMessage`.
+    *   `ui/static/js/websocket.js`:
+        *   Added `.replace(/\\boxed\{([^}]+)\}/g, '<span class="boxed-answer">$1</span>')` before `marked.parse` for both thinking and regular content within `websocket.handleAssistantChunk`.
+    *   `ui/static/css/styles.css`:
+        *   Added CSS rules for the `.boxed-answer` class.

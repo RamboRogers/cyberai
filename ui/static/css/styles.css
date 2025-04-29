@@ -1977,4 +1977,20 @@ body {
   .lg\:pl-64 {
     padding-left: 16rem;
   }
-} 
+}
+
+/* Add custom styles below this line */
+
+/* Styling for boxed answers */
+.boxed-answer {
+  display: inline-block; /* Or block depending on desired layout */
+  border: 2px solid var(--color-primary); /* Use theme variable */
+  padding: 0.2em 0.5em;
+  border-radius: 4px;
+  font-weight: bold;
+  background-color: var(--color-surface-alt); /* Slightly different background */
+  margin: 0.2em 0; /* Add some spacing */
+  color: var(--color-on-surface-strong); /* Ensure text color matches */
+}
+
+/* Add other custom styles here */ 

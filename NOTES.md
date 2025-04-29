@@ -522,3 +522,33 @@ type ModelConnector interface {
 *   `server/handlers/admin_handlers.go`: `UpdateModel`
 *   `ui/static/js/admin.js`: `toggleModelStatus`, `createModelCardHTML` (extracted), `renderModels`
 *   `API.md`: Updated `PUT /api/admin/models/{id}` section.
+
+## Notes
+
+- Project: CyberAI Chat Interface
+- Current Focus: Improving message display - thinking block position and `\boxed{}` formatting.
+
+## State
+
+- Thinking block is displayed within the message bubble.
+- Markdown is rendered using `marked.js`.
+- Code blocks are highlighted using `highlight.js`.
+- User wants thinking block *above* main content.
+- User wants `\boxed{content}` rendered with a visual box.
+
+## Functions & UI Components
+
+- `ui/static/js/ui.js`
+  - `ui.renderMessage`: Renders complete messages.
+  - `ui.createMessageElement`: Creates the basic structure for messages.
+  - `ui.ensureThinkingBoxExists`: Creates/finds the container for thinking content.
+  - `ui.addSystemMessage`, `ui.displayChatError`: Add non-standard messages.
+- `ui/static/js/websocket.js`
+  - `websocket.handleAssistantChunk`: Processes streaming message chunks, updates UI incrementally.
+- `ui/static/css/styles.css`: Main CSS file.
+
+## Recent Changes
+
+- **Thinking Block Position:** Modified `ui.ensureThinkingBoxExists` to insert the thinking container *before* the main content container.
+- **Boxed Formatting:** Added JavaScript `.replace(/\\boxed\{([^}]+)\}/g, '<span class="boxed-answer">$1</span>')` logic to `ui.renderMessage` and `websocket.handleAssistantChunk` *before* calling `marked.parse`.
+- **Boxed Styling:** Added CSS rules for `.boxed-answer` class in `styles.css`.

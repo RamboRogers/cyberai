@@ -282,12 +282,15 @@ websocket.handleAssistantChunk = function(payload) {
             if (chunkToProcess) {
                 thinkingContentEl = ui.ensureThinkingBoxExists(messageElement); // Get or create thinking area
                 thinkingElement = messageElement.querySelector('.thinking-content');
-                if (thinkingContentEl && thinkingElement) {
+                if (thinkingContentEl && thinkingElement) { 
                     let rawThinking = thinkingElement._rawThinkingContent || '';
                     rawThinking += chunkToProcess;
                     thinkingElement._rawThinkingContent = rawThinking;
                     try {
-                        thinkingContentEl.innerHTML = marked.parse(rawThinking, { gfm: true, breaks: true });
+                        // --- ADDED: Preprocess for \\boxed{} ---
+                        const processedThinking = rawThinking.replace(/\\\\boxed\\{([^}]+)\\}/g, '<span class="boxed-answer">$1</span>');
+                        // --- END ADDED ---
+                        thinkingContentEl.innerHTML = marked.parse(processedThinking, { gfm: true, breaks: true });
                     } catch (error) {
                         console.error('Error parsing thinking markdown:', error);
                         thinkingContentEl.textContent = rawThinking; // Fallback to text
@@ -313,9 +316,12 @@ websocket.handleAssistantChunk = function(payload) {
             if (chunkToProcess) {
                 // Append to the main content element's raw buffer
                 contentElement._rawContent += chunkToProcess;
-                try {
+                try { 
+                    // --- ADDED: Preprocess for \\boxed{} ---
+                    const processedContent = contentElement._rawContent.replace(/\\\\boxed\\{([^}]+)\\}/g, '<span class="boxed-answer">$1</span>');
+                    // --- END ADDED ---
                     // Parse the accumulated raw content and render as HTML
-                    contentElement.innerHTML = marked.parse(contentElement._rawContent, { gfm: true, breaks: true });
+                    contentElement.innerHTML = marked.parse(processedContent, { gfm: true, breaks: true });
                 } catch (error) {
                     console.error('Error parsing regular markdown chunk:', error);
                     // Fallback: render accumulated raw content as text

@@ -438,6 +438,10 @@ ui.renderMessage = function(message) {
         displayContentString = `<span class="user-prompt-indicator">&gt;</span> ${displayContentString}`;
     }
 
+    // --- ADDED: Preprocess for \\boxed{} ---
+    displayContentString = displayContentString.replace(/\\\\boxed\\{([^}]+)\\}/g, '<span class="boxed-answer">$1</span>');
+    // --- END ADDED ---
+
     // Update rendered content using marked
     if (contentElement) {
         try {
@@ -619,7 +623,7 @@ ui.ensureThinkingBoxExists = function(messageElement) {
     if (!thinkingElement) {
         thinkingElement = document.createElement('div');
         // Subtle styling for the thinking box
-        thinkingElement.className = 'thinking-content mt-2 p-3 border border-dashed border-outline/50 rounded bg-surface-alt/50';
+        thinkingElement.className = 'thinking-content mb-2 p-3 border border-dashed border-outline/50 rounded bg-surface-alt/50'; // Added mb-2 for spacing
 
         const thinkingLabel = document.createElement('div');
         thinkingLabel.className = 'thinking-label text-xs font-semibold text-on-surface/70 mb-1 flex items-center gap-1.5';
@@ -631,9 +635,11 @@ ui.ensureThinkingBoxExists = function(messageElement) {
         thinkingContentEl.className = 'thinking-content-text text-xs prose prose-invert prose-sm max-w-none'; // Apply prose for formatting
         thinkingElement.appendChild(thinkingContentEl);
 
-        // Insert thinking box *after* the main content
+        // --- CHANGED: Insert thinking box *before* the main content ---
         const mainContentElement = messageElement.querySelector('.content');
-        mainContentElement?.parentNode?.insertBefore(thinkingElement, mainContentElement.nextSibling);
+        // mainContentElement?.parentNode?.insertBefore(thinkingElement, mainContentElement.nextSibling); // Old position
+        mainContentElement?.parentNode?.insertBefore(thinkingElement, mainContentElement); // New position
+        // --- END CHANGED ---
         }
     return thinkingElement.querySelector('.thinking-content-text');
 }
