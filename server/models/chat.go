@@ -366,13 +366,17 @@ func (s *ChatService) GetMessageHistory(chatID int64, limit int) ([]Message, err
 		limit = 50 // Default limit
 	}
 
+	// Fetch the LAST N messages (subquery), then order them ASC
 	rows, err := s.DB.Query(`
-		SELECT m.id, m.chat_id, m.user_id, m.role, m.content,
-		       m.model_id, m.agent_id, m.tokens_used, m.created_at
-		FROM messages m
-		WHERE m.chat_id = ?
-		ORDER BY m.created_at DESC
-		LIMIT ?
+		SELECT * FROM (
+			SELECT m.id, m.chat_id, m.user_id, m.role, m.content,
+				   m.model_id, m.agent_id, m.tokens_used, m.created_at
+			FROM messages m
+			WHERE m.chat_id = ?
+			ORDER BY m.created_at DESC
+			LIMIT ?
+		) AS sub
+		ORDER BY sub.created_at ASC
 	`, chatID, limit)
 
 	if err != nil {
@@ -389,8 +393,8 @@ func (s *ChatService) GetMessageHistory(chatID int64, limit int) ([]Message, err
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan message: %w", err)
 		}
-		// Add in reverse order to get chronological order
-		messages = append([]Message{msg}, messages...)
+		// Simply append normally, as query returns ASC order now
+		messages = append(messages, msg)
 	}
 
 	if err := rows.Err(); err != nil {

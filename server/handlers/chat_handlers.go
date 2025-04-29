@@ -838,6 +838,9 @@ func (h *ChatHandlers) RegenerateMessage(w http.ResponseWriter, r *http.Request)
 	go func(ctx context.Context, userID int, chatID int64, requestedNewModelID *int64) {
 		log.Printf("[Regen Chat %d] Starting regeneration process...", chatID)
 
+		// Introduce a small delay to potentially mitigate race condition with message saving
+		time.Sleep(200 * time.Millisecond)
+
 		// Send initial status update
 		h.sendWsMessage(userID, ws.Message{
 			Type: "status",
@@ -866,56 +869,32 @@ func (h *ChatHandlers) RegenerateMessage(w http.ResponseWriter, r *http.Request)
 			h.sendWsError(userID, chatID, "Cannot regenerate: No previous assistant message found.")
 			return
 		}
-
 		lastAssistantMsg := history[lastAssistantMsgIndex]
 
-		// IMPROVED: Find the most recent user message that appears before the lastAssistantMsg
-		lastUserMsgIndex := -1
+		// --- Refined Logic Start V2 ---
+		// Find the most recent user message BEFORE the last assistant message
+		triggeringUserMsgIndex := -1
 		for i := lastAssistantMsgIndex - 1; i >= 0; i-- {
 			if history[i].Role == "user" {
-				lastUserMsgIndex = i
+				triggeringUserMsgIndex = i
 				break
 			}
 		}
 
-		var historyToResubmit []models.Message
-
-		// Logic for determining what history to include
-		if lastUserMsgIndex >= 0 {
-			// We found a user message immediately before the assistant message
-			// Include all context up to and including that user message
-			historyToResubmit = history[:lastUserMsgIndex+1]
-			log.Printf("[Regen Chat %d] Found last user message at position %d out of %d total messages",
-				chatID, lastUserMsgIndex, len(history))
-		} else {
-			// No user message found before the assistant message
-			// This shouldn't happen in normal operation but we'll handle it gracefully
-			// by including all history before the assistant message
-			historyToResubmit = history[:lastAssistantMsgIndex]
-			log.Printf("[Regen Chat %d] No user message found before the last assistant message - unusual state", chatID)
-		}
-
-		// --- ADD THIS CHECK ---
-		if len(historyToResubmit) == 0 {
-			log.Printf("[Regen Chat %d] Calculated historyToResubmit is empty (Assistant message might be first in context). Cannot regenerate.", chatID)
-			h.sendWsError(userID, chatID, "Cannot regenerate: No preceding messages found in the current context.")
-			return
-		}
-		// --- END ADDED CHECK ---
-
-		// Check if the last message in our history is a user message, which is required for regeneration
-		lastMsgInHistory := historyToResubmit[len(historyToResubmit)-1] // Now safe from panic
-		if lastMsgInHistory.Role != "user" {
-			log.Printf("[Regen Chat %d] Last message in history is not a user message (%s). Cannot regenerate.",
-				chatID, lastMsgInHistory.Role)
-			h.sendWsError(userID, chatID, "Cannot regenerate: The last message must be from a user.")
+		if triggeringUserMsgIndex == -1 {
+			// No user message found anywhere before the last assistant message
+			log.Printf("[Regen Chat %d] Could not find any user message preceding the last assistant message (Assistant Index: %d). Cannot regenerate.", chatID, lastAssistantMsgIndex)
+			h.sendWsError(userID, chatID, "Cannot regenerate: No preceding user message found before the last assistant response.")
 			return
 		}
 
-		// Extract the triggering user message content to pass explicitly to context builder
-		triggeringMessageContent := lastMsgInHistory.Content
+		// Found the triggering user message
+		triggeringUserMessage := history[triggeringUserMsgIndex]
+		triggeringMessageContent := triggeringUserMessage.Content
+		log.Printf("[Regen Chat %d] Found preceding user message (ID: %d at index %d) for regeneration.", chatID, triggeringUserMessage.ID, triggeringUserMsgIndex)
+		// --- Refined Logic End V2 ---
 
-		// 3. Determine model ID to use
+		// Determine model ID to use (Original logic is fine)
 		modelIDToUse := lastAssistantMsg.ModelID // Default to original model
 		if requestedNewModelID != nil {
 			modelIDToUse = requestedNewModelID // Override with user request
@@ -929,10 +908,11 @@ func (h *ChatHandlers) RegenerateMessage(w http.ResponseWriter, r *http.Request)
 		}
 		finalModelID := *modelIDToUse
 
-		// For regeneration, we'll handle context differently than regular messages
-		log.Printf("[Regen Chat %d] Regenerating with triggering message: %s", chatID, triggeringMessageContent)
+		// For regeneration, we pass the explicit user message content.
+		// The context builder is responsible for fetching any necessary prior history (like system prompts).
+		log.Printf("[Regen Chat %d] Regenerating using explicit content: %s", chatID, triggeringMessageContent)
 
-		// Remove the last user message from history as we'll pass it explicitly
+		// Remove the last user message from history as we'll pass it explicitly - // NO LONGER NEEDED WITH THIS APPROACH
 		// historyForContext := historyToResubmit[:len(historyToResubmit)-1]
 
 		// Use a background context for the goroutine
