@@ -60,6 +60,31 @@ func (s *ChatContextService) BuildContextForModelRequest(
 
 	log.Printf("[Chat %d] Retrieved %d messages for context", chatID, len(messages))
 
+	// --- Regeneration Context Handling ---
+	originalMessageCount := len(messages)
+	if newMessageContent != "" {
+		// If newMessageContent is provided (likely from regeneration), find the
+		// corresponding user message in history and truncate history after it.
+		triggerIndex := -1
+		for i := len(messages) - 1; i >= 0; i-- {
+			if messages[i].Role == "user" && messages[i].Content == newMessageContent {
+				triggerIndex = i
+				break
+			}
+		}
+
+		if triggerIndex != -1 {
+			// Truncate messages to include only up to the found user message
+			messages = messages[:triggerIndex+1]
+			log.Printf("[Chat %d][RegenContext] Truncated history to %d messages ending at index %d.", chatID, len(messages), triggerIndex)
+		} else {
+			// This case should ideally not happen if RegenerateMessage found the triggering content.
+			// Log a warning and proceed with the full fetched history.
+			log.Printf("[Chat %d][RegenContext][Warn] Triggering message content not found in fetched history. Using full history (%d messages).", chatID, originalMessageCount)
+		}
+	}
+	// --- End Regeneration Context Handling ---
+
 	// 3. Create the messages array for the LLM
 	llmMessages := make([]Message, 0, len(messages)+2) // +2 for system message and new user message
 
