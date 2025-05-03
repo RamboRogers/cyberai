@@ -416,118 +416,187 @@ ui.handleCopy = function(buttonElement, textToCopy, successMessage) {
 ui.renderMessage = function(message) {
     let messageWrapper = document.getElementById(`message-${message.id}`);
     let contentElement;
+    let thinkBlockElement = null; // To hold the persistent think block
     let isNew = false;
 
+    // --- Check if message exists, create if not ---
     if (!messageWrapper) {
          const type = message.role === 'user' ? 'user' : 'bot';
          messageWrapper = ui.createMessageElement(type, message.id, message.model_id);
          if (!chatHistory) return;
          chatHistory.appendChild(messageWrapper);
-         contentElement = messageWrapper.querySelector('.content');
          isNew = true;
-    } else {
-        contentElement = messageWrapper.querySelector('.content');
     }
 
-    messageWrapper.dataset.rawContent = message.content || '';
+    // --- Get main content element ---
+    contentElement = messageWrapper.querySelector('.content');
+    if (!contentElement) {
+        console.warn("Could not find content element for message:", message.id);
+        // Attempt to recover or create if absolutely necessary, but this indicates an issue
+        // For now, let's bail if it's missing after creation/finding
+        if (isNew) { // If it was just created and missing, remove the wrapper
+            messageWrapper.remove();
+            console.error("Content element missing immediately after creation for message:", message.id);
+            return;
+        }
+        // If updating an existing message without a content element, log error and stop
+        console.error("Content element missing while updating message:", message.id);
+        return;
+    }
 
-    let displayContentString = message.content || '';
+    // --- Process message content ---
+    let rawContent = message.content || '';
+    messageWrapper.dataset.rawContent = rawContent; // Store raw content always
+
+    let thinkContent = '';
+    let mainContent = rawContent;
     let isSearchMessage = false; // For user messages containing search results
     let isSystemSearchResults = false; // For system messages containing search results
 
-    if (message.role === 'user' && displayContentString.includes('\n\n--- Search Results ---\n')) {
+    // --- Extract <think> block content ---
+    const thinkMatch = rawContent.match(/<think>([\s\S]*?)<\/think>/);
+    if (thinkMatch && thinkMatch[1]) {
+        thinkContent = thinkMatch[1].trim();
+        // Remove the think block (and potentially surrounding newlines) from the main content
+        mainContent = rawContent.replace(/<think>[\s\S]*?<\/think>\s*/, '').trim();
+        console.log("[Render] Found think block content for message:", message.id);
+    }
+
+    // --- Determine message type for special rendering ---
+    if (message.role === 'user' && mainContent.includes('\\n\\n--- Search Results ---\\n')) { // Check mainContent now
         isSearchMessage = true;
-    } else if (message.role === 'system' && displayContentString.includes('# Search Results for:')) {
+    } else if (message.role === 'system' && mainContent.startsWith('# Search Results for:')) { // Check mainContent now
         isSystemSearchResults = true;
     }
 
-    // --- ADDED: Preprocess for \boxed{} --- (Keep this)
-    displayContentString = displayContentString.replace(/\\boxed\{([^}]+)\}/g, '<span class="boxed-answer">$1</span>');
+    // --- ADDED: Preprocess mainContent for \\boxed{} --- (Keep this)
+    mainContent = mainContent.replace(/\\boxed\{([^}]+)\}/g, '<span class="boxed-answer">$1</span>');
 
-    // Update rendered content
-    if (contentElement) {
-        if (message.role === 'assistant' || isSearchMessage) {
-            // Parse content for assistant messages OR our combined user search message
-            try {
-                let finalHTML = "";
-                if (isSearchMessage) {
-                    // For search message, add prefix BEFORE parsing
-                    const parts = displayContentString.split('\n\n--- Search Results ---\n');
-                    const userQueryPart = `<span class="user-prompt-indicator">&gt;</span> ${parts[0].replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
-                    const resultsPart = parts.length > 1 ? `\n\n--- Search Results ---\n${parts[1]}` : '';
-                    // Parse the results part only
-                    const parsedResults = marked.parse(resultsPart, { gfm: true, breaks: true });
-                    finalHTML = `${userQueryPart}${parsedResults}`;
-                } else {
-                    // Standard assistant message parsing
-                    finalHTML = marked.parse(displayContentString, { gfm: true, breaks: true });
-                }
-                contentElement.innerHTML = `<div class="markdown-content">${finalHTML}</div>`;
-                ui.setLinksToOpenInNewTab(contentElement.querySelector('.markdown-content'));
-            } catch (error) {
-                console.error('Error parsing markdown content:', error);
-                // Fallback for assistant/search - still wrap, show raw content
-                contentElement.innerHTML = `<div class="markdown-content">${displayContentString.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
-                ui.setLinksToOpenInNewTab(contentElement.querySelector('.markdown-content'));
-            }
-        } else if (isSystemSearchResults) {
-            // Special rendering for system message containing search results
-            try {
-                // Extract query and results
-                const lines = displayContentString.split('\n');
-                const titleLine = lines[0] || ''; // e.g., "# Search Results for: ..."
-                const queryMatch = titleLine.match(/# Search Results for: (.*)/);
-                const query = queryMatch ? queryMatch[1].trim() : 'Search';
-                const resultsMarkdown = lines.slice(2).join('\n'); // Skip title and blank line
+    // --- Render Persistent Think Block (if content exists) ---
+    // Remove any previous persistent block first to avoid duplication on updates
+    // messageWrapper.querySelector('.persistent-think-block')?.remove(); // REMOVED - Handled by ID check below
 
-                const parsedResultsHTML = marked.parse(resultsMarkdown, { gfm: true, breaks: true });
+    const thinkingBlockId = `thinking-block-${message.id}`;
+    let existingThinkingBlock = document.getElementById(thinkingBlockId);
 
-                // Create collapsible structure with Alpine
-                contentElement.innerHTML = `
-                    <div x-data="{ expanded: false }" class="search-results-container border border-outline/50 rounded bg-surface-alt/50">
-                        <button @click="expanded = !expanded" class="flex justify-between items-center w-full p-2 text-sm font-semibold text-on-surface/80 hover:bg-surface-alt">
-                            <span>Search Results for: "${window.escapeHtml(query)}"</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 transition-transform duration-200" :class="{ 'rotate-180': expanded }">
-                                <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-                            </svg>
-                        </button>
-                        <div x-show="expanded" x-collapse class="p-3 border-t border-outline/50 markdown-content search-results-content">
-                            ${parsedResultsHTML}
-                        </div>
-                    </div>
-                `;
-                // Add target="_blank" to links within the results
-                ui.setLinksToOpenInNewTab(contentElement.querySelector('.search-results-content'));
-            } catch (error) {
-                console.error('Error parsing system search results:', error);
-                contentElement.innerHTML = `<div class="markdown-content text-danger">Error displaying search results.</div>`;
-            }
-        } else if (message.role === 'user') {
-            // Standard user message (already prefixed and escaped)
-            contentElement.innerHTML = displayContentString;
-        } else {
-             // Handle other roles like standard 'system' (basic rendering)
-             contentElement.textContent = displayContentString;
+    if (thinkContent && !existingThinkingBlock) {
+        // Only create the block if think content exists AND the block wasn't already created/managed by streaming
+        console.log(`[Render] Creating persistent think block for ${thinkingBlockId} (not found).`);
+        thinkBlockElement = document.createElement('div');
+        thinkBlockElement.id = thinkingBlockId;
+        // Use similar styling to the temporary thinking box, but set status to final
+        thinkBlockElement.className = 'thinking-block mb-2 p-3 border border-dashed border-outline/50 rounded bg-surface-alt/50';
+        thinkBlockElement.dataset.status = 'final'; // Set status to final
+
+        const thinkLabel = document.createElement('div');
+        thinkLabel.className = 'think-label text-xs font-semibold text-on-surface/70 mb-1 flex items-center gap-1.5';
+        // Use a static icon, not animated
+        thinkLabel.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3 text-primary"><path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM8.25 7.5a.75.75 0 0 1 .75.75v2.5h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1-.75-.75V8.25a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd" /></svg> <span class='label-text'>Thinking Process</span>`; // Static label, final text
+        thinkBlockElement.appendChild(thinkLabel);
+
+        const thinkContentEl = document.createElement('div');
+        thinkContentEl.className = 'think-content-text text-xs prose prose-invert prose-sm max-w-none markdown-content'; // Apply prose and markdown
+        try {
+            // --- Parse thinkContent as markdown ---
+            thinkContentEl.innerHTML = marked.parse(thinkContent, { gfm: true, breaks: true });
+            ui.setLinksToOpenInNewTab(thinkContentEl); // Make links open in new tab
+        } catch (error) {
+            console.error('Error parsing markdown for think block:', error);
+            thinkContentEl.textContent = thinkContent; // Fallback to raw text
         }
+        thinkBlockElement.appendChild(thinkContentEl);
+
+        // Insert the persistent think block *before* the main content element
+        contentElement.parentNode?.insertBefore(thinkBlockElement, contentElement);
+    } else if (existingThinkingBlock) {
+        console.log(`[Render] Found existing thinking block ${thinkingBlockId}. Skipping creation.`);
+        // Optionally, ensure its content is up-to-date, although streaming should handle this.
+        // Could re-parse `thinkContent` here and set innerHTML as a safety measure if needed.
     } else {
-         console.warn("Could not find content element for message:", message.id);
+        // No think content, ensure no think block exists (e.g. if message was updated to remove it)
+        messageWrapper.querySelector('.thinking-block')?.remove();
     }
 
-    // Update timestamp and potentially model info in the footer
+
+    // --- Render Main Content ---
+    // Clear previous content before rendering new main content
+    contentElement.innerHTML = '';
+    let finalHTML = ""; // To hold the parsed HTML for main content
+
+    if (message.role === 'assistant' || isSearchMessage) {
+        // Parse main content for assistant messages OR our combined user search message
+        try {
+            if (isSearchMessage) {
+                const parts = mainContent.split('\\n\\n--- Search Results ---\\n');
+                const userQueryPart = `<span class="user-prompt-indicator">&gt;</span> ${parts[0].replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
+                const resultsPart = parts.length > 1 ? `\\n\\n--- Search Results ---\\n${parts[1]}` : '';
+                const parsedResults = marked.parse(resultsPart, { gfm: true, breaks: true });
+                finalHTML = `${userQueryPart}${parsedResults}`;
+            } else {
+                // Standard assistant message parsing
+                finalHTML = marked.parse(mainContent, { gfm: true, breaks: true });
+            }
+            contentElement.innerHTML = `<div class="markdown-content">${finalHTML}</div>`;
+            ui.setLinksToOpenInNewTab(contentElement.querySelector('.markdown-content'));
+        } catch (error) {
+            console.error('Error parsing markdown content:', error);
+            contentElement.innerHTML = `<div class="markdown-content">${mainContent.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
+            ui.setLinksToOpenInNewTab(contentElement.querySelector('.markdown-content'));
+        }
+    } else if (isSystemSearchResults) {
+        // Special rendering for system message containing search results
+        try {
+            // Extract query and results
+            const lines = mainContent.split('\\n');
+            const titleLine = lines[0] || ''; // e.g., "# Search Results for: ..."
+            const queryMatch = titleLine.match(/# Search Results for: (.*)/);
+            const query = queryMatch ? queryMatch[1].trim() : 'Search';
+            const resultsMarkdown = lines.slice(2).join('\\n'); // Skip title and blank line
+
+            const parsedResultsHTML = marked.parse(resultsMarkdown, { gfm: true, breaks: true });
+
+            // Create collapsible structure with Alpine
+            contentElement.innerHTML = `
+                <div x-data="{ expanded: false }" class="search-results-container border border-outline/50 rounded bg-surface-alt/50">
+                    <button @click="expanded = !expanded" class="flex justify-between items-center w-full p-2 text-sm font-semibold text-on-surface/80 hover:bg-surface-alt">
+                        <span>Search Results for: "${window.escapeHtml(query)}"</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 transition-transform duration-200" :class="{ 'rotate-180': expanded }">
+                            <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                    <div x-show="expanded" x-collapse class="p-3 border-t border-outline/50 markdown-content search-results-content">
+                        ${parsedResultsHTML}
+                    </div>
+                </div>
+            `;
+            // Add target="_blank" to links within the results
+            ui.setLinksToOpenInNewTab(contentElement.querySelector('.search-results-content'));
+        } catch (error) {
+            console.error('Error parsing system search results:', error);
+            contentElement.innerHTML = `<div class="markdown-content text-danger">Error displaying search results.</div>`;
+        }
+    } else if (message.role === 'user') {
+        // Standard user message (already prefixed and escaped if needed)
+        // Assuming user messages don't contain markdown that needs parsing
+        contentElement.innerHTML = mainContent;
+    } else {
+         // Handle other roles like standard 'system' (basic rendering)
+         contentElement.textContent = mainContent;
+    }
+
+
+    // --- Update Footer (Timestamp, Model Info, Tokens) ---
     const timestampElement = messageWrapper.querySelector('.message-footer .timestamp');
     if (timestampElement) {
         const timeString = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         timestampElement.dataset.timestamp = message.created_at;
-        timestampElement.textContent = timeString; // Set time directly
+        timestampElement.textContent = timeString;
 
-        // Find the container for model info
         const timeInfoContainer = timestampElement.parentNode;
-        // Remove existing model info/badge if present (we re-add if needed)
         timeInfoContainer?.querySelector('.model-badge')?.remove();
-        timeInfoContainer?.querySelector('span.model-separator')?.remove(); // Remove separator too
+        timeInfoContainer?.querySelector('span.model-separator')?.remove();
 
         if (message.role === 'assistant' && message.model_id) {
-             // Ensure the container exists before adding model info
              if (timeInfoContainer) {
                  ui.addModelInfo(timeInfoContainer, message.model_id);
              } else {
@@ -536,19 +605,21 @@ ui.renderMessage = function(message) {
         }
     }
 
-    // Update token count if it's an assistant message and tokens are provided
     if (message.role === 'assistant') {
         const tokenSpan = messageWrapper.querySelector('.token-count');
         if (tokenSpan && message.tokens_used != null) {
+            // Display character count for now
             tokenSpan.textContent = `${message.tokens_used} chars`;
-            tokenSpan.classList.remove('hidden'); // Show it
+            tokenSpan.classList.remove('hidden');
         } else if (tokenSpan) {
-             tokenSpan.classList.add('hidden'); // Ensure it's hidden
+             tokenSpan.classList.add('hidden');
         }
     }
 
-    // Apply syntax highlighting
-    contentElement.querySelectorAll('pre code').forEach((block) => {
+    // --- Apply Syntax Highlighting & Copy Buttons ---
+    // Apply to both main content and think block content
+    const codeBlocks = messageWrapper.querySelectorAll('pre code');
+    codeBlocks.forEach((block) => {
          try {
              if (typeof hljs !== 'undefined') {
                 // Check if already highlighted
@@ -561,18 +632,19 @@ ui.renderMessage = function(message) {
          }
      });
 
-    // Add copy buttons to code blocks after highlighting
-    ui.addCopyCodeButtons(contentElement);
+    // Add copy buttons to code blocks (apply to wrapper to catch both sections)
+    ui.addCopyCodeButtons(messageWrapper); // Apply to the whole wrapper
 
-    // Scroll only if the message is new and near the bottom
+
+    // --- Scroll Logic ---
     if (isNew) {
         // Use a slight delay to ensure rendering is complete before scrolling
         setTimeout(() => ui.scrollToBottom(chatHistory), 50);
     }
 
-    // --- Update regenerate button state after rendering message ---
+    // --- Update Regenerate Button State ---
     ui.updateRegenerateButtonState();
-}
+};
 
 // Add system message to chat
 ui.addSystemMessage = function(content, type = 'info') { // type might be used for styling later
@@ -674,32 +746,36 @@ ui.addModelInfo = function(containerElement, model_id) {
     modelBadgeSpan.style.display = 'inline-flex'; // Use inline-flex for badges
 }
 
-// Helper to ensure thinking box exists (simplified)
+// Helper to ensure thinking box exists (simplified) - THIS IS FOR STREAMING ONLY
 ui.ensureThinkingBoxExists = function(messageElement) {
-    let thinkingElement = messageElement.querySelector('.thinking-content');
+    const messageId = messageElement.id.replace('message-', ''); // Extract ID
+    const thinkingBlockId = `thinking-block-${messageId}`;
+    let thinkingElement = document.getElementById(thinkingBlockId);
+
     if (!thinkingElement) {
         thinkingElement = document.createElement('div');
-        // Subtle styling for the thinking box
-        thinkingElement.className = 'thinking-content mb-2 p-3 border border-dashed border-outline/50 rounded bg-surface-alt/50'; // Added mb-2 for spacing
+        thinkingElement.id = thinkingBlockId;
+        // Use a consistent class name + status attribute
+        thinkingElement.className = 'thinking-block mb-2 p-3 border border-dashed border-outline/50 rounded bg-surface-alt/50'; // Use 'thinking-block' class
+        thinkingElement.dataset.status = 'streaming';
 
         const thinkingLabel = document.createElement('div');
         thinkingLabel.className = 'thinking-label text-xs font-semibold text-on-surface/70 mb-1 flex items-center gap-1.5';
         // Animated SVG or simpler icon
-        thinkingLabel.innerHTML = `<svg class="animate-spin h-3 w-3 text-primary thinking-spinner-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Thinking...`;
+        thinkingLabel.innerHTML = `<svg class="animate-spin h-3 w-3 text-primary thinking-spinner-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span class='label-text'>Thinking...</span>`; // Add span for label text
         thinkingElement.appendChild(thinkingLabel);
 
         const thinkingContentEl = document.createElement('div');
         thinkingContentEl.className = 'thinking-content-text text-xs prose prose-invert prose-sm max-w-none'; // Apply prose for formatting
         thinkingElement.appendChild(thinkingContentEl);
 
-        // --- CHANGED: Insert thinking box *before* the main content ---
+        // --- Insert thinking box *before* the main content ---
         const mainContentElement = messageElement.querySelector('.content');
-        // mainContentElement?.parentNode?.insertBefore(thinkingElement, mainContentElement.nextSibling); // Old position
-        mainContentElement?.parentNode?.insertBefore(thinkingElement, mainContentElement); // New position
-        // --- END CHANGED ---
+        mainContentElement?.parentNode?.insertBefore(thinkingElement, mainContentElement);
         }
+    // Return the element where streaming text should go
     return thinkingElement.querySelector('.thinking-content-text');
-}
+};
 
 
 // Show or hide the thinking indicator (now integrated into message streaming)

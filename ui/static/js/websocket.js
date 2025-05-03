@@ -145,6 +145,11 @@ websocket.handleWebSocketMessage = function(message) {
             // Render the complete assistant message
             const assistantMsg = message.message_payload;
             if (assistantMsg) {
+                // --- ADDED: Finalize the thinking block before rendering --- 
+                console.log(`[WS assistant_message] Finalizing thinking block for message: ${assistantMsg.id}`);
+                websocket.finalizeThinkingBlock(assistantMsg.id);
+                // --- END ADDED ---
+
                 ui.renderMessage(assistantMsg);
                 const msgElement = document.getElementById(`message-${assistantMsg.id}`);
                 if (msgElement) {
@@ -282,12 +287,14 @@ websocket.handleAssistantChunk = function(payload) {
     const shouldScroll = ui.isScrolledToBottom(chatHistory);
 
     // --- Process chunk for display (SIMPLIFIED) ---
-    // This section assumes the main content element handles regular text
-    // and a separate thinking element handles <think> blocks.
     let currentChunk = content;
+    // Get references INSIDE the loop to ensure they are fresh if elements are created mid-chunk
+    thinkingElement = messageElement.querySelector('.thinking-block'); 
+    thinkingContentEl = thinkingElement ? thinkingElement.querySelector('.thinking-content-text') : null;
+
     while (currentChunk.length > 0) {
         if (isInsideThinkBlock) {
-            // --- Handle content inside <think> block ---
+            // Find end tag
             const endTagIndex = currentChunk.indexOf('</think>');
             let chunkToProcess;
             if (endTagIndex !== -1) {
@@ -298,10 +305,15 @@ websocket.handleAssistantChunk = function(payload) {
                 chunkToProcess = currentChunk; // Process rest of chunk
                 currentChunk = '';
             }
+
             if (chunkToProcess) {
-                thinkingContentEl = ui.ensureThinkingBoxExists(messageElement); // Get or create thinking area
-                thinkingElement = messageElement.querySelector('.thinking-content');
-                if (thinkingContentEl && thinkingElement) { 
+                // --- DEBUG LOGGING --- 
+                console.log(`[WS Think Stream] Chunk: \"${chunkToProcess.substring(0, 50)}...\"`);
+                console.log(`[WS Think Stream] thinkingElement found: ${!!thinkingElement}`);
+                console.log(`[WS Think Stream] thinkingContentEl found: ${!!thinkingContentEl}`);
+                // --- END DEBUG LOGGING --- 
+
+                if (thinkingContentEl && thinkingElement) {
                     let rawThinking = thinkingElement._rawThinkingContent || '';
                     rawThinking += chunkToProcess;
                     thinkingElement._rawThinkingContent = rawThinking;
@@ -316,18 +328,26 @@ websocket.handleAssistantChunk = function(payload) {
                     }
                 }
             }
-        } else {
-            // --- Handle content OUTSIDE <think> block ---
+        } else { // We are OUTSIDE a think block
+            // Find start tag
             const startTagIndex = currentChunk.indexOf('<think>');
             let chunkToProcess;
             if (startTagIndex !== -1) {
                 chunkToProcess = currentChunk.substring(0, startTagIndex);
                 currentChunk = currentChunk.substring(startTagIndex + '<think>'.length);
-                isInsideThinkBlock = true; // Enter think block
-                // Ensure thinking box exists but don't write to it yet
-                ui.ensureThinkingBoxExists(messageElement); 
-                thinkingElement = messageElement.querySelector('.thinking-content');
-                if (thinkingElement) { thinkingElement._rawThinkingContent = ''; } // Initialize raw content for thinking box
+                // --- Transitioning INTO think block ---
+                isInsideThinkBlock = true;
+                // Ensure the block and inner element exist *now*
+                thinkingContentEl = ui.ensureThinkingBoxExists(messageElement); // Create/get inner
+                // thinkingElement will be found in the next loop iteration
+                if (thinkingContentEl) {
+                    // Initialize raw buffer directly on the element found/created by ensureThinkingBoxExists's parent
+                    const parentBlock = thinkingContentEl.closest('.thinking-block');
+                    if(parentBlock) parentBlock._rawThinkingContent = ''; 
+                } else {
+                    console.error("[WS] Stream: Failed to get thinkingContentEl immediately after ensureThinkingBoxExists.");
+                }
+                // ------------------------------------
             } else {
                 chunkToProcess = currentChunk; // Process entire chunk
                 currentChunk = '';
@@ -375,15 +395,35 @@ websocket.handleAssistantChunk = function(payload) {
         console.log(`[WS] Final chunk for message ${message_id}.`);
         messageElement.classList.add('message-finalized'); // Add final marker
 
-        // --- ADDED: Remove thinking spinner --- 
-        const thinkingSpinner = messageElement.querySelector('.thinking-spinner-icon');
-        if (thinkingSpinner) {
-            thinkingSpinner.remove();
-            console.log(`[WS] Removed thinking spinner for message ${message_id}.`);
-        }
-        // --- END ADDED ---
+        // --- UPDATED: Replace thinking spinner with static icon and update label --- 
+        const thinkingBlock = messageElement.querySelector('.thinking-block'); // Find parent block
+        if (thinkingBlock) {
+            const thinkingSpinner = thinkingBlock.querySelector('.thinking-spinner-icon');
+            const labelTextSpan = thinkingBlock.querySelector('.label-text');
 
-        // Ensure Model Info is present/updated in the footer 
+            if (thinkingSpinner) {
+                // Create the static SVG icon element
+                const staticIconSVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3 text-primary"><path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM8.25 7.5a.75.75 0 0 1 .75.75v2.5h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1-.75-.75V8.25a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd" /></svg>';
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = staticIconSVG;
+                const staticIconElement = tempDiv.firstChild;
+
+                if (staticIconElement) {
+                    thinkingSpinner.replaceWith(staticIconElement);
+                    console.log(`[WS] Replaced thinking spinner with static icon for message ${message_id}.`);
+                }
+            } else {
+                 console.log(`[WS] Final chunk: Thinking spinner not found for message ${message_id}.`);
+            }
+
+            if (labelTextSpan) {
+                 labelTextSpan.textContent = 'Thinking Process';
+                 console.log(`[WS] Updated label to "Thinking Process" for message ${message_id}.`);
+            }
+        }
+        // --- END UPDATED ---
+
+        // Ensure Model Info is present/updated in the footer
         if (model_id && timestampElement?.parentNode) {
             ui.addModelInfo(timestampElement.parentNode, model_id); 
         } else if (!model_id) {
@@ -428,56 +468,111 @@ websocket.handleAssistantChunk = function(payload) {
 
          // --- Update regenerate button state after final chunk ---
          ui.updateRegenerateButtonState();
+
+        // Update the content area of the thinking box or main content
+        if (thinkingContentEl && !is_final) {
+            // Append chunk to the temporary thinking box content
+            thinkingContentEl.innerHTML = marked.parse(messageElement._rawContent + '█', { gfm: true, breaks: true });
+        } else if (is_final) {
+            // When final, remove the temporary thinking box and render the full message
+            const tempThinkingBox = messageElement.querySelector('.thinking-content');
+            if (tempThinkingBox) {
+                console.log("[WebSocket] Removing temporary thinking box for final render:", message_id);
+                tempThinkingBox.remove();
+            }
+            
+            // Construct the final message object to pass to renderMessage
+            const finalMessageData = {
+                id: message_id,
+                chat_id: chat_id,
+                role: 'assistant',
+                content: messageElement.dataset.rawContent, // Use the full accumulated raw content from the dataset
+                model_id: model_id || messageElement.dataset.modelId, // Use ID from chunk or element
+                created_at: messageElement.querySelector('.timestamp')?.dataset.timestamp || new Date().toISOString(), // Use existing or now
+                tokens_used: tokens_used // Add token count if available in the final chunk (Needs API support)
+            };
+
+            // Defer the final render slightly to ensure temporary box removal is processed
+            setTimeout(() => {
+                console.log("[WebSocket] Rendering final message with ui.renderMessage (deferred):", message_id);
+                ui.renderMessage(finalMessageData);
+
+                // Clear the internal raw content dataset attribute after final render
+                // Note: _rawContent on contentElement was likely already deleted by updateTimestampAndFinalState
+                 if (messageElement.dataset.rawContent) { 
+                     delete messageElement.dataset.rawContent; // Clean up dataset attribute
+                 }
+
+            }, 0); // Delay of 0 ms, pushes execution to end of event loop
+        }
+
+        // Always scroll down if user hasn't scrolled up
+        if (shouldScroll) {
+            ui.scrollToBottom(chatHistory);
+        }
+    }
+};
+
+// NEW HELPER FUNCTION: Finalizes the thinking block UI
+websocket.finalizeThinkingBlock = function(message_id) {
+    const thinkingBlockId = `thinking-block-${message_id}`;
+    const thinkingBlock = document.getElementById(thinkingBlockId);
+    
+    if (thinkingBlock) {
+        console.log(`[WS Finalize Helper] Finalizing thinking block: ${thinkingBlockId}`);
+        
+        // Use requestAnimationFrame to ensure DOM is updated before searching/manipulating spinner
+        requestAnimationFrame(() => {
+            console.log(`[WS Finalize Helper] Running deferred finalization for ${thinkingBlockId}`);
+            const spinner = thinkingBlock.querySelector('.thinking-spinner-icon');
+            const labelText = thinkingBlock.querySelector('.label-text');
+
+            console.log(`[WS Finalize Helper - Deferred] Found spinner: ${!!spinner}`);
+            console.log(`[WS Finalize Helper - Deferred] Found label text: ${!!labelText}`);
+            
+            if (spinner) {
+                console.log(`[WS Finalize Helper - Deferred] Replacing spinner element with checkmark emoji for ${thinkingBlockId}`);
+                // Directly replace the spinner SVG element with the checkmark text node
+                spinner.replaceWith(document.createTextNode('✅ '));
+                console.log(`[WS Finalize Helper - Deferred] Spinner replaced with checkmark (check UI).`);
+            } else {
+                console.log(`[WS Finalize Helper - Deferred] Spinner element not found, cannot replace with checkmark.`);
+            }
+            if (labelText) {
+                // Keep label as "Thinking..." based on previous feedback
+                 console.log(`[WS Finalize Helper - Deferred] Skipping label text update to "Thinking Process".`);
+            }
+            thinkingBlock.dataset.status = 'final';
+
+            // Clean up temporary buffer if it exists (safe to do here)
+            if (thinkingBlock._rawThinkingContent) { 
+                delete thinkingBlock._rawThinkingContent; 
+            }
+        }); // End of requestAnimationFrame
+
+    } else {
+        console.log(`[WS Finalize Helper] No thinking block found with ID ${thinkingBlockId} to finalize.`);
     }
 };
 
 // Helper function to update timestamp and handle final state actions
-// Was previously in ui.js
+// Was previously in ui.js - NOW MOSTLY HANDLED WITHIN handleAssistantChunk
 websocket.updateTimestampAndFinalState = function(messageElement, contentElement, thinkingElement, is_final) {
-    const timestampSpan = messageElement.querySelector('.message-footer .timestamp'); // Target span in footer
-    if (timestampSpan) {
-        const modelInfoSpan = timestampSpan.querySelector('.model-info');
-        const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-        // Update the text node part of the timestamp span carefully
-        let textNode = timestampSpan.firstChild;
-        while (textNode && textNode.nodeType !== Node.TEXT_NODE) {
-            textNode = textNode.nextSibling;
-        }
-        if (textNode) {
-            textNode.nodeValue = timeString + (modelInfoSpan ? ' - ' : '');
-        } else {
-             // If no text node, prepend it (edge case)
-             timestampSpan.insertBefore(document.createTextNode(timeString + (modelInfoSpan ? ' - ' : '')), timestampSpan.firstChild);
-        }
+    // Update timestamp (happens on every chunk, including final)
+    const timestampSpan = messageElement.querySelector('.message-footer .timestamp');
+    if (timestampSpan) {
+        const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        timestampSpan.childNodes.forEach(node => {
+            if (node.nodeType === Node.TEXT_NODE) {
+                node.nodeValue = timeString + ' '; // Add space before potential badge
+            }
+        });
         timestampSpan.dataset.timestamp = new Date().toISOString();
     } else {
         console.warn("Could not find timestamp span in footer for message:", messageElement.id);
     }
 
-    if (is_final) {
-        console.log('Final chunk received for message:', messageElement.id);
-        if (isInsideThinkBlock) {
-            console.warn('[Debug] Final chunk received but still inside think block! Resetting state.');
-            isInsideThinkBlock = false;
-        }
-        // Apply syntax highlighting now
-        messageElement.querySelectorAll('.content pre code, .thinking-content-text pre code').forEach((block) => { // Highlight both areas
-            try {
-                // Ensure hljs is available (might need to check if loaded)
-                if (typeof hljs !== 'undefined') {
-                    hljs.highlightElement(block);
-                } else {
-                    console.warn("highlight.js (hljs) not available for highlighting.");
-                }
-            } catch (e) {
-                console.error("Highlight.js error:", e);
-            }
-        });
-        // Reset internal raw content accumulators (memory cleanup)
-        if (contentElement) { delete contentElement._rawContent; } // Use delete for custom props
-        if (thinkingElement) { delete thinkingElement._rawThinkingContent; }
-    }
 };
 
 // Function to send a message (if needed client-to-server later)
