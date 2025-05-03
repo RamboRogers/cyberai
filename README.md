@@ -26,7 +26,7 @@
 
 [Link to Video](https://x.com/rogerscissp/status/1917092440068047334)
 
-CyberAI is a powerful, secure multi-user chat platform that integrates multiple AI models through a cyberpunk-inspired terminal interface. Built with performance, security, and flexibility in mind, it provides a centralized interface for interacting with various language models.
+CyberAI is a powerful, secure multi-user chat platform that integrates multiple AI models through a cyberpunk-inspired terminal interface. Built with performance, security, and flexibility in mind, it provides a centralized interface for interacting with various language models, leveraging Retrieval-Augmented Generation (RAG) with web search and chat history to deliver more informed and contextually relevant responses.
 
 > The intention is to provide a sleek, secure, and efficient way to interact with AI language models through a unified interface.
 
@@ -56,7 +56,8 @@ CyberAI is a powerful, secure multi-user chat platform that integrates multiple 
         <li>Chat history preservation</li>
         <li>Multi-user concurrent chat sessions</li>
         <li>Smooth scrolling interface</li>
-        <li>Web search integration (Brave Search, Google CSE)</li>
+        <li>Retrieval-Augmented Generation (RAG) using web search results and conversation history for enhanced context and accuracy.</li>
+        <li>Integrated web search (Brave Search, Google CSE) to feed real-time data into RAG.</li>
       </ul>
     </td>
   </tr>
