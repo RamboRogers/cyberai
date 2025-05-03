@@ -90,6 +90,13 @@ CyberAI is a powerful, secure multi-user chat platform that integrates multiple 
   </tr>
 </table>
 
+## Todo 📋
+
+- [ ] Gated User Profile (Can only access Persona's)
+- [ ] Agents for Users (Persona's with special prompts!)
+- [ ] Agents with Tools (can do work)
+- [x] Search (Brave API and Google API)
+
 ## 🚀 Quick Start
 
 You can run CyberAI using Docker with either `docker run` or `docker-compose`.
