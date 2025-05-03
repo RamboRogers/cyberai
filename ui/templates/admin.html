@@ -59,7 +59,7 @@
          aria-label="sidebar navigation">
         <!-- Logo -->
         <div class="flex h-16 shrink-0 items-center justify-center px-4 border-b border-outline">
-             <a href="/" class="flex items-center gap-2 text-xl font-bold text-primary hover:opacity-80 transition-opacity">
+             <a href="https://github.com/ramborogers/cyberai" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-xl font-bold text-primary hover:opacity-80 transition-opacity no-underline">
                 <img class="h-8 w-auto" src="/static/images/cyberai.png" alt="">
                 <span>CyberAI</span>
              </a>
@@ -71,7 +71,7 @@
                 <li>
                     <a href="#" @click.prevent="activeSection = 'providers'; showSidebar = false"
                        :class="{ 'bg-surface-alt text-primary': activeSection === 'providers', 'text-on-surface hover:bg-surface-alt hover:text-primary': activeSection !== 'providers' }"
-                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6">
+                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 no-underline">
                         <!-- Icon (Example: Adjust as needed) -->
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.58.22-2.325.418C2.92 4.801 2 5.554 2 6.5V12a2.5 2.5 0 0 0 2.5 2.5h11A2.5 2.5 0 0 0 18 12V6.5c0-.946-.92-1.699-1.675-1.889a18.225 18.225 0 0 0-2.325-.418v-.443A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 6c.552 0 1 .448 1 1v1a1 1 0 1 1-2 0V7c0-.552.448-1 1-1Z"/><path d="M4.5 10.5a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11Z"/></svg>
                         Providers
@@ -80,7 +80,7 @@
                 <li>
                     <a href="#" @click.prevent="activeSection = 'models'; showSidebar = false"
                        :class="{ 'bg-surface-alt text-primary': activeSection === 'models', 'text-on-surface hover:bg-surface-alt hover:text-primary': activeSection !== 'models' }"
-                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6">
+                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 no-underline">
                         <!-- Icon (Example: Adjust as needed) -->
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path fill-rule="evenodd" d="M5.5 2.75a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5a.75.75 0 0 1 .75-.75Zm2.5 6a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5a.75.75 0 0 1 .75-.75Zm4.5.75a.75.75 0 0 0-1.5 0v1.5a.75.75 0 0 0 1.5 0v-1.5ZM12 6.5a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 12 6.5ZM5 8a.75.75 0 0 0-1.5 0v1.5A.75.75 0 0 0 5 9.5v-1.5Zm4.75.75a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5a.75.75 0 0 1 .75-.75Zm2 2.75a.75.75 0 0 0-1.5 0v1.5a.75.75 0 0 0 1.5 0v-1.5Z" clip-rule="evenodd"/><path d="M9.762 2.093a.75.75 0 0 1-.193.518l-1.41 1.411a.75.75 0 0 1-1.061 0l-.429-.43a.75.75 0 1 1 1.06-1.06l.43.429 1.41-1.41a.75.75 0 0 1 .519-.194Z"/><path d="M14.79 6.865a.75.75 0 0 0-.518.193l-1.41 1.41a.75.75 0 1 0 1.06 1.06l.43-.429 1.41 1.41a.75.75 0 1 0 1.06-1.06l-1.41-1.41a.75.75 0 0 0-.541-.193Z"/><path d="M16 3a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h12Zm-1.25 1.75H5.25V15.25h9.5V4.75Z"/></svg>
                         Models
@@ -89,7 +89,7 @@
                  <li>
                     <a href="#" @click.prevent="activeSection = 'users'; showSidebar = false"
                        :class="{ 'bg-surface-alt text-primary': activeSection === 'users', 'text-on-surface hover:bg-surface-alt hover:text-primary': activeSection !== 'users' }"
-                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6">
+                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 no-underline">
                         <!-- Icon (Example: Adjust as needed) -->
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.25 1.25 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.095a1.25 1.25 0 0 0 .41-1.412A9.972 9.972 0 0 0 10 13c-2.309 0-4.437.784-6.135 2.093Z"/></svg>
                         Users
@@ -98,7 +98,7 @@
                  <li>
                     <a href="#" @click.prevent="activeSection = 'roles'; showSidebar = false"
                        :class="{ 'bg-surface-alt text-primary': activeSection === 'roles', 'text-on-surface hover:bg-surface-alt hover:text-primary': activeSection !== 'roles' }"
-                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6">
+                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 no-underline">
                          <!-- Icon (Example: Adjust as needed) -->
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path fill-rule="evenodd" d="M15.988 3.012A2.25 2.25 0 0 1 18 5.25v7.5A2.25 2.25 0 0 1 15.75 15h-6a.75.75 0 0 1-.75-.75V12.75a.75.75 0 0 1 1.5 0V13.5h5.25a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75H9V6a.75.75 0 0 1-1.5 0V4.5A.75.75 0 0 1 8.25 3.75h7.738ZM6 4.5a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 .75.75v.01a.75.75 0 0 1-.75.75H6.75a.75.75 0 0 1-.75-.75V4.5Zm4.5 1.5a.75.75 0 0 0-.75.75v.01c0 .414.336.75.75.75h.01a.75.75 0 0 0 .75-.75V7.5a.75.75 0 0 0-.75-.75H10.5a.75.75 0 0 1-.75.75v.01c0 .414.336.75.75.75h.01a.75.75 0 0 0 .75-.75V10.5a.75.75 0 0 0-.75-.75H10.5Z" clip-rule="evenodd"/></svg>
                         Roles
@@ -108,7 +108,7 @@
                 <li>
                     <a href="#" @click.prevent="activeSection = 'search'; showSidebar = false"
                        :class="{ 'bg-surface-alt text-primary': activeSection === 'search', 'text-on-surface hover:bg-surface-alt hover:text-primary': activeSection !== 'search' }"
-                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6">
+                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 no-underline">
                         <!-- Search Icon -->
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" /></svg>
                         Search
@@ -124,7 +124,7 @@
             <ul class="space-y-1">
                 <li>
                     <a href="/admin"
-                       class="bg-surface-alt text-primary group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6" aria-current="page">
+                       class="bg-surface-alt text-primary group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 no-underline" aria-current="page">
                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path fill-rule="evenodd" d="M11.49 3.17c.38-1.56 2.64-1.56 3.02 0l.6 2.45a.75.75 0 0 0 .7.49l2.53.37c1.6.24 2.23 2.2 1.08 3.31l-1.83 1.78a.75.75 0 0 0-.22.79l.43 2.52c.27 1.6-.39 2.94-1.8 2.18l-2.26-1.19a.75.75 0 0 0-.76 0l-2.26 1.19c-1.4.76-2.07-.58-1.8-2.18l.43-2.52a.75.75 0 0 0-.22-.79L3.4 9.79c-1.15-1.1-.52-3.07 1.08-3.31l2.53-.37a.75.75 0 0 0 .7-.49l.6-2.45Z" clip-rule="evenodd" /></svg>
                        Admin
                     </a>
@@ -136,7 +136,7 @@
             <ul class="mt-auto space-y-1 pb-4">
                 <li>
                     <a href="/"
-                       class="text-on-surface hover:bg-surface-alt hover:text-primary group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6">
+                       class="text-on-surface hover:bg-surface-alt hover:text-primary group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 no-underline">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path fill-rule="evenodd" d="M9.293 2.293a1 1 0 0 1 1.414 0l7 7A1 1 0 0 1 17 11h-1v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-.707-1.707l7-7Z" clip-rule="evenodd" /></svg>
                         Home
                     </a>
@@ -191,7 +191,7 @@
         </div>
 
         <!-- The actual page content -->
-        <main id="main-content" class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+        <main id="main-content" class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 flex-grow">
             <!-- Original tab content container (was div with x-data) -->
             <div class="w-full">
                 <!-- Content sections now controlled by x-show="activeSection === '...'" -->
@@ -270,6 +270,15 @@
 
             </div>
         </main>
+
+        <footer class="mt-auto py-4 px-4 md:px-6 lg:px-8 text-center text-xs text-on-surface/60 border-t border-outline bg-surface">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-2">
+                <span>🔒 CyberAI - Secure Multi-Model AI Chat Platform 🤖</span>
+                <span>© 2024 <a href="https://github.com/RamboRogers" target="_blank" rel="noopener noreferrer" class="link-subtle font-semibold">@RamboRogers</a> (GitHub) / <a href="https://x.com/RogersCISSP" target="_blank" rel="noopener noreferrer" class="link-subtle font-semibold">@RogersCISSP</a> (X)</span>
+                <span>License: <a href="https://github.com/RamboRogers/cyberai/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" class="link-subtle font-semibold">GPLv3</a></span>
+            </div>
+        </footer>
+
     </div>
 
     <!-- Modals remain outside the main content flow -->
@@ -784,10 +793,6 @@
     <div id="ollama-import-modal" class="modal">
         <!-- Restyle this if kept, using similar structure as other modals -->
     </div>
-
-    <footer class="mt-12 py-4 text-center text-sm text-gray-500 border-t border-outline">
-        CyberAI - Secure Multi-Model AI Chat Platform
-    </footer>
 
     <!-- Penguin UI Toast Notification Container -->
     <div x-data="{

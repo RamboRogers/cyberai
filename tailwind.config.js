@@ -38,8 +38,23 @@ module.exports = {
       },
       // Optional: Map fonts and radius if you want Tailwind classes for them
       fontFamily: {
-          mono: ['var(--font-mono)', 'monospace'], // Example
-          // sans: ['Your Sans Font', 'sans-serif'] // Example
+          mono: ['var(--font-mono)', 'monospace'], // Use the variable defined in admin.css
+          sans: [ // Add Tailwind's default sans-serif stack
+            'ui-sans-serif', 
+            'system-ui', 
+            '-apple-system', 
+            'BlinkMacSystemFont', 
+            '"Segoe UI"', 
+            'Roboto', 
+            '"Helvetica Neue"', 
+            'Arial', 
+            '"Noto Sans"', 
+            'sans-serif', 
+            '"Apple Color Emoji"', 
+            '"Segoe UI Emoji"', 
+            '"Segoe UI Symbol"', 
+            '"Noto Color Emoji"'
+          ],
       },
       borderRadius: {
           DEFAULT: 'var(--radius-radius)', // Example
@@ -68,6 +83,17 @@ module.exports = {
           'outline-offset': '2px',
           'box-shadow': '0 0 0 2px var(--bg-color), 0 0 0 4px var(--accent-color)',
           'border-radius': '2px',
+        },
+        // Ensure pre and code blocks use the monospace font
+        'pre, code, kbd, samp': {
+          'font-family': theme('fontFamily.mono'),
+        },
+        'pre': {
+          'overflow-x': 'auto', // Ensure pre blocks can scroll horizontally
+          'padding': theme('padding.4'), // Add some padding
+          'background-color': 'var(--color-surface-alt)', // Use alt surface for contrast
+          'border-radius': theme('borderRadius.DEFAULT'), // Use default border radius
+          'border': '1px solid var(--color-outline)', // Add subtle border
         }
       });
       

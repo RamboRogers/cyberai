@@ -24,7 +24,7 @@
     <!-- Potentially add Alpine plugins if needed later (e.g., Collapse for sidebar sections) -->
     <!-- <script defer src="/static/js/alpine-collapse.min.js"></script> -->
 </head>
-<body class="h-full text-on-surface font-mono bg-surface" x-data="{ showSidebar: false }">
+<body class="h-full text-on-surface font-sans bg-surface" x-data="{ showSidebar: false }">
     <!-- Grid overlay (Optional - keep if desired, style with CSS) -->
     <!-- <div class="grid-overlay"></div> -->
 
@@ -50,8 +50,10 @@
 
         <!-- Logo / Title -->
         <div class="flex h-16 shrink-0 items-center gap-x-2 justify-center px-4 border-b border-outline">
-            <img class="h-8 w-auto" src="/static/images/cyberai.png" alt="CyberAI Logo">
-            <span class="text-xl font-bold text-primary">CyberAI</span>
+            <a href="https://github.com/ramborogers/cyberai" target="_blank" rel="noopener noreferrer" class="flex items-center gap-x-2 text-xl font-bold text-primary hover:opacity-80 transition-opacity no-underline">
+                <img class="h-8 w-auto" src="/static/images/cyberai.png" alt="CyberAI Logo">
+                <span class="text-xl font-bold text-primary">CyberAI</span>
+            </a>
             </div>
 
         <!-- Navigation Content -->

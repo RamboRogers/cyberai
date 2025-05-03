@@ -103,20 +103,31 @@ api.fetchChats = async function() {
         const fetchedChats = await response.json();
         // Update global state
         chatsList = fetchedChats;
-        ui.renderChatsList(chatsList);
 
-        // If no current chat ID is set OR the current chat ID no longer exists,
-        // load the first chat or create a new one.
-        const currentChatExists = chatsList.some(chat => chat.id === currentChatId);
-        if (!currentChatId || !currentChatExists) {
+        // *** Load activeChatId from localStorage BEFORE rendering the list ***
+        currentChatId = parseInt(localStorage.getItem('activeChatId'), 10) || null;
+        console.log(`[API FetchChats] Loaded activeChatId from localStorage: ${currentChatId}`);
+
+        ui.renderChatsList(chatsList); // Render the list (this calls updateActiveChatUI internally)
+
+        // If a valid chat ID was loaded from storage and exists, ensure its messages are loaded.
+        const currentChatExists = currentChatId && chatsList.some(chat => chat.id === currentChatId);
+        if (currentChatExists) {
+             console.log(`[API FetchChats] Active chat ${currentChatId} exists, ensuring messages are loaded.`);
+             // Check if chat content is already loaded? For now, call loadChat to ensure consistency.
+             api.loadChat(currentChatId); 
+        } else if (!currentChatId || !currentChatExists) {
+             // If no valid ID was loaded, or it doesn't exist anymore...
              if (chatsList.length > 0) {
-                 console.log("No active chat or previous chat deleted, loading first chat:", chatsList[0].id);
-                api.loadChat(chatsList[0].id);
-            } else {
-                 console.log("No chats found, preparing new chat UI.");
-                api.prepareNewChat();
-            }
-        }
+                 console.log("[API FetchChats] No valid active chat found, loading first chat:", chatsList[0].id);
+                 currentChatId = chatsList[0].id; // Update global var
+                 localStorage.setItem('activeChatId', currentChatId); // ** Save the new active chat ID
+                 api.loadChat(currentChatId);
+             } else {
+                 console.log("[API FetchChats] No chats found, preparing new chat UI.");
+                 api.prepareNewChat(); // This will also clear localStorage
+             }
+         } // else: currentChatId exists, no need to load first/new
 
         return chatsList;
     } catch (error) {
@@ -128,41 +139,42 @@ api.fetchChats = async function() {
 
 // Load a specific chat by ID
 api.loadChat = async function(chatId) {
-    if (!chatId || chatId === currentChatId) {
-         console.log(`Skipping loadChat: chatId=${chatId}, currentChatId=${currentChatId}`);
-         // Ensure UI is active even if we skip full load
-         document.querySelectorAll('.chat-item').forEach(item => {
-            item.classList.toggle('active', item.dataset.chatId == chatId);
-        });
-         return; // Don't reload if already active
+    // Remove check against currentChatId to allow re-loading if needed, 
+    // but prevent infinite loops if loadChat calls itself indirectly
+    if (!chatId) { 
+         console.log(`Skipping loadChat: invalid chatId=${chatId}`);
+         return; 
     }
-     console.log(`Loading chat: ${chatId}`);
+    console.log(`Loading chat: ${chatId}`);
+    localStorage.setItem('activeChatId', chatId); // ** Save active chat ID on load attempt **
+
     try {
         const response = await fetch(`/api/chats/${chatId}`);
         if (!response.ok) {
             if (response.status === 404) {
                 console.warn(`Chat ${chatId} not found. Creating new chat.`);
                 ui.showNotification(`Chat ${chatId} not found.`, 'info');
-                // Reset currentChatId and create a new one
+                localStorage.removeItem('activeChatId'); // Remove invalid ID
                 currentChatId = null;
-                await api.createNewChat(); // Calls function in this file
+                await api.createNewChat(); 
                 return;
             }
             throw new Error(`HTTP error ${response.status}`);
         }
 
         const chat = await response.json();
-        currentChatId = chat.id; // Update global state
+        currentChatId = chat.id; // Update global state AFTER successful load
 
         // Update chat title in UI
-        if (chatTitle) { // chatTitle is global DOM element
+        if (chatTitle) { 
             chatTitle.textContent = chat.title || 'Untitled Chat';
         }
 
-        // Update active chat in the list UI
-        document.querySelectorAll('.chat-item').forEach(item => {
-             item.classList.toggle('active', item.dataset.chatId == chatId);
-        });
+        // Update active chat in the list UI (now handled by ui.updateActiveChatUI)
+        // document.querySelectorAll('.chat-item').forEach(item => {
+        //      item.classList.toggle('active', item.dataset.chatId == chatId);
+        // });
+        ui.updateActiveChatUI(); // Ensure highlight is correct
 
         // Clear existing messages UI
         ui.clearChatHistory();
@@ -179,7 +191,8 @@ api.loadChat = async function(chatId) {
                 }
             });
         } else {
-            // No notification needed on successful load
+            // No messages, maybe add a system message?
+            // ui.addSystemMessage("Chat loaded, but no messages yet.", 'info'); 
         }
 
         // --- Update regenerate button state after loading ---
@@ -188,10 +201,9 @@ api.loadChat = async function(chatId) {
     } catch (error) {
         console.error('Error loading chat:', error);
         ui.showNotification(`Error loading chat: ${error.message}`, 'error');
-        // Attempt to recover by creating a new chat?
+        localStorage.removeItem('activeChatId'); // Remove invalid ID on error
         currentChatId = null;
-        await api.createNewChat();
-        // Also update button state in case of error leading to new chat
+        await api.createNewChat(); // Attempt to recover
         ui.updateRegenerateButtonState();
     }
 };
@@ -200,6 +212,7 @@ api.loadChat = async function(chatId) {
 api.prepareNewChat = function() {
     console.log("Preparing new chat state...");
     currentChatId = null; // Indicate a new, unsaved chat
+    localStorage.removeItem('activeChatId'); // ** Clear active chat ID **
 
     // Update chat title UI
     if (chatTitle) {
@@ -278,6 +291,7 @@ api.createNewChat = async function(firstMessageContent = null) {
         // Successfully created chat
         console.log('[API] New chat created successfully:', chatData);
         currentChatId = chatData.id; // UPDATE global currentChatId
+        localStorage.setItem('activeChatId', currentChatId); // ** Save active chat ID **
         
         // Update UI
         if (chatTitle) {
@@ -445,6 +459,7 @@ api.sendMessage = async function() {
             // Successfully created chat
             console.log('[API] New chat created successfully:', chatData);
             currentChatId = chatData.id; // UPDATE global currentChatId
+            localStorage.setItem('activeChatId', currentChatId); // ** Save active chat ID **
 
             // Update the temporary user message with the real ID 
             const initialUserMessage = chatData.messages?.find(m => m.role === 'user');
@@ -652,6 +667,7 @@ api.confirmDeleteChat = async function(chatId, chatTitle, confirmationEl) {
         // If we deleted the current chat, update state and load/create new
         if (chatId === currentChatId) {
             currentChatId = null; // Reset global state
+            localStorage.removeItem('activeChatId'); // ** Clear active chat ID **
             ui.clearChatHistory(); // Clear UI
             await api.fetchChats(); // Fetch remaining chats, will load first or create new
         } else {
@@ -693,6 +709,7 @@ api.confirmPurgeChats = async function(confirmationEl) {
 
         // Reset state and UI
         currentChatId = null; // Reset global state
+        localStorage.removeItem('activeChatId'); // ** Clear active chat ID **
         ui.clearChatHistory(); // Clear UI
         await api.fetchChats(); // Fetch (should be empty), will trigger createNewChat
 
