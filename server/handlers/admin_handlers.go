@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,27 +13,34 @@ import (
 	"strings"
 
 	"github.com/ramborogers/cyberai/server/db"
+	"github.com/ramborogers/cyberai/server/llm"
 	"github.com/ramborogers/cyberai/server/middleware"
 	"github.com/ramborogers/cyberai/server/models"
 )
 
 // AdminHandlers provides handlers for admin-related endpoints
 type AdminHandlers struct {
-	ModelService    *models.ModelService
-	ProviderService *models.ProviderService
-	UserService     *models.UserService
-	DB              *db.DB
-	TemplatesFS     fs.FS
+	ModelService      *models.ModelService
+	ProviderService   *models.ProviderService
+	UserService       *models.UserService
+	DB                *db.DB
+	TemplatesFS       fs.FS
+	searchProviderSvc *models.SearchProviderService
+	roleSvc           *models.RoleService
+	connectorSvc      *llm.ConnectorService
 }
 
-// NewAdminHandlers creates a new instance of AdminHandlers
-func NewAdminHandlers(database *db.DB, templatesFS fs.FS) *AdminHandlers {
+// NewAdminHandlers creates a new AdminHandlers instance
+func NewAdminHandlers(database *db.DB, templates fs.FS, providerSvc *models.ProviderService, modelSvc *models.ModelService, userSvc *models.UserService, roleSvc *models.RoleService, connectorSvc *llm.ConnectorService, searchProviderSvc *models.SearchProviderService) *AdminHandlers {
 	return &AdminHandlers{
-		ModelService:    models.NewModelService(database),
-		ProviderService: models.NewProviderService(database),
-		UserService:     models.NewUserService(database),
-		DB:              database,
-		TemplatesFS:     templatesFS,
+		DB:                database,
+		TemplatesFS:       templates,
+		ProviderService:   providerSvc,
+		ModelService:      modelSvc,
+		UserService:       userSvc,
+		roleSvc:           roleSvc,
+		connectorSvc:      connectorSvc,
+		searchProviderSvc: searchProviderSvc,
 	}
 }
 
@@ -67,6 +75,13 @@ func (h *AdminHandlers) RegisterAdminRoutes(mux *http.ServeMux, adminRequired fu
 	mux.Handle("PUT /providers/{id}", adminRequired(http.HandlerFunc(h.UpdateProvider)))
 	mux.Handle("DELETE /providers/{id}", adminRequired(http.HandlerFunc(h.DeleteProvider)))
 	mux.Handle("POST /providers/{id}/sync", adminRequired(http.HandlerFunc(h.SyncProviderModels)))
+
+	// Search Providers (relative to /admin/)
+	mux.Handle("GET /search-providers", adminRequired(http.HandlerFunc(h.ListSearchProviders)))
+	mux.Handle("POST /search-providers", adminRequired(http.HandlerFunc(h.CreateSearchProvider)))
+	mux.Handle("GET /search-providers/{id}", adminRequired(http.HandlerFunc(h.GetSearchProvider)))
+	mux.Handle("PUT /search-providers/{id}", adminRequired(http.HandlerFunc(h.UpdateSearchProvider)))
+	mux.Handle("DELETE /search-providers/{id}", adminRequired(http.HandlerFunc(h.DeleteSearchProvider)))
 }
 
 // serveFileFromFS serves a file from the embedded filesystem
@@ -861,6 +876,240 @@ func (h *AdminHandlers) SyncProviderModels(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
+
+// --- NEW: Search Provider Handlers ---
+
+// ListSearchProviders handles GET /api/admin/search-providers
+func (h *AdminHandlers) ListSearchProviders(w http.ResponseWriter, r *http.Request) {
+	providers, err := h.searchProviderSvc.GetAllSearchProviders()
+	if err != nil {
+		log.Printf("Error getting search providers: %v", err)
+		http.Error(w, "Failed to retrieve search providers", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(providers)
+}
+
+// CreateSearchProvider handles POST /api/admin/search-providers
+func (h *AdminHandlers) CreateSearchProvider(w http.ResponseWriter, r *http.Request) {
+	// Define a temporary struct to decode the full request including API key
+	type createPayload struct {
+		Name           string                    `json:"name"`
+		Type           models.SearchProviderType `json:"type"`
+		APIKey         string                    `json:"api_key"` // No json:"-" here
+		SearchEngineID sql.NullString            `json:"search_engine_id"`
+		IsDefault      bool                      `json:"is_default"`
+	}
+
+	var payload createPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Printf("Error decoding create search provider request: %v", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Basic Validation using the payload
+	if payload.Name == "" || payload.Type == "" {
+		http.Error(w, "Missing required fields: name, type", http.StatusBadRequest)
+		return
+	}
+	if payload.Type != models.SearchProviderBrave && payload.Type != models.SearchProviderGoogleCSE {
+		http.Error(w, "Invalid provider type", http.StatusBadRequest)
+		return
+	}
+	if payload.APIKey == "" { // Validate the received API key
+		http.Error(w, "API Key is required", http.StatusBadRequest)
+		return
+	}
+	if payload.Type == models.SearchProviderGoogleCSE && !payload.SearchEngineID.Valid {
+		http.Error(w, "Search Engine ID (CX) is required for Google CSE", http.StatusBadRequest)
+		return
+	}
+
+	// Create the actual model struct, transferring validated data
+	sp := models.SearchProvider{
+		Name:           payload.Name,
+		Type:           payload.Type,
+		APIKey:         payload.APIKey, // Transfer the received key
+		SearchEngineID: payload.SearchEngineID,
+		IsDefault:      payload.IsDefault,
+	}
+
+	newID, err := h.searchProviderSvc.CreateSearchProvider(&sp)
+	if err != nil {
+		log.Printf("Error creating search provider: %v", err)
+		// Check for specific errors like unique constraint if needed
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			http.Error(w, fmt.Sprintf("Search Provider name '%s' already exists", sp.Name), http.StatusConflict)
+		} else {
+			http.Error(w, "Failed to create search provider", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	sp.ID = newID
+	// sp.APIKey is automatically excluded from JSON response due to the tag in models.SearchProvider
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(sp) // Encode the model struct (APIKey is ignored thanks to json:"-")
+}
+
+// GetSearchProvider handles GET /api/admin/search-providers/{id}
+func (h *AdminHandlers) GetSearchProvider(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid search provider ID", http.StatusBadRequest)
+		return
+	}
+
+	sp, err := h.searchProviderSvc.GetSearchProviderByID(id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, "Search provider not found", http.StatusNotFound)
+		} else {
+			log.Printf("Error getting search provider by ID %d: %v", id, err)
+			http.Error(w, "Failed to retrieve search provider", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	sp.APIKey = "" // Clear API key before responding
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(sp)
+}
+
+// UpdateSearchProvider handles PUT /api/admin/search-providers/{id}
+func (h *AdminHandlers) UpdateSearchProvider(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid search provider ID", http.StatusBadRequest)
+		return
+	}
+
+	// Define a temporary struct to decode the request, including optional API key
+	type updatePayload struct {
+		Name string `json:"name"` // Assume name might be updated
+		// Type cannot be changed, so it's not needed here
+		APIKey         *string        `json:"api_key,omitempty"` // Use pointer to detect if key was provided
+		SearchEngineID sql.NullString `json:"search_engine_id"`  // Include directly
+		IsDefault      bool           `json:"is_default"`        // Use bool directly
+	}
+
+	var payload updatePayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Printf("Error decoding update search provider request: %v", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch existing provider to merge updates
+	existingProvider, err := h.searchProviderSvc.GetSearchProviderByID(id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, "Search provider not found", http.StatusNotFound)
+		} else {
+			log.Printf("Error getting search provider %d for update: %v", id, err)
+			http.Error(w, "Failed to retrieve search provider for update", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Apply updates from payload to the existing provider struct
+	updated := false
+	if payload.Name != "" && payload.Name != existingProvider.Name { // Only update if name is provided and different
+		existingProvider.Name = payload.Name
+		updated = true
+	}
+	if payload.APIKey != nil && *payload.APIKey != "" { // Update API key only if provided and not empty
+		log.Printf("API Key provided in update payload for search provider %d", id)
+		existingProvider.APIKey = *payload.APIKey
+		updated = true
+	} else {
+		log.Printf("API Key NOT provided or empty in update payload for search provider %d, preserving existing.", id)
+		// Keep existingProvider.APIKey as it is (already fetched)
+	}
+	if existingProvider.Type == models.SearchProviderGoogleCSE {
+		// Update SearchEngineID if it differs (treat empty string from payload as unset)
+		payloadSEID := payload.SearchEngineID.String // Get value from NullString
+		existingSEID := existingProvider.SearchEngineID.String
+		if payload.SearchEngineID.Valid && payloadSEID != existingSEID {
+			existingProvider.SearchEngineID = payload.SearchEngineID
+			updated = true
+		} else if !payload.SearchEngineID.Valid && existingProvider.SearchEngineID.Valid { // Handle unsetting
+			existingProvider.SearchEngineID = sql.NullString{Valid: false}
+			updated = true
+		}
+	} else {
+		existingProvider.SearchEngineID = sql.NullString{Valid: false}
+	}
+	if payload.IsDefault != existingProvider.IsDefault {
+		existingProvider.IsDefault = payload.IsDefault
+		updated = true
+	}
+
+	if !updated {
+		log.Printf("No changes detected for search provider %d. Skipping update.", id)
+		// Return current state (without API key)
+		existingProvider.APIKey = ""
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(existingProvider)
+		return
+	}
+
+	// Call the service update method with the merged struct (which includes the API key)
+	err = h.searchProviderSvc.UpdateSearchProvider(existingProvider)
+	if err != nil {
+		log.Printf("Error updating search provider %d: %v", id, err)
+		// Check for specific errors like unique constraint
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			http.Error(w, fmt.Sprintf("Search Provider name '%s' already exists", existingProvider.Name), http.StatusConflict)
+		} else {
+			http.Error(w, "Failed to update search provider", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Fetch the provider again to return the updated state (without API key)
+	updatedProvider, err := h.searchProviderSvc.GetSearchProviderByID(id)
+	if err != nil { // Should not happen often, but good practice
+		log.Printf("Error fetching updated search provider %d: %v", id, err)
+		http.Error(w, "Failed to retrieve updated search provider state", http.StatusInternalServerError)
+		return
+	}
+
+	// APIKey is already excluded by the model's MarshalJSON
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(updatedProvider)
+}
+
+// DeleteSearchProvider handles DELETE /api/admin/search-providers/{id}
+func (h *AdminHandlers) DeleteSearchProvider(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid search provider ID", http.StatusBadRequest)
+		return
+	}
+
+	err = h.searchProviderSvc.DeleteSearchProvider(id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, "Search provider not found", http.StatusNotFound)
+		} else {
+			log.Printf("Error deleting search provider %d: %v", id, err)
+			http.Error(w, "Failed to delete search provider", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// --- End Search Provider Handlers ---
 
 // --- Helper functions (e.g., for parsing requests, sending responses) ---
 // Could be added here or in a separate utils package if they grow complex

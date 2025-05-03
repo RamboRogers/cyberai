@@ -14,6 +14,7 @@ let isInsideThinkBlock = false; // WebSocket message handling state (websocket.j
 const chatHistory = document.getElementById('chat-history');
 const messageInput = document.getElementById('message-input');
 const sendButton = document.getElementById('send-button');
+const searchButton = document.getElementById('search-button');
 // const modelsListContainer = document.getElementById('models-list'); // Removed - Replaced by dropdowns
 const chatsListContainer = document.getElementById('chats-list');   // UL element
 const newChatButton = document.getElementById('new-chat-button'); // A tag
@@ -63,6 +64,31 @@ chat.startNewChat = function() {
 }
 
 /**
+ * Handles the search button click, initiating a web search with AI processing.
+ */
+chat.searchWeb = function() {
+    const query = messageInput.value.trim();
+    if (!query) {
+        ui.showNotification('Please enter a search query', 'warning');
+        return;
+    }
+    
+    if (!activeModel) {
+        ui.showNotification('Please select a model first', 'warning');
+        return;
+    }
+    
+    api.searchAndChat(query, activeModel)
+        .then(() => {
+            // Clear input after successful search
+            messageInput.value = '';
+        })
+        .catch(error => {
+            console.error('Search error:', error);
+        });
+};
+
+/**
  * Initializes the chat application: sets up event listeners, fetches initial data.
  */
 chat.initChat = function() {
@@ -70,9 +96,20 @@ chat.initChat = function() {
     if (sendButton) {
         sendButton.addEventListener('click', api.sendMessage);
     }
+    if (searchButton) {
+        searchButton.addEventListener('click', chat.searchWeb);
+    }
     if (messageInput) {
         messageInput.addEventListener('keyup', function(event) {
             if (event.key === 'Enter') {
+                // If Shift key is pressed, trigger search
+                if (event.shiftKey) {
+                    event.preventDefault();
+                    chat.searchWeb();
+                    return;
+                }
+                
+                // Regular Enter for normal send
                 api.sendMessage();
             }
         });

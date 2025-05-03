@@ -22,6 +22,83 @@
     padding: 0;
 }
 
+/* Global link styling - Base styles for all links */
+a {
+    color: var(--accent-color);
+    text-decoration: underline;
+    transition: color 0.2s, text-decoration 0.2s, box-shadow 0.2s;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+a:hover {
+    color: var(--secondary-color);
+    text-decoration: underline;
+}
+
+/* Focus state for better accessibility */
+a:focus {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--bg-color), 0 0 0 4px var(--accent-color);
+    border-radius: 2px;
+}
+
+/* Icon links */
+a.link-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+a.link-icon svg {
+    width: 1em;
+    height: 1em;
+    transition: transform 0.2s;
+}
+
+a.link-icon:hover svg {
+    transform: translateX(2px);
+}
+
+/* Button links */
+a.link-button {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background-color: var(--tertiary-color);
+    color: var(--text-color);
+    text-decoration: none;
+    border-radius: 3px;
+    font-weight: bold;
+    box-shadow: 0 0 5px rgba(0, 255, 102, 0.3);
+    justify-content: center;
+}
+
+a.link-button:hover {
+    background-color: var(--secondary-color);
+    color: var(--bg-color);
+    box-shadow: 0 0 10px rgba(0, 255, 102, 0.5);
+}
+
+/* Subtle links with animated underline */
+a.link-subtle {
+    text-decoration: none;
+    background-image: linear-gradient(var(--accent-color), var(--accent-color));
+    background-position: 0% 100%;
+    background-repeat: no-repeat;
+    background-size: 0% 2px;
+    transition: background-size 0.3s, color 0.2s;
+    padding-bottom: 2px;
+}
+
+a.link-subtle:hover {
+    text-decoration: none;
+    background-size: 100% 2px;
+}
+
 body {
     font-family: 'Tinos', serif;
     background-color: var(--bg-color);
@@ -426,12 +503,14 @@ body {
 
 .content a {
     color: var(--accent-color);
-    text-decoration: none;
-    border-bottom: 1px dotted var(--accent-color);
+    text-decoration: underline;
+    border-bottom: none;
 }
 
 .content a:hover {
-    border-bottom: 1px solid var(--accent-color);
+    color: var(--secondary-color);
+    text-decoration: underline;
+    border-bottom: none;
 }
 
 .content ul, .content ol {

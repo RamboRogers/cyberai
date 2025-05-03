@@ -353,6 +353,111 @@ Authentication/Authorization: *TODO: All admin routes should require administrat
         *   `500 Internal Server Error`: Failed to delete model (e.g., model not found, DB error).
 
 
+### Search Providers
+
+*   **`GET /api/admin/search-providers`**
+    *   **Implementation**: `server/handlers/admin_handlers.go`
+    *   Description: Retrieves a list of all configured Search Providers.
+    *   Response Body (`application/json`): Array of SearchProvider objects (APIKey excluded).
+        ```json
+        [
+          {
+            "id": 1,
+            "name": "Brave Search",
+            "type": "brave",
+            "search_engine_id": null, // Null for Brave
+            "is_default": true,
+            "created_at": "2024-08-02T10:00:00Z",
+            "updated_at": "2024-08-02T10:00:00Z"
+          },
+          {
+            "id": 2,
+            "name": "Google Site Search",
+            "type": "google_cse",
+            "search_engine_id": "YOUR_CX_ID",
+            "is_default": false,
+            "created_at": "2024-08-02T11:00:00Z",
+            "updated_at": "2024-08-02T11:00:00Z"
+          }
+          // ... more providers
+        ]
+        ```
+    *   Status Codes:
+        *   `200 OK`: Success.
+        *   `500 Internal Server Error`: Failed to retrieve providers.
+
+*   **`POST /api/admin/search-providers`**
+    *   **Implementation**: `server/handlers/admin_handlers.go`
+    *   Description: Creates a new Search Provider configuration. Supported types: `brave`, `google_cse`.
+    *   Request Body (`application/json`): SearchProvider object.
+        ```json
+        {
+          "name": "My Brave Search",
+          "type": "brave", // or "google_cse"
+          "api_key": "YOUR_BRAVE_API_KEY",
+          "search_engine_id": null, // Only for google_cse
+          "is_default": false
+        }
+        ```
+        ```json
+        {
+          "name": "My Google Search",
+          "type": "google_cse", 
+          "api_key": "YOUR_GOOGLE_API_KEY",
+          "search_engine_id": "YOUR_CX_ID", // Required for google_cse
+          "is_default": true
+        }
+        ```
+    *   Response Body (`application/json`): The created SearchProvider object (APIKey excluded).
+    *   Status Codes:
+        *   `201 Created`: Success.
+        *   `400 Bad Request`: Invalid request body, missing required fields, or invalid type.
+        *   `409 Conflict`: Provider name already exists.
+        *   `500 Internal Server Error`: Failed to create provider (e.g., DB error, failed to handle default flag logic).
+
+*   **`GET /api/admin/search-providers/{id}`**
+    *   **Implementation**: `server/handlers/admin_handlers.go`
+    *   Description: Retrieves details for a specific search provider by ID. API key is **not** included.
+    *   Path Parameter: `{id}` - The integer ID of the search provider.
+    *   Response Body (`application/json`): SearchProvider object (APIKey excluded).
+    *   Status Codes:
+        *   `200 OK`: Success.
+        *   `400 Bad Request`: Invalid provider ID format.
+        *   `404 Not Found`: Provider with the given ID does not exist.
+        *   `500 Internal Server Error`: Failed to retrieve provider.
+
+*   **`PUT /api/admin/search-providers/{id}`**
+    *   **Implementation**: `server/handlers/admin_handlers.go`
+    *   Description: Updates an existing search provider's configuration. If `api_key` is omitted or empty, it's preserved. `search_engine_id` is only relevant for `google_cse`. Setting `is_default` to `true` should automatically set other providers to `false`.
+    *   Path Parameter: `{id}` - The integer ID of the provider to update.
+    *   Request Body (`application/json`): SearchProvider object with fields to update.
+        ```json
+        {
+          "name": "Updated Brave Name",
+          "type": "brave", // Type cannot be changed
+          "api_key": "new-api-key...", // Optional
+          "is_default": true
+        }
+        ```
+    *   Response Body (`application/json`): The updated SearchProvider object (APIKey excluded).
+    *   Status Codes:
+        *   `200 OK`: Success.
+        *   `400 Bad Request`: Invalid provider ID format or invalid request body (e.g., trying to change type).
+        *   `404 Not Found`: Provider with the given ID does not exist.
+        *   `409 Conflict`: Updated provider name conflicts with another existing provider.
+        *   `500 Internal Server Error`: Failed to update provider (e.g., DB error, failed to handle default flag logic).
+
+*   **`DELETE /api/admin/search-providers/{id}`**
+    *   **Implementation**: `server/handlers/admin_handlers.go`
+    *   Description: Deletes a search provider configuration.
+    *   Path Parameter: `{id}` - The integer ID of the search provider to delete.
+    *   Response Body: None.
+    *   Status Codes:
+        *   `204 No Content`: Success.
+        *   `400 Bad Request`: Invalid provider ID format.
+        *   `404 Not Found`: Provider with the given ID does not exist.
+        *   `500 Internal Server Error`: Failed to delete provider.
+
 ### Users
 
 *   **`GET /api/admin/users`**
@@ -634,6 +739,81 @@ Authentication/Authorization: *TODO: All user routes should require standard use
         *   `204 No Content`: Success.
         *   `403 Forbidden`: User not authenticated or authorized.
         *   `500 Internal Server Error`: Failed to delete chats.
+
+### Search
+
+*   **`POST /api/search`**
+    *   **Implementation**: `server/handlers/search_handlers.go` (To be implemented)
+    *   Description: Performs a web search using the configured default search provider and returns formatted results.
+    *   Request Body (`application/json`):
+        ```json
+        {
+          "query": "What is quantum computing",
+          "provider_id": 1 // Optional: Specific provider ID to use. If omitted, uses the default search provider
+        }
+        ```
+    *   Response Body (`application/json`):
+        ```json
+        {
+          "results": [
+            {
+              "title": "Quantum computing - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/Quantum_computing",
+              "snippet": "Quantum computing is a type of computation whose operations can harness the phenomena of quantum mechanics..."
+            },
+            // ... more results
+          ],
+          "search_provider": {
+            "id": 1,
+            "name": "Brave Search",
+            "type": "brave"
+          }
+        }
+        ```
+    *   Status Codes:
+        *   `200 OK`: Search successful.
+        *   `400 Bad Request`: Missing or invalid query.
+        *   `404 Not Found`: Specified search provider not found.
+        *   `500 Internal Server Error`: Failed to execute search or format results.
+
+*   **`POST /api/search/chat`**
+    *   **Implementation**: `server/handlers/search_handlers.go` (To be implemented) 
+    *   Description: Performs a web search and passes the results to the AI model to generate a response with properly formatted content and source links.
+    *   Request Body (`application/json`):
+        ```json
+        {
+          "query": "What is quantum computing",
+          "chat_id": 123, // Optional: Chat ID to add the search results and AI response as messages
+          "model_id": 2, // Required: Model ID to use for generating the response
+          "search_provider_id": 1 // Optional: Specific search provider ID to use
+        }
+        ```
+    *   Response Body (`application/json`):
+        ```json
+        {
+          "message_id": 456, // ID of the newly created message containing the AI's response
+          "chat_id": 123,
+          "content": "Quantum computing is a field that uses quantum mechanics to process information...",
+          "search_results": [
+            {
+              "title": "Quantum computing - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/Quantum_computing",
+              "snippet": "Quantum computing is a type of computation whose operations can harness the phenomena of quantum mechanics..."
+            },
+            // ... more results
+          ],
+          "search_provider": {
+            "id": 1,
+            "name": "Brave Search",
+            "type": "brave"
+          }
+        }
+        ```
+    *   Status Codes:
+        *   `200 OK`: Search and AI response generation successful.
+        *   `400 Bad Request`: Missing query, invalid model_id, or other required parameter issues.
+        *   `404 Not Found`: Specified chat, model, or search provider not found.
+        *   `500 Internal Server Error`: Failed to execute search or generate AI response.
 
 ### Current User
 

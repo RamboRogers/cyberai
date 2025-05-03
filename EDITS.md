@@ -75,3 +75,15 @@
         *   Added `.replace(/\\boxed\{([^}]+)\}/g, '<span class="boxed-answer">$1</span>')` before `marked.parse` for both thinking and regular content within `websocket.handleAssistantChunk`.
     *   `ui/static/css/styles.css`:
         *   Added CSS rules for the `.boxed-answer` class.
+
+**Task:** Stop Thinking Spinner on Final Chunk
+
+*   **Files Modified:**
+    *   `ui/static/js/ui.js`: Added `thinking-spinner-icon` class to the SVG in the thinking label.
+    *   `ui/static/js/websocket.js`: Modified `handleAssistantChunk` to find and remove the `.thinking-spinner-icon` element when `is_final` is true.
+
+**Task:** Add Search Provider Management Structure
+
+*   **Files Modified:**
+    *   `server/db/db.go`: Incremented `SchemaVersion` to 2. Added `search_providers` table definition and index.
+    *   `ui/templates/admin.html`: Added sidebar link, header title/button, content section, and modal form structure for search providers.

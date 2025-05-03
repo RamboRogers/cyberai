@@ -2,9 +2,9 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -21,16 +21,18 @@ import (
 )
 
 type ChatHandlers struct {
-	ChatService      *models.ChatService
-	Hub              *ws.Hub               // WebSocket hub
-	ConnectorService *llm.ConnectorService // LLM connector service
+	ChatService            *models.ChatService
+	Hub                    *ws.Hub                // WebSocket hub
+	ConnectorService       *llm.ConnectorService  // LLM connector service
+	searchHandlersDelegate SearchHandlersDelegate // Optional delegate for search operations
 }
 
 func NewChatHandlers(cs *models.ChatService, hub *ws.Hub, connSvc *llm.ConnectorService) *ChatHandlers {
 	return &ChatHandlers{
-		ChatService:      cs,
-		Hub:              hub,
-		ConnectorService: connSvc, // Store ConnectorService
+		ChatService:            cs,
+		Hub:                    hub,
+		ConnectorService:       connSvc,
+		searchHandlersDelegate: nil, // Initialize as nil
 	}
 }
 
@@ -87,7 +89,6 @@ func (h *ChatHandlers) CreateChat(w http.ResponseWriter, r *http.Request) {
 
 	var req CreateChatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		// Handle empty body gracefully - it's valid if no title/first message
 		if err != io.EOF {
 			log.Printf("Error decoding CreateChat request for user %d: %v", userID, err)
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -95,34 +96,27 @@ func (h *ChatHandlers) CreateChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Validate: If first_message is present, content and model_id are required
+	// Validate first message if present
 	if req.FirstMessage != nil {
-		if req.FirstMessage.Content == "" {
-			http.Error(w, "Bad Request: first_message requires content", http.StatusBadRequest)
+		if req.FirstMessage.Content == "" || req.FirstMessage.ModelID <= 0 {
+			http.Error(w, "Bad Request: first_message requires content and model_id", http.StatusBadRequest)
 			return
 		}
-		if req.FirstMessage.ModelID <= 0 {
-			http.Error(w, "Bad Request: first_message requires a valid model_id", http.StatusBadRequest)
-			return
-		}
-		// TODO: Future - Validate that the model_id exists and is accessible by the user
 	}
 
-	// Determine chat title
-	title := "New Chat" // Default
+	// Determine title
+	title := "New Chat"
 	if req.Title != nil && *req.Title != "" {
-		title = *req.Title // Use provided title
-	} else if req.FirstMessage != nil && req.FirstMessage.Content != "" {
-		// Use first message content as title if no explicit title provided
+		title = *req.Title
+	} else if req.FirstMessage != nil {
 		title = req.FirstMessage.Content
-		// Truncate long titles
-		maxTitleLen := 60 // Max length for a title from message content
+		maxTitleLen := 60
 		if len(title) > maxTitleLen {
 			title = title[:maxTitleLen] + "..."
 		}
 	}
 
-	// Create chat in DB
+	// Create chat
 	newChat, err := h.ChatService.CreateChat(int64(userID), title)
 	if err != nil {
 		log.Printf("Error creating chat in DB for user %d: %v", userID, err)
@@ -130,29 +124,26 @@ func (h *ChatHandlers) CreateChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handle first message if provided
+	// Add first message AND trigger AI if provided
 	if req.FirstMessage != nil {
 		userMessage := models.Message{
-			ChatID:  newChat.ID,
-			UserID:  int64(userID),
-			Role:    "user",
-			Content: req.FirstMessage.Content,
-			// ModelID is null for user messages
+			ChatID: newChat.ID, UserID: int64(userID), Role: "user", Content: req.FirstMessage.Content,
 		}
 		if err := h.ChatService.AddMessage(&userMessage); err != nil {
 			log.Printf("Error adding first user message for chat %d: %v", newChat.ID, err)
-			// Don't fail the whole request, just log the error for now
-			// http.Error(w, "Failed to save initial message", http.StatusInternalServerError)
-			// return
+			// Log error but continue
 		} else {
 			log.Printf("Added first user message (ID: %d) for new chat %d", userMessage.ID, newChat.ID)
-			// Use a background context for the goroutine
-			bgCtx := context.Background()
-			go h.processAIResponse(bgCtx, userID, userMessage, req.FirstMessage.ModelID)
+			// *** Trigger AI using ConnectorService ***
+			go func() {
+				if err := h.ConnectorService.GenerateResponseForChat(context.Background(), userID, newChat.ID, req.FirstMessage.ModelID, nil); err != nil {
+					log.Printf("[Chat %d] Error returned from GenerateResponseForChat after CreateChat with first message: %v", newChat.ID, err)
+				}
+			}()
 		}
 	}
 
-	// Return the created chat object (without messages initially)
+	// Return created chat
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(newChat); err != nil {
@@ -405,8 +396,6 @@ func (h *ChatHandlers) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad Request: A valid model_id is required", http.StatusBadRequest)
 		return
 	}
-	// TODO: Validate ModelID exists and is active/accessible by user
-	// TODO: Validate AgentID if provided
 
 	log.Printf("CreateMessage called by User ID: %d for Chat ID: %d, Model ID: %d", userID, chatID, req.ModelID)
 
@@ -433,8 +422,8 @@ func (h *ChatHandlers) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		UserID:  int64(userID),
 		Role:    "user",
 		Content: req.Content,
-		ModelID: nil,         // User messages don't have a model ID directly associated
-		AgentID: req.AgentID, // Assign if provided
+		ModelID: nil,
+		AgentID: req.AgentID,
 	}
 
 	if err := h.ChatService.AddMessage(&userMessage); err != nil {
@@ -447,335 +436,256 @@ func (h *ChatHandlers) CreateMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Return the created user message object with 202 Accepted immediately
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted) // Indicate processing has started
+	w.WriteHeader(http.StatusAccepted)
 	if err := json.NewEncoder(w).Encode(userMessage); err != nil {
 		log.Printf("Error encoding user message response for chat %d: %v", chatID, err)
-		// Don't try to write error after header sent
 	}
 
-	// --- Trigger AI response asynchronously ---
-	// Use a new context for the background task, but could link to request context if needed
-	bgCtx := context.Background() // Use background context for the goroutine
-	go h.processAIResponse(bgCtx, userID, userMessage, req.ModelID)
+	// --- Trigger AI response asynchronously using ConnectorService ---
+	go func() {
+		if err := h.ConnectorService.GenerateResponseForChat(context.Background(), userID, chatID, req.ModelID, req.AgentID); err != nil {
+			// Error logging/WS notification is handled within GenerateResponseForChat
+			log.Printf("[Chat %d] Error returned from GenerateResponseForChat after CreateMessage: %v", chatID, err)
+		}
+	}()
 }
 
-// processAIResponse handles getting the LLM response and streaming it back
-// for a *new* user message. This runs in a separate goroutine.
-func (h *ChatHandlers) processAIResponse(ctx context.Context, userID int, triggeringMsg models.Message, requestedModelID int64) {
-	chatID := triggeringMsg.ChatID
-	log.Printf("[Chat %d] Starting AI response processing for model %d (triggered by msg %d)", chatID, requestedModelID, triggeringMsg.ID)
+// processAIResponse // REMOVED - Logic moved to ConnectorService
 
-	// Send initial status update
-	h.sendWsMessage(userID, ws.Message{
-		Type: "status",
-		Data: map[string]interface{}{"message": "Processing...", "chat_id": chatID},
-	})
+// generateAndStreamResponse // REMOVED - Logic moved to ConnectorService
 
-	// 1. Fetch message history (including the triggering message)
-	// TODO: Make history limit configurable?
-	historyLimit := 20
-	history, err := h.ChatService.GetMessageHistory(chatID, historyLimit)
-	if err != nil {
-		log.Printf("[Chat %d] Error getting message history: %v", chatID, err)
-		h.sendWsError(userID, chatID, fmt.Sprintf("Failed to retrieve conversation history: %v", err))
-		return
-	}
+// cleanAssistantResponse // REMOVED - Logic moved to ConnectorService
 
-	// 2. Call the shared generation logic
-	_, err = h.generateAndStreamResponse(ctx, userID, chatID, requestedModelID, history, triggeringMsg.AgentID)
-	if err != nil {
-		// Error logging and WS notification are handled within generateAndStreamResponse
-		log.Printf("[Chat %d] processAIResponse finished with error: %v", chatID, err)
-	} else {
-		log.Printf("[Chat %d] processAIResponse finished successfully.", chatID)
-	}
-}
+// sendWsMessage // REMOVED - Logic moved to ConnectorService
 
-// generateAndStreamResponse is the core logic for calling the LLM and streaming results.
-// It takes the prepared message history (including system prompts) and handles connector fetching,
-// API calls, streaming via WebSocket, and saving the final assistant message.
-// Returns the final assistant message ID and error.
-func (h *ChatHandlers) generateAndStreamResponse(ctx context.Context, userID int, chatID int64, modelIDToUse int64, history []models.Message, agentID *int64) (int64, error) {
-	log.Printf("[Chat %d] generateAndStreamResponse called with model %d", chatID, modelIDToUse)
-
-	// 1. Get Connector and Model details
-	connector, model, err := h.ConnectorService.GetConnectorForModel(ctx, modelIDToUse)
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to get model configuration: %v", err)
-		log.Printf("[Chat %d] Error getting connector for model %d: %v", chatID, modelIDToUse, err)
-		h.sendWsError(userID, chatID, errMsg)
-		return 0, errors.New(errMsg)
-	}
-	log.Printf("[Chat %d] Using model %s (%s) via %s connector for generation", chatID, model.Name, model.ModelID, model.Provider.Type)
-
-	// 2. Build the context using the ChatContextService
-	// The history slice received already includes the latest user message.
-	// We no longer need to extract it separately.
-	/* COMMENT OUT triggeringMessageContent extraction logic
-	var triggeringMessageContent string
-	if len(history) > 0 {
-		// Get the last message (usually the user's triggering message)
-		lastMsg := history[len(history)-1]
-		if lastMsg.Role == "user" {
-			triggeringMessageContent = lastMsg.Content
-			// Remove the last message since we'll add it again in the context builder
-			history = history[:len(history)-1]
-		}
-	}
-	*/
-
-	// Use the context service to build the LLM messages array
-	chatContextSvc := h.ConnectorService.GetChatContextService()
-	llmMessages, err := chatContextSvc.BuildContextForModelRequest(
-		ctx,
-		chatID,
-		modelIDToUse,
-		"", // Pass empty string - message is already in history
-		agentID,
-	)
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to build context for model: %v", err)
-		log.Printf("[Chat %d] Error building context: %v", chatID, err)
-		h.sendWsError(userID, chatID, errMsg)
-		return 0, errors.New(errMsg)
-	}
-
-	// 3. Prepare LLM Request
-	llmReq := llm.ChatCompletionRequest{
-		Model:       model.ModelID, // Use the provider-specific model ID
-		Messages:    llmMessages,
-		Temperature: model.Temperature,
-		MaxTokens:   model.MaxTokens,
-		Stream:      true, // Always stream
-	}
-
-	// 4. Define WebSocket streaming callback
-	var responseContent strings.Builder
-	var assistantMsgID int64 // Store the ID once the message is created
-	firstChunk := true
-
-	callback := func(cbCtx context.Context, chunk llm.ChatCompletionChunk) error {
-		// Check if context has been cancelled (e.g., client disconnected)
-		if cbCtx.Err() != nil {
-			log.Printf("[Chat %d] Context cancelled during streaming callback.", chatID)
-			return cbCtx.Err() // Stop the stream
-		}
-
-		responseContent.WriteString(chunk.Content)
-
-		// Create the assistant message DB entry on the first non-empty chunk
-		if firstChunk && chunk.Content != "" {
-			assistantMessage := models.Message{
-				ChatID:     chatID,
-				UserID:     0, // Indicates assistant
-				Role:       "assistant",
-				Content:    "", // Will be updated later
-				ModelID:    &modelIDToUse,
-				AgentID:    agentID, // Use passed agent ID
-				TokensUsed: 0,       // Will be updated later
-			}
-			if err := h.ChatService.AddMessage(&assistantMessage); err != nil {
-				log.Printf("[Chat %d] Error creating initial assistant message entry: %v", chatID, err)
-				return fmt.Errorf("failed to save initial assistant message: %w", err) // Stop stream processing
-			}
-			assistantMsgID = assistantMessage.ID
-			firstChunk = false
-			log.Printf("[Chat %d] Created initial assistant message DB entry (ID: %d)", chatID, assistantMsgID)
-		}
-
-		// Only send non-empty chunks (and final empty chunk if needed)
-		if chunk.Content != "" || chunk.IsFinal {
-			// Correctly populate the ChunkPayload field
-			payload := ws.ChunkPayload{
-				ChatID:  chatID,
-				Content: chunk.Content,
-				IsFinal: chunk.IsFinal,
-			}
-
-			// Set MessageID if available
-			if assistantMsgID != 0 {
-				payload.MessageID = &assistantMsgID
-			}
-
-			// Add the model ID - finalModelID is the correct variable in this context
-			// Create a local copy we can safely take the address of
-			modelIDCopy := modelIDToUse
-			payload.ModelID = &modelIDCopy
-
-			// Create and send the WebSocket message
-			wsMsg := ws.Message{
-				Type:         ws.MsgTypeAssistantChunk,
-				Timestamp:    time.Now(),
-				ChunkPayload: &payload,
-			}
-			h.sendWsMessage(userID, wsMsg)
-		}
-
-		return nil // Indicate success
-	}
-
-	// Send status update before calling LLM
-	h.sendWsMessage(userID, ws.Message{
-		Type: "status",
-		Data: map[string]interface{}{"message": "Generating response...", "chat_id": chatID},
-	})
-
-	// 5. Call the Connector
-	err = connector.GenerateChatCompletion(ctx, llmReq, callback)
-
-	// 6. Handle completion/error
-	if err != nil {
-		// Include the model ID in the error message for more context
-		errMsg := fmt.Sprintf("Error generating response with model ID %d: %v", modelIDToUse, err)
-		log.Printf("[Chat %d] Error generating chat completion: %v", chatID, err)
-		h.sendWsError(userID, chatID, errMsg)
-		if assistantMsgID != 0 {
-			log.Printf("[Chat %d] Potentially incomplete assistant message (ID: %d) due to error.", chatID, assistantMsgID)
-			// Consider deleting or marking the message as failed here?
-			// h.ChatService.DeleteMessage(assistantMsgID)
-		}
-		return assistantMsgID, errors.New(errMsg) // Return error
-	}
-
-	// 7. Update the completed assistant message in DB (if created)
-	if assistantMsgID != 0 {
-		finalContent := responseContent.String()
-		// Clean the response content before saving
-		cleanedContent := cleanAssistantResponse(finalContent)
-		// TODO: Calculate actual tokens used (need info from LLM response if available)
-		tokens := len(cleanedContent) // Use length of cleaned content
-
-		updateErr := h.ChatService.UpdateMessageContentAndTokens(assistantMsgID, cleanedContent, tokens)
-		if updateErr != nil {
-			log.Printf("[Chat %d] Error updating final assistant message %d content/tokens: %v", chatID, assistantMsgID, updateErr)
-			// Don't send WS error here, primary task (streaming) was successful.
-		} else {
-			log.Printf("[Chat %d] Successfully updated final assistant message %d", chatID, assistantMsgID)
-			// Send the final message object via WebSocket upon successful update
-			// Construct payload directly from available data
-			wsMsgPayload := ws.MessagePayload{
-				ID:         assistantMsgID,
-				ChatID:     chatID,
-				UserID:     0, // Assistant
-				Role:       "assistant",
-				Content:    cleanedContent, // Send final cleaned content
-				ModelID:    &modelIDToUse,  // Use the model ID used for generation
-				AgentID:    agentID,        // Use the agent ID used for generation
-				TokensUsed: tokens,         // Send the calculated tokens
-				CreatedAt:  time.Now(),     // Use current time as approximation for WS message
-			}
-			h.sendWsMessage(userID, ws.Message{
-				Type:           ws.MsgTypeAssistantMessage,
-				MessagePayload: &wsMsgPayload,
-			})
-			log.Printf("[Chat %d] Sent final assistant_message WS update for message %d", chatID, assistantMsgID)
-		}
-	} else if responseContent.Len() > 0 {
-		// Handle case where stream finished but no DB entry was made (e.g., first chunk was empty?)
-		log.Printf("[Chat %d] Stream finished with content, but no assistant message DB entry was created. Saving now.", chatID)
-		finalContent := responseContent.String()
-		cleanedContent := cleanAssistantResponse(finalContent)
-		tokens := len(cleanedContent)
-		assistantMessage := models.Message{
-			ChatID:     chatID,
-			UserID:     0,
-			Role:       "assistant",
-			Content:    cleanedContent,
-			ModelID:    &modelIDToUse,
-			AgentID:    agentID,
-			TokensUsed: tokens,
-		}
-		if err := h.ChatService.AddMessage(&assistantMessage); err != nil {
-			log.Printf("[Chat %d] Error saving final assistant message after stream completion: %v", chatID, err)
-			h.sendWsError(userID, chatID, "Failed to save final assistant message after streaming.")
-			return 0, fmt.Errorf("failed to save final assistant message: %w", err)
-		} else {
-			assistantMsgID = assistantMessage.ID
-			log.Printf("[Chat %d] Successfully saved final assistant message %d after streaming.", chatID, assistantMsgID)
-			// Send the final message object via WebSocket here as well
-			// Construct payload directly from available data
-			wsMsgPayload := ws.MessagePayload{
-				ID:         assistantMsgID,
-				ChatID:     chatID,
-				UserID:     0, // Assistant
-				Role:       "assistant",
-				Content:    cleanedContent, // Use the saved content
-				ModelID:    &modelIDToUse,  // Use the model ID used for generation
-				AgentID:    agentID,        // Use the agent ID used for generation
-				TokensUsed: tokens,         // Use the calculated tokens
-				CreatedAt:  time.Now(),     // Use current time as approximation for WS message
-			}
-			h.sendWsMessage(userID, ws.Message{
-				Type:           ws.MsgTypeAssistantMessage,
-				MessagePayload: &wsMsgPayload,
-			})
-			log.Printf("[Chat %d] Sent final assistant_message WS update for message %d", chatID, assistantMsgID)
-		}
-	} else {
-		log.Printf("[Chat %d] AI response stream finished with no content.", chatID)
-		// No error, but nothing to save.
-	}
-
-	log.Printf("[Chat %d] generateAndStreamResponse finished successfully for model %d. Final assistant msg ID: %d", chatID, modelIDToUse, assistantMsgID)
-	return assistantMsgID, nil // Return the final message ID and nil error
-}
-
-// cleanAssistantResponse removes unwanted prefixes from the raw LLM response.
-func cleanAssistantResponse(rawResponse string) string {
-	prefix := "⚙️ AI Thinking Process"
-	if strings.HasPrefix(rawResponse, prefix) {
-		// Find the end of the thinking block (assuming double newline separation)
-		endOfPrefix := strings.Index(rawResponse, "\n\n")
-		if endOfPrefix != -1 {
-			// Return the content after the prefix and the separating newlines
-			cleaned := rawResponse[endOfPrefix+2:] // +2 to skip the \n\n
-			// Trim leading/trailing whitespace just in case
-			return strings.TrimSpace(cleaned)
-		}
-		// If double newline isn't found, maybe just remove the prefix line?
-		// This is less robust. Let's try finding the first single newline after the prefix.
-		endOfPrefixLine := strings.Index(rawResponse, "\n")
-		if endOfPrefixLine != -1 && endOfPrefixLine > len(prefix) {
-			cleaned := rawResponse[endOfPrefixLine+1:]
-			return strings.TrimSpace(cleaned)
-		}
-		// Fallback: If no clear separator, just return the original response minus the exact prefix
-		// This might leave unwanted partial lines if the format is inconsistent.
-		return strings.TrimSpace(strings.TrimPrefix(rawResponse, prefix))
-	}
-	return rawResponse // Return original if prefix not found
-}
-
-// sendWsMessage is a helper to send a structured message to a user via WebSocket
-func (h *ChatHandlers) sendWsMessage(userID int, msg ws.Message) {
-	if h.Hub == nil {
-		log.Println("Error: WebSocket Hub is nil in ChatHandlers")
-		return
-	}
-	// Add timestamp if not already present
-	if msg.Timestamp.IsZero() {
-		msg.Timestamp = time.Now()
-	}
-	h.Hub.SendToUser(int64(userID), msg)
-}
-
-// sendWsError is a helper to send a structured error message to a user via WebSocket
-func (h *ChatHandlers) sendWsError(userID int, chatID int64, errorMsg string) {
-	chatIDPtr := chatID // Create a pointer for the payload
-	h.sendWsMessage(userID, ws.Message{
-		Type: ws.MsgTypeError, // Use constant
-		ErrorPayload: &ws.ErrorPayload{
-			Message: errorMsg,
-			ChatID:  &chatIDPtr,
-			// Code: 0, // Optional: Add error code if applicable
-		},
-		// Data: nil, // Ensure Data field is not used
-	})
-}
+// sendWsError // REMOVED - Logic moved to ConnectorService
 
 // RegenerateMessageRequest defines the optional body for POST /api/chats/{id}/messages/regenerate
 type RegenerateMessageRequest struct {
 	ModelID *int64 `json:"model_id,omitempty"` // Optional: New model ID to use
+}
+
+// SearchChatRequest defines the structure for POST /api/chats/{id}/search
+type SearchChatRequest struct {
+	Query            string `json:"query"`                        // Required: Search query
+	ModelID          int64  `json:"model_id"`                     // Required: ID of model to use for search
+	AgentID          *int64 `json:"agent_id,omitempty"`           // Optional: Agent ID to use
+	SearchProviderID *int   `json:"search_provider_id,omitempty"` // Optional: Search provider ID
+}
+
+// SearchChat handles POST /api/chats/{chat_id}/search
+func (h *ChatHandlers) SearchChat(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserIDFromContext(r.Context())
+	if userID == 0 {
+		http.Error(w, "Unauthorized: User ID not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	chatIDStr := r.PathValue("chat_id")
+	chatID, err := strconv.ParseInt(chatIDStr, 10, 64)
+	if err != nil {
+		log.Printf("Invalid chat ID format '%s': %v", chatIDStr, err)
+		http.Error(w, "Bad Request: Invalid chat ID format", http.StatusBadRequest)
+		return
+	}
+
+	// Log the raw request for debugging
+	bodyBytes, _ := io.ReadAll(r.Body)
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Replace the body for later use
+	log.Printf("SearchChat raw request for chat %d: %s", chatID, string(bodyBytes))
+
+	// Decode request body
+	var req SearchChatRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("Error decoding SearchChat request for chat %d: %v (body: %s)", chatID, err, string(bodyBytes))
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate input
+	if req.Query == "" {
+		log.Printf("SearchChat error for chat %d: Empty query provided", chatID)
+		http.Error(w, "Bad Request: Search query cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	// If model_id is not provided for existing chat, try to get it from the last message
+	if req.ModelID <= 0 {
+		log.Printf("SearchChat notice for chat %d: No model_id provided, will attempt to find from chat history", chatID)
+		// Get last message to find model ID
+		history, err := h.ChatService.GetMessageHistory(chatID, 5)
+		if err != nil {
+			log.Printf("SearchChat error for chat %d: Failed to get message history: %v", chatID, err)
+			http.Error(w, "Internal Server Error: Failed to get message history", http.StatusInternalServerError)
+			return
+		}
+
+		// Find the last assistant message with a model_id
+		var lastModelID int64
+		for i := len(history) - 1; i >= 0; i-- {
+			if history[i].ModelID != nil && *history[i].ModelID > 0 {
+				lastModelID = *history[i].ModelID
+				break
+			}
+		}
+
+		if lastModelID > 0 {
+			req.ModelID = lastModelID
+			log.Printf("SearchChat for chat %d: Using model_id %d from chat history", chatID, lastModelID)
+		} else {
+			// If still no model_id, return error
+			log.Printf("SearchChat error for chat %d: No model_id provided and none found in history", chatID)
+			http.Error(w, "Bad Request: A valid model_id is required and none could be determined from chat history", http.StatusBadRequest)
+			return
+		}
+	}
+
+	log.Printf("SearchChat called by User ID: %d for Chat ID: %d, Model ID: %d, Query: %s", userID, chatID, req.ModelID, req.Query)
+
+	// Authorization Check: Verify user owns the chat
+	existingChat, err := h.ChatService.GetChat(chatID, false) // Don't need messages
+	if err != nil {
+		if err.Error() == fmt.Sprintf("chat not found: %d", chatID) {
+			http.Error(w, "Not Found: Chat not found", http.StatusNotFound)
+		} else {
+			log.Printf("Error fetching chat %d for auth check (search): %v", chatID, err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
+		return
+	}
+	if existingChat.UserID != int64(userID) {
+		log.Printf("Forbidden: User %d attempted to search in chat %d owned by user %d", userID, chatID, existingChat.UserID)
+		http.Error(w, "Forbidden: You do not have access to this chat", http.StatusForbidden)
+		return
+	}
+
+	// Get the search provider - we need to access search_handlers.go functionality
+	// Here we'll delegate to special handlers that should be registered
+	var searchResults []ChatSearchResult
+	// If the app has SearchHandlers registered, get search results from the configured provider
+	searchHandler := h.searchHandlersDelegate
+	if searchHandler != nil {
+		provider, err := searchHandler.GetSearchProvider(req.SearchProviderID)
+		if err != nil {
+			log.Printf("SearchChat error for chat %d: %v", chatID, err)
+			// Let user know search is unavailable, log internal error
+			http.Error(w, "Search service is currently unavailable.", http.StatusServiceUnavailable)
+			return
+		}
+
+		// --- Start: Handle No Provider Found ---
+		if provider == nil {
+			log.Printf("SearchChat notice for chat %d: No search provider configured or found.", chatID)
+			// Add user message
+			userMessage := models.Message{
+				ChatID:  chatID,
+				UserID:  int64(userID),
+				Role:    "user",
+				Content: req.Query,
+				AgentID: req.AgentID,
+			}
+			if err := h.ChatService.AddMessage(&userMessage); err != nil {
+				log.Printf("Error saving search query message for chat %d (no provider case): %v", chatID, err)
+				http.Error(w, "Internal Server Error: Failed to save search query", http.StatusInternalServerError)
+				return
+			}
+			// Add the notification message
+			sysMsg := models.Message{
+				ChatID:    chatID,
+				UserID:    0,
+				Role:      "system",
+				Content:   "Search is not configured. Please ask an administrator to add a search provider in the admin settings.",
+				ModelID:   &req.ModelID, // Still associate with the intended model
+				AgentID:   req.AgentID,
+				CreatedAt: time.Now().Add(time.Millisecond),
+			}
+			if err := h.ChatService.AddMessage(&sysMsg); err != nil {
+				log.Printf("Error adding system notification message to chat %d: %v", chatID, err)
+				// Log error, but continue
+			}
+
+			// Return Accepted, but don't trigger LLM
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			response := map[string]interface{}{
+				"chat_id":         chatID,
+				"user_message_id": userMessage.ID,
+			}
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				log.Printf("Error encoding search query message response (no provider): %v", chatID, err)
+			}
+			return // Stop processing
+		}
+		// --- End: Handle No Provider Found ---
+
+		// If provider exists, perform the search
+		results, err := searchHandler.PerformSearch(req.Query, provider)
+		if err != nil {
+			log.Printf("SearchChat error for chat %d: Search failed: %v", chatID, err)
+			http.Error(w, fmt.Sprintf("Search failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+		searchResults = results // Use the actual results
+	} else {
+		// Fallback if no search handlers are available - empty results
+		log.Printf("SearchChat warning for chat %d: No search handlers registered, using empty results", chatID)
+		searchResults = []ChatSearchResult{}
+	}
+
+	// Format the search results for context (will be empty if no handler/provider)
+	formattedResults := formatChatSearchResults(req.Query, searchResults)
+
+	// Create and save the user message with the search query
+	userMessage := models.Message{
+		ChatID:  chatID,
+		UserID:  int64(userID),
+		Role:    "user",
+		Content: req.Query, // No longer prefixing with "Search: "
+		ModelID: nil,
+		AgentID: req.AgentID,
+	}
+
+	if err := h.ChatService.AddMessage(&userMessage); err != nil {
+		log.Printf("Error saving search query message for chat %d: %v", chatID, err)
+		http.Error(w, "Internal Server Error: Failed to save search query", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("Saved search query message ID %d for chat %d", userMessage.ID, chatID)
+
+	// Add system message with search results as context
+	sysMsg := models.Message{
+		ChatID:    chatID,
+		UserID:    0, // System message
+		Role:      "system",
+		Content:   formattedResults,
+		ModelID:   &req.ModelID,
+		AgentID:   req.AgentID,
+		CreatedAt: time.Now().Add(time.Millisecond), // Ensure it sorts after user msg
+	}
+
+	if err := h.ChatService.AddMessage(&sysMsg); err != nil {
+		log.Printf("Error adding system results message to chat %d: %v", chatID, err)
+		// Log error but continue - AI will generate without search context
+	}
+
+	// Return the created user message object with 202 Accepted immediately
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	response := map[string]interface{}{
+		"chat_id":         chatID,
+		"user_message_id": userMessage.ID,
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Error encoding search query message response for chat %d: %v", chatID, err)
+	}
+
+	// Trigger search response asynchronously
+	go func() {
+		if err := h.ConnectorService.GenerateResponseForChat(context.Background(), userID, chatID, req.ModelID, req.AgentID); err != nil {
+			log.Printf("[Chat %d] Error returned from GenerateResponseForChat during search: %v", chatID, err)
+		}
+	}()
 }
 
 // RegenerateMessage handles POST /api/chats/{chat_id}/messages/regenerate
@@ -833,25 +743,16 @@ func (h *ChatHandlers) RegenerateMessage(w http.ResponseWriter, r *http.Request)
 	// Return 202 Accepted immediately
 	w.WriteHeader(http.StatusAccepted)
 
-	// --- Trigger Regeneration Asynchronously ---
-	bgCtx := context.Background()
+	// --- Trigger Regeneration Asynchronously using ConnectorService ---
 	go func(ctx context.Context, userID int, chatID int64, requestedNewModelID *int64) {
 		log.Printf("[Regen Chat %d] Starting regeneration process...", chatID)
 
-		// Introduce a small delay to potentially mitigate race condition with message saving
-		time.Sleep(200 * time.Millisecond)
-
-		// Send initial status update
-		h.sendWsMessage(userID, ws.Message{
-			Type: "status",
-			Data: map[string]interface{}{"message": "Regenerating response...", "chat_id": chatID},
-		})
-
-		// 1. Get last N messages
-		history, err := h.ChatService.GetMessageHistory(chatID, 20) // Get reasonable history
+		// 1. Get last N messages to find context
+		history, err := h.ChatService.GetMessageHistory(chatID, 20)
 		if err != nil {
 			log.Printf("[Regen Chat %d] Error getting message history: %v", chatID, err)
-			h.sendWsError(userID, chatID, "Failed to retrieve conversation history for regeneration.")
+			// Need to send error via ConnectorService's helper
+			h.ConnectorService.SendWsError(userID, chatID, "Failed to retrieve conversation history for regeneration.")
 			return
 		}
 
@@ -865,240 +766,42 @@ func (h *ChatHandlers) RegenerateMessage(w http.ResponseWriter, r *http.Request)
 		}
 
 		if lastAssistantMsgIndex == -1 {
-			log.Printf("[Regen Chat %d] No previous assistant message found to regenerate.", chatID)
-			h.sendWsError(userID, chatID, "Cannot regenerate: No previous assistant message found.")
+			log.Printf("[Regen Chat %d] No previous assistant message found.", chatID)
+			h.ConnectorService.SendWsError(userID, chatID, "Cannot regenerate: No previous assistant message.")
 			return
 		}
 		lastAssistantMsg := history[lastAssistantMsgIndex]
 
-		// --- Refined Logic Start V2 ---
-		// Find the most recent user message BEFORE the last assistant message
-		triggeringUserMsgIndex := -1
-		for i := lastAssistantMsgIndex - 1; i >= 0; i-- {
-			if history[i].Role == "user" {
-				triggeringUserMsgIndex = i
-				break
-			}
-		}
-
-		if triggeringUserMsgIndex == -1 {
-			// No user message found anywhere before the last assistant message
-			log.Printf("[Regen Chat %d] Could not find any user message preceding the last assistant message (Assistant Index: %d). Cannot regenerate.", chatID, lastAssistantMsgIndex)
-			h.sendWsError(userID, chatID, "Cannot regenerate: No preceding user message found before the last assistant response.")
-			return
-		}
-
-		// Found the triggering user message
-		triggeringUserMessage := history[triggeringUserMsgIndex]
-		triggeringMessageContent := triggeringUserMessage.Content
-		log.Printf("[Regen Chat %d] Found preceding user message (ID: %d at index %d) for regeneration.", chatID, triggeringUserMessage.ID, triggeringUserMsgIndex)
-		// --- Refined Logic End V2 ---
-
-		// Determine model ID to use (Original logic is fine)
-		modelIDToUse := lastAssistantMsg.ModelID // Default to original model
+		// 3. Determine model ID to use
+		modelIDToUse := lastAssistantMsg.ModelID
 		if requestedNewModelID != nil {
-			modelIDToUse = requestedNewModelID // Override with user request
-			log.Printf("[Regen Chat %d] User requested override to model ID %d", chatID, *modelIDToUse)
+			modelIDToUse = requestedNewModelID
 		}
 		if modelIDToUse == nil || *modelIDToUse == 0 {
-			errMsg := fmt.Sprintf("Cannot determine model ID for regeneration (Original: %v, Requested: %v)", lastAssistantMsg.ModelID, requestedNewModelID)
+			errMsg := "Cannot determine model ID for regeneration."
 			log.Printf("[Regen Chat %d] %s", chatID, errMsg)
-			h.sendWsError(userID, chatID, errMsg)
+			h.ConnectorService.SendWsError(userID, chatID, errMsg)
 			return
 		}
 		finalModelID := *modelIDToUse
 
-		// For regeneration, we pass the explicit user message content.
-		// The context builder is responsible for fetching any necessary prior history (like system prompts).
-		log.Printf("[Regen Chat %d] Regenerating using explicit content: %s", chatID, triggeringMessageContent)
-
-		// Remove the last user message from history as we'll pass it explicitly - // NO LONGER NEEDED WITH THIS APPROACH
-		// historyForContext := historyToResubmit[:len(historyToResubmit)-1]
-
-		// Use a background context for the goroutine
-		// bgCtx := context.Background()
-
-		// Call the shared generation logic with modified flow for regeneration
-		log.Printf("[Regen Chat %d] Using explicit context building for regeneration", chatID)
-
-		// Here we need to get the connector and model details first
-		connector, model, err := h.ConnectorService.GetConnectorForModel(ctx, finalModelID)
-		if err != nil {
-			errMsg := fmt.Sprintf("Failed to get model configuration: %v", err)
-			log.Printf("[Regen Chat %d] Error getting connector for model %d: %v", chatID, finalModelID, err)
-			h.sendWsError(userID, chatID, errMsg)
-			return
+		// 4. Delete the last assistant message from DB
+		if err := h.ChatService.DeleteMessage(lastAssistantMsg.ID); err != nil {
+			// Log error but continue, maybe it was already gone?
+			log.Printf("[Regen Chat %d] Error deleting previous assistant message %d: %v", chatID, lastAssistantMsg.ID, err)
 		}
 
-		// Use the context service to build the LLM messages array
-		chatContextSvc := h.ConnectorService.GetChatContextService()
-		llmMessages, err := chatContextSvc.BuildContextForModelRequest(
-			ctx,
-			chatID,
-			finalModelID,
-			triggeringMessageContent, // Pass explicit triggering message content
-			lastAssistantMsg.AgentID,
-		)
-		if err != nil {
-			errMsg := fmt.Sprintf("Failed to build context for regeneration: %v", err)
-			log.Printf("[Regen Chat %d] Error building context: %v", chatID, err)
-			h.sendWsError(userID, chatID, errMsg)
-			return
+		// 5. Send WebSocket message to remove it from UI
+		removePayload := ws.RemovePayload{ChatID: chatID, MessageID: lastAssistantMsg.ID}
+		wsMsg := ws.Message{Type: ws.MsgTypeRemoveMessage, RemovePayload: &removePayload}
+		h.ConnectorService.SendWsMessage(userID, wsMsg)
+
+		// 6. Trigger generation using ConnectorService
+		if err := h.ConnectorService.GenerateResponseForChat(ctx, userID, chatID, finalModelID, lastAssistantMsg.AgentID); err != nil {
+			// Error already logged and sent via WS by GenerateResponseForChat
+			log.Printf("[Regen Chat %d] Error returned from GenerateResponseForChat during regeneration: %v", chatID, err)
 		}
-
-		// Log the context being sent for regeneration
-		log.Printf("[Regen Chat %d] Built context with %d messages for regeneration", chatID, len(llmMessages))
-
-		// Set up streaming and message handling like in generateAndStreamResponse
-		var responseContent strings.Builder
-		var assistantMsgID int64
-		firstChunk := true
-
-		callback := func(cbCtx context.Context, chunk llm.ChatCompletionChunk) error {
-			if cbCtx.Err() != nil {
-				log.Printf("[Regen Chat %d] Context cancelled during streaming callback.", chatID)
-				return cbCtx.Err()
-			}
-
-			responseContent.WriteString(chunk.Content)
-
-			if firstChunk && chunk.Content != "" {
-				assistantMessage := models.Message{
-					ChatID:     chatID,
-					UserID:     0,
-					Role:       "assistant",
-					Content:    "",
-					ModelID:    &finalModelID,
-					AgentID:    lastAssistantMsg.AgentID,
-					TokensUsed: 0,
-				}
-				if err := h.ChatService.AddMessage(&assistantMessage); err != nil {
-					log.Printf("[Regen Chat %d] Error creating initial assistant message entry: %v", chatID, err)
-					return fmt.Errorf("failed to save initial assistant message: %w", err)
-				}
-				assistantMsgID = assistantMessage.ID
-				firstChunk = false
-				log.Printf("[Regen Chat %d] Created regenerated assistant message DB entry (ID: %d)", chatID, assistantMsgID)
-			}
-
-			if chunk.Content != "" || chunk.IsFinal {
-				// Correctly populate the ChunkPayload field
-				payload := ws.ChunkPayload{
-					ChatID:  chatID,
-					Content: chunk.Content,
-					IsFinal: chunk.IsFinal,
-				}
-
-				// Set MessageID if available
-				if assistantMsgID != 0 {
-					payload.MessageID = &assistantMsgID
-				}
-
-				// Add the model ID - finalModelID is the correct variable in this context
-				// Create a local copy we can safely take the address of
-				modelIDCopy := finalModelID
-				payload.ModelID = &modelIDCopy
-
-				// Create and send the WebSocket message
-				wsMsg := ws.Message{
-					Type:         ws.MsgTypeAssistantChunk,
-					Timestamp:    time.Now(),
-					ChunkPayload: &payload,
-				}
-				h.sendWsMessage(userID, wsMsg)
-			}
-
-			return nil
-		}
-
-		// Send status update before calling LLM
-		h.sendWsMessage(userID, ws.Message{
-			Type: "status",
-			Data: map[string]interface{}{"message": "Regenerating response...", "chat_id": chatID},
-		})
-
-		// Prepare LLM Request
-		llmReq := llm.ChatCompletionRequest{
-			Model:       model.ModelID,
-			Messages:    llmMessages,
-			Temperature: model.Temperature,
-			MaxTokens:   model.MaxTokens,
-			Stream:      true,
-		}
-
-		// Call the Connector
-		err = connector.GenerateChatCompletion(ctx, llmReq, callback)
-
-		// Handle completion/error
-		if err != nil {
-			errMsg := fmt.Sprintf("Error generating regenerated response: %v", err)
-			log.Printf("[Regen Chat %d] Error generating chat completion: %v", chatID, err)
-			h.sendWsError(userID, chatID, errMsg)
-			if assistantMsgID != 0 {
-				log.Printf("[Regen Chat %d] Potentially incomplete assistant message (ID: %d) due to error.", chatID, assistantMsgID)
-			}
-			return
-		}
-
-		// Update the completed assistant message in DB
-		if assistantMsgID != 0 {
-			finalContent := responseContent.String()
-			cleanedContent := cleanAssistantResponse(finalContent)
-			tokens := len(cleanedContent)
-
-			updateErr := h.ChatService.UpdateMessageContentAndTokens(assistantMsgID, cleanedContent, tokens)
-			if updateErr != nil {
-				log.Printf("[Regen Chat %d] Error updating final assistant message %d content/tokens: %v", chatID, assistantMsgID, updateErr)
-			} else {
-				log.Printf("[Regen Chat %d] Successfully updated final regenerated assistant message %d", chatID, assistantMsgID)
-				// Send final message confirmation via WebSocket for regeneration too
-				wsMsgPayload := ws.MessagePayload{
-					ID:         assistantMsgID,
-					ChatID:     chatID,
-					UserID:     0, // Assistant
-					Role:       "assistant",
-					Content:    cleanedContent,
-					ModelID:    &finalModelID,
-					AgentID:    lastAssistantMsg.AgentID,
-					TokensUsed: tokens,
-					CreatedAt:  time.Now(), // Approximation
-				}
-				h.sendWsMessage(userID, ws.Message{
-					Type:           ws.MsgTypeAssistantMessage,
-					MessagePayload: &wsMsgPayload,
-				})
-				log.Printf("[Regen Chat %d] Sent final assistant_message WS update for message %d", chatID, assistantMsgID)
-			}
-		} else if responseContent.Len() > 0 {
-			log.Printf("[Regen Chat %d] Stream finished with content, but no assistant message DB entry was created. Saving now.", chatID)
-			finalContent := responseContent.String()
-			cleanedContent := cleanAssistantResponse(finalContent)
-			tokens := len(cleanedContent)
-			assistantMessage := models.Message{
-				ChatID:     chatID,
-				UserID:     0,
-				Role:       "assistant",
-				Content:    cleanedContent,
-				ModelID:    &finalModelID,
-				AgentID:    lastAssistantMsg.AgentID,
-				TokensUsed: tokens,
-			}
-			if err := h.ChatService.AddMessage(&assistantMessage); err != nil {
-				log.Printf("[Regen Chat %d] Error saving final regenerated assistant message: %v", chatID, err)
-				h.sendWsError(userID, chatID, "Failed to save final regenerated assistant message.")
-				return
-			} else {
-				assistantMsgID = assistantMessage.ID
-				log.Printf("[Regen Chat %d] Successfully saved final regenerated assistant message %d.", chatID, assistantMsgID)
-			}
-		} else {
-			log.Printf("[Regen Chat %d] Regenerated AI response stream finished with no content.", chatID)
-			h.sendWsError(userID, chatID, "Regeneration produced no content. Please try again.")
-		}
-
-		log.Printf("[Regen Chat %d] Regeneration finished successfully using model %d. Final assistant msg ID: %d", chatID, finalModelID, assistantMsgID)
-	}(bgCtx, userID, chatID, req.ModelID)
-	// --- End Regeneration Trigger ---
+	}(context.Background(), userID, chatID, req.ModelID)
 }
 
 // RegisterUserRoutes connects the handler functions to the router
@@ -1113,8 +816,43 @@ func (h *ChatHandlers) RegisterUserRoutes(mux *http.ServeMux, mw func(http.Handl
 	mux.Handle("DELETE /api/chats/{chat_id}", mw(http.HandlerFunc(h.DeleteChat)))
 	mux.Handle("POST /api/chats/{chat_id}/messages", mw(http.HandlerFunc(h.CreateMessage)))
 	mux.Handle("POST /api/chats/{chat_id}/messages/regenerate", mw(http.HandlerFunc(h.RegenerateMessage)))
-	log.Println("Registered user chat routes: GET /api/chats, POST /api/chats, GET/PUT/DELETE /api/chats/{id}, POST /api/chats/{id}/messages, POST /api/chats/{id}/messages/regenerate")
+	// Register the new search route
+	mux.Handle("POST /api/chats/{chat_id}/search", mw(http.HandlerFunc(h.SearchChat)))
+	log.Println("Registered user chat routes: GET /api/chats, POST /api/chats, GET/PUT/DELETE /api/chats/{id}, POST /api/chats/{id}/messages, POST /api/chats/{id}/messages/regenerate, POST /api/chats/{id}/search")
 	// Register the new purge route
 	mux.Handle("DELETE /api/chats/purge", mw(http.HandlerFunc(h.PurgeUserChats)))
 	log.Println("Registered user chat route: DELETE /api/chats/purge")
+}
+
+// Method to set the search handlers delegate
+func (h *ChatHandlers) SetSearchHandlersDelegate(delegate SearchHandlersDelegate) {
+	h.searchHandlersDelegate = delegate
+}
+
+// Helper to format search results
+func formatChatSearchResults(query string, results []ChatSearchResult) string {
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("--- Search Results for \"%s\" ---\n", query))
+	if len(results) == 0 {
+		builder.WriteString("(No results found)")
+	} else {
+		for i, result := range results {
+			builder.WriteString(fmt.Sprintf("%d. %s\n   URL: %s\n   Snippet: %s\n\n",
+				i+1, result.Title, result.URL, result.Snippet))
+		}
+	}
+	builder.WriteString("----------------------------")
+	return builder.String()
+}
+
+// These types/functions need to be added to connect to search_handlers.go functionality
+type ChatSearchResult struct {
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Snippet string `json:"snippet"`
+}
+
+type SearchHandlersDelegate interface {
+	GetSearchProvider(providerID *int) (*models.SearchProvider, error)
+	PerformSearch(query string, provider *models.SearchProvider) ([]ChatSearchResult, error)
 }

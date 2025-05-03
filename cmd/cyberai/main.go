@@ -185,6 +185,36 @@ func initSessionStore() {
 	gob.Register(0) // Register int type (specifically 0, but registers int generally)
 }
 
+// SearchHandlersAdapter connects SearchHandlers to ChatHandlers
+type SearchHandlersAdapter struct {
+	searchHandlers *handlers.SearchHandlers
+}
+
+// GetSearchProvider adapts the SearchHandlers.getSearchProvider method
+func (a *SearchHandlersAdapter) GetSearchProvider(providerID *int) (*models.SearchProvider, error) {
+	return a.searchHandlers.GetSearchProvider(providerID)
+}
+
+// PerformSearch adapts the SearchHandlers.performSearch method
+func (a *SearchHandlersAdapter) PerformSearch(query string, provider *models.SearchProvider) ([]handlers.ChatSearchResult, error) {
+	results, err := a.searchHandlers.PerformSearch(query, provider)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert search results to chat search results
+	chatResults := make([]handlers.ChatSearchResult, len(results))
+	for i, result := range results {
+		chatResults[i] = handlers.ChatSearchResult{
+			Title:   result.Title,
+			URL:     result.URL,
+			Snippet: result.Snippet,
+		}
+	}
+
+	return chatResults, nil
+}
+
 func main() {
 	// Log startup information
 	log.Printf("Starting CyberAI Server")
@@ -210,11 +240,15 @@ func main() {
 	agentService := models.NewAgentService(database)
 	chatService := models.NewChatService(database, hub)
 	providerService := models.NewProviderService(database)
-	// Pass chatService and agentService to ConnectorService constructor
-	connectorService := llm.NewConnectorService(modelService, providerService, chatService, agentService)
+	searchProviderSvc := models.NewSearchProviderService(database.DB)
+	userService := models.NewUserService(database)
+	roleSvc := models.NewRoleService(database.DB)
+
+	// Pass chatService, agentService, AND hub to ConnectorService constructor
+	connectorService := llm.NewConnectorService(modelService, providerService, chatService, agentService, hub)
 
 	// Create and start HTTP server
-	server := setupServer(hub, database, modelService, chatService, connectorService, cookieStore)
+	server := setupServer(hub, database, modelService, providerService, chatService, connectorService, searchProviderSvc, userService, roleSvc, cookieStore)
 
 	// Get port, defaulting to 8080 if not specified
 	port := os.Getenv("PORT")
@@ -304,7 +338,7 @@ func serveFileFromFS(fsys fs.FS, fileName string, w http.ResponseWriter, r *http
 	http.ServeContent(w, r, stat.Name(), stat.ModTime(), seeker)
 }
 
-func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService, chatService *models.ChatService, connectorService *llm.ConnectorService, store *sessions.CookieStore) *http.Server {
+func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService, providerService *models.ProviderService, chatService *models.ChatService, connectorService *llm.ConnectorService, searchProviderSvc *models.SearchProviderService, userService *models.UserService, roleSvc *models.RoleService, store *sessions.CookieStore) *http.Server {
 	// Create router
 	mux := http.NewServeMux()
 
@@ -318,15 +352,20 @@ func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService
 	log.Println("Serving UI from embedded filesystem")
 
 	// Initialize services needed by handlers
-	userService := models.NewUserService(database)
 	authHandlers := auth.NewAuthHandlers(store, userService)
 
-	// Create handlers
-	adminHandlers := handlers.NewAdminHandlers(database, templatesFS)
+	// Create handlers using passed-in services
+	adminHandlers := handlers.NewAdminHandlers(database, templatesFS, providerService, modelService, userService, roleSvc, connectorService, searchProviderSvc)
 	modelHandlers := handlers.NewModelHandlers(modelService)
 	chatHandlers := handlers.NewChatHandlers(chatService, hub, connectorService)
 	userHandlers := handlers.NewUserHandlers(userService)
-	// Create other handlers (e.g., auth) here later
+	searchHandlers := handlers.NewSearchHandlers(searchProviderSvc, connectorService, modelService, chatService)
+
+	// Create an adapter to connect SearchHandlers with ChatHandlers
+	searchHandlersAdapter := &SearchHandlersAdapter{
+		searchHandlers: searchHandlers,
+	}
+	chatHandlers.SetSearchHandlersDelegate(searchHandlersAdapter)
 
 	// Define Middleware
 	// For development, we use TempAdminAuthMiddleware for all user routes.
@@ -392,6 +431,10 @@ func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService
 	mux.Handle("/api/chats/", sessionAuth(userApiMux))
 	mux.Handle("/api/models", sessionAuth(userApiMux)) // Assuming model routes start with /api/models
 	mux.Handle("/api/models/", sessionAuth(userApiMux))
+
+	// Register search routes
+	mux.Handle("POST /api/search", sessionAuth(http.HandlerFunc(searchHandlers.Search)))
+	mux.Handle("POST /api/search/chat", sessionAuth(http.HandlerFunc(searchHandlers.SearchAndChat)))
 
 	// Register the /api/user/me route directly and apply sessionAuth middleware
 	mux.Handle("GET /api/user/me", sessionAuth(http.HandlerFunc(userHandlers.GetCurrentUser)))

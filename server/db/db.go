@@ -14,7 +14,7 @@ import (
 
 const (
 	// Schema version
-	SchemaVersion = 1
+	SchemaVersion = 2
 
 	// Default database file
 	DefaultDBPath = "./data/cyberai.db"
@@ -235,6 +235,24 @@ func (db *DB) migrate() error {
 		CREATE INDEX IF NOT EXISTS idx_usage_chat ON usage_statistics(chat_id);
 		CREATE INDEX IF NOT EXISTS idx_usage_model ON usage_statistics(model_id);
 		CREATE INDEX IF NOT EXISTS idx_usage_created ON usage_statistics(created_at);
+
+		-- NEW TABLE: Search Providers
+		CREATE TABLE IF NOT EXISTS search_providers (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			type TEXT NOT NULL CHECK(type IN ('brave', 'google_cse')), -- 'brave', 'google_cse'
+			api_key TEXT,
+			search_engine_id TEXT, -- Specific to Google Custom Search Engine
+			is_default BOOLEAN NOT NULL DEFAULT FALSE,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		-- END NEW TABLE
+
+		-- Index for Search Providers
+		CREATE INDEX IF NOT EXISTS idx_search_providers_type ON search_providers(type);
+		-- Note: Enforcing single default might require application logic or a more complex UNIQUE index/trigger
+		-- CREATE UNIQUE INDEX IF NOT EXISTS idx_search_providers_is_default ON search_providers(is_default) WHERE is_default = TRUE;
 	`)
 
 	if err != nil {

@@ -24,6 +24,8 @@ const API_BASE = '/api';
 const CHATS_ENDPOINT = `${API_BASE}/chats`;
 const MODELS_ENDPOINT = `${API_BASE}/models`;
 const USER_ME_ENDPOINT = `${API_BASE}/user/me`;
+const SEARCH_ENDPOINT = `${API_BASE}/search`;
+const SEARCH_CHAT_ENDPOINT = `${API_BASE}/search/chat`;
 
 // Fetch available models from the API
 api.fetchModels = async function() {
@@ -165,10 +167,16 @@ api.loadChat = async function(chatId) {
         // Clear existing messages UI
         ui.clearChatHistory();
 
-        // Render each message UI
+        // Render each message UI only if it doesn't already exist
         if (chat.messages && chat.messages.length > 0) {
             chat.messages.forEach(message => {
-                ui.renderMessage(message);
+                const existingElement = document.getElementById(`message-${message.id}`);
+                if (!existingElement) {
+                    console.log(`[loadChat] Rendering message ${message.id} as it doesn't exist.`);
+                    ui.renderMessage(message); // Render only if not already present
+                } else {
+                    console.log(`[loadChat] Skipping render for message ${message.id} as it already exists.`);
+                }
             });
         } else {
             // No notification needed on successful load
@@ -219,6 +227,72 @@ api.prepareNewChat = function() {
     console.log("[System] New chat prepared. Type a message to begin.");
     // --- Update regenerate button state for new chat ---
     ui.updateRegenerateButtonState(); 
+};
+
+// Creates a new chat on the server, optionally with the first message
+api.createNewChat = async function(firstMessageContent = null) {
+    console.log(`Creating new chat via API ${firstMessageContent ? 'with initial message' : ''}`);
+    
+    try {
+        let requestBody = {};
+        
+        // If first message is provided, include it in the request
+        if (firstMessageContent && activeModel) {
+            requestBody = {
+                first_message: {
+                    content: firstMessageContent,
+                    model_id: parseInt(activeModel, 10)
+                }
+                // No title field - backend will use first_message content
+            };
+        }
+        
+        const response = await fetch('/api/chats', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody)
+        });
+        
+        if (!response.ok) {
+            let errorDetail = `HTTP ${response.status}`;
+            try {
+                const errorData = await response.json();
+                errorDetail = errorData.detail || errorData.error || errorDetail;
+            } catch (jsonError) {
+                try {
+                    const errorText = await response.text();
+                    errorDetail = errorText || errorDetail;
+                } catch (textError) {
+                    console.error("[API] Failed to read error response as text.");
+                }
+            }
+            console.error(`[API] Error creating chat (Status ${response.status}):`, errorDetail);
+            ui.showNotification(`Error creating chat: ${errorDetail}`, 'error');
+            return null;
+        }
+        
+        const chatData = await response.json();
+        
+        // Successfully created chat
+        console.log('[API] New chat created successfully:', chatData);
+        currentChatId = chatData.id; // UPDATE global currentChatId
+        
+        // Update UI
+        if (chatTitle) {
+            chatTitle.textContent = chatData.title || 'New Chat';
+        }
+        
+        // Refresh the chat list
+        await api.fetchChats();
+        
+        return chatData;
+    } catch (error) {
+        console.error('[API] Unexpected Error in createNewChat:', error);
+        ui.showNotification(`Error creating chat: ${error.message}`, 'error');
+        return null;
+    }
 };
 
 // Old createNewChat function (to be removed or commented out)
@@ -672,6 +746,176 @@ api.fetchCurrentUser = async function() {
          currentUser = fallbackUser;
          ui.updateUserUI(fallbackUser);
     }
+};
+
+// Search the web and return raw results
+api.search = async function(query, providerId = null) {
+    if (!query || query.trim() === '') {
+        ui.showNotification('Please enter a search query', 'warning');
+        return null;
+    }
+
+    try {
+        ui.showThinkingIndicator(true, 'Searching the web...');
+        
+        const requestData = {
+            query: query
+        };
+        
+        if (providerId) {
+            requestData.provider_id = providerId;
+        }
+
+        const response = await fetch(SEARCH_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error ${response.status}`);
+        }
+
+        const searchResults = await response.json();
+        console.log('Search results:', searchResults);
+        return searchResults;
+    } catch (error) {
+        console.error('Error performing search:', error);
+        ui.showNotification(`Error searching: ${error.message}`, 'error');
+        return null;
+    } finally {
+        ui.showThinkingIndicator(false);
+    }
+};
+
+// Search the web and get AI-generated response
+api.searchAndChat = async function(query, modelId = null) {
+	if (!query || query.trim() === '') {
+		ui.showNotification('Please enter a search query', 'warning');
+		return;
+	}
+
+	if (!modelId && !activeModel) {
+		ui.showNotification('Please select a model first', 'warning');
+		return;
+	}
+
+	const selectedModelId = modelId || activeModel;
+	let tempId = `temp-user-search-${Date.now()}`;
+
+	try {
+		// Clear the input field immediately
+		if (messageInput) messageInput.value = ''; 
+		
+		// Show searching indicator
+		ui.showThinkingIndicator(true, 'Searching and processing results...');
+		
+		// Always add the user's search query to the UI immediately
+		// This ensures the user query appears at the top
+		ui.addMessageToUI('user', query, tempId, 'search');
+		
+		// Make sure we scroll to see the user's message
+		if (chatHistory) ui.scrollToBottom(chatHistory);
+
+		const requestData = {
+			query: query,
+            model_id: parseInt(selectedModelId, 10) // Add selected model ID
+		};
+
+        // Only add provider_id if one was explicitly chosen (or handle default on backend)
+        // const selectedProviderId = document.getElementById('provider-select')?.value;
+        // if (selectedProviderId) { requestData.provider_id = parseInt(selectedProviderId, 10); } 
+        // For now, let backend handle default provider logic if provider_id is omitted
+		
+		// Determine if we should append to current chat or create new one
+		const useExistingChat = currentChatId !== null;
+		const endpoint = useExistingChat 
+			? `${CHATS_ENDPOINT}/${currentChatId}/search` 
+			: SEARCH_CHAT_ENDPOINT;
+		
+		// If creating a new chat, model_id is needed in the request
+		if (!useExistingChat) {
+			if (isNaN(requestData.model_id)) {
+				ui.showNotification("Invalid model selected for new search chat.", "error");
+				throw new Error("Invalid model ID"); // Prevent API call
+			}
+		} else {
+			// Always keep model_id in the request - backend will use this for search
+			// If no model_id, backend will try to use last message's model
+			if (isNaN(requestData.model_id)) {
+				console.log("Warning: No valid model_id for search in existing chat, backend will attempt to use model from history");
+			}
+		}
+		
+		console.log(`Sending search request to ${endpoint} with data:`, requestData);
+		const response = await fetch(endpoint, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(requestData)
+		});
+
+		if (!response.ok) {
+			let errorDetail = `HTTP ${response.status}`;
+			try {
+				const errorData = await response.json();
+				errorDetail = errorData.detail || errorData.error || errorDetail;
+			} catch (e) {
+				try {
+					const errorText = await response.text();
+					errorDetail = errorText || errorDetail;
+				} catch (et) {}
+			}
+			throw new Error(errorDetail);
+		}
+
+		const result = await response.json();
+		console.log("SearchAndChat API call successful:", result);
+		
+		// Update chat state only if we created a new chat
+		if (!useExistingChat && result.chat_id) {
+			// New chat was created
+			currentChatId = result.chat_id;
+			if (chatTitle) chatTitle.textContent = result.chat_name || 'Search Results';
+			
+			// Refresh the chat list to show the new chat
+			await api.fetchChats();
+		}
+		
+		// Update the temp message ID to match the actual ID from the server if available
+		const userMsg = document.getElementById(tempId);
+		if (userMsg && result.user_message_id) {
+			userMsg.id = `message-${result.user_message_id}`;
+		}
+		
+		// Return focus to input field for next message
+		setTimeout(() => {
+			if (messageInput) messageInput.focus();
+		}, 100);
+		
+		// Ensure websocket is connected for receiving actual AI response
+		if (websocket) {
+			if (typeof websocket.ensureConnected === 'function') {
+				websocket.ensureConnected();
+			} else if (ws && ws.readyState !== WebSocket.OPEN) {
+				console.log("Reconnecting websocket for search results...");
+				websocket.connect();
+			}
+		}
+		
+		return result;
+	} catch (error) {
+		console.error('Error in search and chat:', error);
+		ui.showNotification(`Error: ${error.message}`, 'error');
+		
+		// Show error message in chat
+		ui.addMessageToUI('system', `Search error: ${error.message}`, 'search-error-msg', 'error');
+	} finally {
+		ui.showThinkingIndicator(false);
+	}
 };
 
 // Export the namespace

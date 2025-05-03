@@ -8,9 +8,12 @@ import (
 	"time"
 
 	"github.com/ramborogers/cyberai/server/db"
+	// "github.com/ramborogers/cyberai/server/llm" // REMOVE llm import
+	// "github.com/ramborogers/cyberai/server/ws"  // REMOVE ws import
 )
 
-// WSHub defines the interface for the WebSocket hub to avoid import cycles
+// WSHub interface defines the methods needed from the WebSocket hub
+// This avoids a direct import cycle with the ws package.
 type WSHub interface {
 	// SendToUser sends a message to a specific user
 	SendToUser(userID int64, message interface{})
@@ -55,14 +58,16 @@ type Message struct {
 // ChatService handles chat-related operations
 type ChatService struct {
 	DB  *db.DB
-	Hub WSHub // WebSocket hub for real-time communications
+	Hub WSHub // Use interface type
+	// ConnectorSvc *llm.ConnectorService // REMOVE ConnectorService dependency
 }
 
 // NewChatService creates a new ChatService
-func NewChatService(database *db.DB, hub WSHub) *ChatService {
+func NewChatService(database *db.DB, hub WSHub) *ChatService { // Remove connSvc parameter
 	return &ChatService{
 		DB:  database,
 		Hub: hub,
+		// ConnectorSvc: connSvc, // REMOVE ConnectorService storage
 	}
 }
 
@@ -150,7 +155,7 @@ func (s *ChatService) GetChatMessages(chatID int64) ([]Message, error) {
 		SELECT m.id, m.chat_id, m.user_id, m.role, m.content,
 		       m.model_id, m.agent_id, m.tokens_used, m.created_at
 		FROM messages m
-		WHERE m.chat_id = ?
+		WHERE m.chat_id = ? AND m.role != 'system'
 		ORDER BY m.created_at ASC
 	`, chatID)
 

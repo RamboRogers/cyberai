@@ -518,6 +518,8 @@ window.handleConfirmAction = function() {
         window.performDeleteUser(itemId);
     } else if (action === 'delete' && itemType === 'provider') {
         window.performDeleteProvider(itemId);
+    } else if (action === 'delete' && itemType === 'search_provider') {
+        window.performDeleteSearchProvider(itemId);
     } else {
         window.showError(`Unknown combination: Action='${action}', Type='${itemType}'`); // Updated error message
     }
@@ -800,13 +802,29 @@ window.loadRolesPromise = function() {
         });
 };
 
+window.loadSearchProvidersPromise = function() {
+    return fetch('/api/admin/search-providers')
+        .then(window.handleResponse)
+        .then(providers => {
+            window.renderSearchProviders(Array.isArray(providers) ? providers : []);
+            return providers;
+        })
+        .catch(err => { 
+            console.error("Load Search Providers Promise Failed:", err);
+            window.renderSearchProviders([]); // Render empty state on error
+            // Do not re-throw, allow other loads to continue if possible
+            return []; 
+        });
+};
+
 window.loadAllData = function() {
     window.showLoading();
     Promise.all([
         window.loadProvidersPromise(),
         window.loadModelsPromise(),
         window.loadUsersPromise(),
-        window.loadRolesPromise()
+        window.loadRolesPromise(),
+        window.loadSearchProvidersPromise()
     ])
     .then(() => {
         console.log("Initial data load complete.");
@@ -1312,6 +1330,146 @@ window.createModelCardHTML = function(model) {
     `;
 }
 
+// --- NEW: Render Search Providers --- 
+window.renderSearchProviders = function(providers) {
+    const listElement = document.getElementById('search-provider-list');
+    if (!listElement) return;
+
+    const providerArray = Array.isArray(providers) ? providers : [];
+    listElement.innerHTML = ''; // Clear previous
+
+    if (providerArray.length === 0) {
+        listElement.innerHTML = '<div class="no-results text-center col-span-full p-6 text-on-surface opacity-60">No search providers configured.</div>';
+        return;
+    }
+
+    providerArray.forEach(provider => {
+        const card = document.createElement('div');
+        card.className = 'search-provider-card card rounded-lg shadow p-4 flex flex-col justify-between space-y-3'; // Use .card base class
+        card.dataset.id = provider.id;
+        card.dataset.type = provider.type;
+        card.dataset.name = provider.name; // For confirmation dialog
+
+        const isDefaultBadge = provider.is_default 
+            ? '<span class="text-xs font-bold px-2 py-0.5 rounded bg-primary text-on-primary">Default</span>' 
+            : '';
+
+        const providerTypeClass = provider.type === 'google_cse' ? 'bg-cyan-500 text-black' : 'bg-yellow-500 text-black'; // Example colors
+
+        card.innerHTML = `
+            <div>
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="text-lg font-semibold card-title">${window.escapeHtml(provider.name)}</h3>
+                    <span class="text-xs uppercase font-bold px-2 py-1 rounded ${providerTypeClass}">${window.escapeHtml(provider.type)}</span>
+                </div>
+                <div class="text-sm card-content space-y-1 card-details">
+                    ${provider.type === 'google_cse' && provider.search_engine_id ? `<p><span class="font-medium label">Engine ID:</span> <span>${window.escapeHtml(provider.search_engine_id)}</span></p>` : ''}
+                    <p><span class="font-medium label">Status:</span> ${isDefaultBadge || '<span class="text-xs text-on-surface opacity-60">Not Default</span>'}</p>
+                    <p><span class="font-medium label">Created:</span> <span>${new Date(provider.created_at).toLocaleString()}</span></p>
+                 </div>
+            </div>
+            <div class="flex justify-end space-x-2 pt-3 mt-3 card-footer">
+                <button class="text-xs py-1 px-2 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold rounded shadow" data-action="edit-search-provider" data-id="${provider.id}">Edit</button>
+                <button class="text-xs py-1 px-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded shadow" data-action="delete-search-provider" data-id="${provider.id}">Delete</button>
+            </div>
+        `;
+        listElement.appendChild(card);
+
+        // Add listeners
+        card.querySelector('[data-action="edit-search-provider"]')?.addEventListener('click', () => {
+            window.openSearchProviderModal('edit', provider.id);
+            window.dispatchEvent(new CustomEvent('open-search-provider-modal', { detail: { provider: provider } })); // Pass provider for type check
+        });
+        card.querySelector('[data-action="delete-search-provider"]')?.addEventListener('click', () => {
+            window.openConfirmModal(`Are you sure you want to delete search provider '${window.escapeHtml(provider.name)}'?`, 'delete', provider.id, 'search_provider');
+        });
+    });
+};
+
+// --- NEW: Fetch Search Provider Details --- 
+window.fetchSearchProviderDetails = function(providerId) {
+    console.log(`Fetching details for search provider ID: ${providerId}`);
+    window.showLoading();
+    fetch(`/api/admin/search-providers/${providerId}`)
+        .then(window.handleResponse)
+        .then(provider => {
+            if (provider) {
+                const form = document.getElementById('search-provider-form');
+                if (form) {
+                    document.getElementById('search-provider-name').value = provider.name || '';
+                    document.getElementById('search-provider-type').value = provider.type || '';
+                    document.getElementById('search-engine-id').value = provider.search_engine_id || '';
+                    document.getElementById('is-default').checked = provider.is_default;
+                    // API Key is intentionally left blank for editing
+                    document.getElementById('search-provider-api-key').placeholder = '(unchanged)';
+
+                    // Manually trigger Alpine state update for conditional field
+                    const modalElement = form.closest('[x-data*="isGoogle"]');
+                    if (modalElement && modalElement.__x) {
+                        modalElement.__x.data.isGoogle = (provider.type === 'google_cse');
+                    }
+                }
+            } else {
+                window.showError("Failed to load search provider details.");
+            }
+        })
+        .catch(error => {
+            window.showError(`Error fetching search provider: ${error.message}`);
+        })
+        .finally(() => {
+            window.hideLoading();
+        });
+};
+
+// --- NEW: Open Search Provider Modal --- 
+window.openSearchProviderModal = function(action, providerId = null) {
+    console.log(`Preparing search provider modal for action: ${action}`);
+    const modal = document.getElementById('search-provider-modal');
+    if (!modal) { console.error("Search Provider modal element not found!"); return; }
+
+    const form = document.getElementById('search-provider-form');
+    if (form) form.reset();
+    
+    const idInput = document.getElementById('search-provider-id');
+    const title = document.getElementById('search-provider-modal-title');
+    const apiKeyInput = document.getElementById('search-provider-api-key');
+    
+    if (idInput) idInput.value = '';
+    if (title) title.textContent = action === 'add' ? 'Add New Search Provider' : 'Edit Search Provider';
+    if (apiKeyInput) apiKeyInput.placeholder = 'Enter API Key (required)'; // Reset placeholder
+
+    // Reset Alpine state for conditional field
+    const modalElement = modal.closest('[x-data*="isGoogle"]');
+     if (modalElement && modalElement.__x) {
+        modalElement.__x.data.isGoogle = false;
+    }
+
+    if (action === 'edit' && providerId) {
+        if(idInput) idInput.value = providerId;
+        window.fetchSearchProviderDetails(providerId); // Populates form
+    }
+    console.log(`Search Provider modal ready for ${action}. Waiting for Alpine to show.`);
+};
+
+// --- NEW: Delete Search Provider --- 
+window.performDeleteSearchProvider = function(providerId) {
+    window.showLoading();
+    fetch(`/api/admin/search-providers/${providerId}`, {
+        method: 'DELETE'
+    })
+    .then(window.handleResponse)
+    .then(() => {
+        window.showSuccess("Search provider deleted successfully.");
+        window.loadSearchProvidersPromise(); // Refresh the list
+    })
+    .catch(error => {
+        window.showError(`Failed to delete search provider: ${error.message}`);
+    })
+    .finally(() => {
+        window.hideLoading();
+    });
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     // --- DOMContentLoaded Scope Starts Here ---
     let currentAction = null; // Or use window.currentAction defined above
@@ -1355,6 +1513,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const confirmYesBtn = document.getElementById('confirm-yes');
         
+        // --- NEW: Search Provider Form Ref ---
+        const searchProviderForm = document.getElementById('search-provider-form');
+
         // --- Attach Event Listeners ---
         // Add/Edit buttons handled by Alpine + Global JS function
         // if (addModelBtn) addModelBtn.addEventListener('click', () => openModelModal('add')); 
@@ -1379,6 +1540,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (providerTypeSelect) providerTypeSelect.addEventListener('change', toggleProviderConditionalFields);
 
         if (confirmYesBtn) confirmYesBtn.addEventListener('click', handleConfirmAction);
+
+        // --- NEW: Listener for Search Provider Form ---
+        if (searchProviderForm) searchProviderForm.addEventListener('submit', handleSearchProviderFormSubmit);
 
         // NO Event Delegation here anymore
     }
@@ -1446,6 +1610,37 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     window.handleProviderFormSubmit = handleProviderFormSubmit;
     
+    // --- NEW: Handle Search Provider Form Submit ---
+    function handleSearchProviderFormSubmit(event) {
+        event.preventDefault();
+        const searchProviderData = buildSearchProviderData();
+        if (!searchProviderData) return;
+
+        const providerId = document.getElementById('search-provider-id')?.value;
+        const action = providerId ? 'update' : 'add';
+
+        if (!validateSearchProviderData(searchProviderData, action)) return;
+
+        showLoading();
+        const apiUrl = action === 'add' ? '/api/admin/search-providers' : `/api/admin/search-providers/${providerId}`;
+        const method = action === 'add' ? 'POST' : 'PUT';
+
+        fetch(apiUrl, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(searchProviderData)
+        })
+        .then(handleResponse)
+        .then(() => {
+            showSuccess(`Search provider ${action === 'add' ? 'added' : 'updated'}.`);
+            window.dispatchEvent(new CustomEvent('close-search-provider-modal')); 
+            loadSearchProvidersPromise(); // Refresh list
+        })
+        .catch(error => showError(`Failed to ${action} search provider: ${error.message}`))
+        .finally(hideLoading);
+    }
+    window.handleSearchProviderFormSubmit = handleSearchProviderFormSubmit; // Expose if needed, though listener is added below
+
     function handleUserFormSubmit(event) {
         event.preventDefault();
         const userDetails = buildUserData();
@@ -1632,6 +1827,49 @@ document.addEventListener('DOMContentLoaded', function() {
         return true;
     }
     window.validateProviderData = validateProviderData;
+    
+    // --- NEW: Build/Validate Search Provider Data ---
+    function buildSearchProviderData() {
+        try {
+            const data = {
+                name: document.getElementById('search-provider-name')?.value || '',
+                type: document.getElementById('search-provider-type')?.value || '',
+                api_key: document.getElementById('search-provider-api-key')?.value || '',
+                search_engine_id: document.getElementById('search-engine-id')?.value || null, // Default to null if empty
+                is_default: document.getElementById('is-default')?.checked ?? false,
+            };
+            // Only include api_key if it has a value (prevent sending empty string on update)
+            if (!data.api_key) delete data.api_key;
+            // Null out search_engine_id if not google_cse type
+            if (data.type !== 'google_cse') data.search_engine_id = null;
+            
+            return data;
+        } catch (error) {
+             console.error("Error building search provider data:", error);
+             showError("Error reading search provider form data.");
+             return null;
+        }
+    }
+    window.buildSearchProviderData = buildSearchProviderData;
+
+    function validateSearchProviderData(data, action) {
+        if (!data) return false;
+        if (!data.name) { showError("Provider Name is required."); return false; }
+        if (!data.type) { showError("Provider Type is required."); return false; }
+        
+        // API Key required for ADD, optional for UPDATE
+        const providerId = document.getElementById('search-provider-id')?.value;
+        if (!providerId && !data.api_key) { // If adding and no API key
+             showError('API Key is required for new search providers.'); return false; 
+        }
+
+        // Search Engine ID required for Google CSE type
+        if (data.type === 'google_cse' && (!data.search_engine_id || data.search_engine_id.trim() === '')) {
+            showError('Search Engine ID (CX) is required for Google Custom Search providers.'); return false;
+        }
+        return true;
+    }
+    window.validateSearchProviderData = validateSearchProviderData;
     
     // --- Expose additional functions to global scope ---
     // Notification functions - Now handled by event dispatch

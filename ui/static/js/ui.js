@@ -199,7 +199,7 @@ ui.renderChatsList = function(chats) {
         const chatLink = document.createElement('a');
         chatLink.href = '#'; // Prevent page jump
         chatLink.dataset.chatId = chat.id;
-        chatLink.className = 'group relative flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-on-surface hover:bg-surface-alt hover:text-primary';
+        chatLink.className = 'chat-badge';
 
         // Active state styling managed by updateActiveChatUI
 
@@ -266,9 +266,9 @@ ui.renderChatsList = function(chats) {
 ui.updateActiveChatUI = function() {
     document.querySelectorAll('#chats-list li a[data-chat-id]').forEach(link => {
         if (link.dataset.chatId == currentChatId) {
-            link.classList.add('bg-surface-alt', 'text-primary');
+            link.classList.add('active');
         } else {
-            link.classList.remove('bg-surface-alt', 'text-primary');
+            link.classList.remove('active');
         }
     });
 }
@@ -429,28 +429,85 @@ ui.renderMessage = function(message) {
         contentElement = messageWrapper.querySelector('.content');
     }
 
-    // Store/Update raw content attribute (Original content without prefix)
     messageWrapper.dataset.rawContent = message.content || '';
 
-    // Prepare display content (add prefix for user messages)
     let displayContentString = message.content || '';
-    if (message.role === 'user') {
-        displayContentString = `<span class="user-prompt-indicator">&gt;</span> ${displayContentString}`;
+    let isSearchMessage = false; // For user messages containing search results
+    let isSystemSearchResults = false; // For system messages containing search results
+
+    if (message.role === 'user' && displayContentString.includes('\n\n--- Search Results ---\n')) {
+        isSearchMessage = true;
+    } else if (message.role === 'system' && displayContentString.includes('# Search Results for:')) {
+        isSystemSearchResults = true;
     }
 
-    // --- ADDED: Preprocess for \\boxed{} ---
-    displayContentString = displayContentString.replace(/\\\\boxed\\{([^}]+)\\}/g, '<span class="boxed-answer">$1</span>');
-    // --- END ADDED ---
+    // --- ADDED: Preprocess for \boxed{} --- (Keep this)
+    displayContentString = displayContentString.replace(/\\boxed\{([^}]+)\}/g, '<span class="boxed-answer">$1</span>');
 
-    // Update rendered content using marked
+    // Update rendered content
     if (contentElement) {
-        try {
-            // Use githubFlavored: true and breaks: true for better compatibility
-            contentElement.innerHTML = marked.parse(displayContentString, { gfm: true, breaks: true });
-        } catch (error) {
-            console.error('Error parsing markdown content:', error);
-            // Fallback: Render the potentially prefixed string as text
-            contentElement.innerHTML = displayContentString.replace(/</g, "&lt;").replace(/>/g, "&gt;"); // Basic HTML escaping
+        if (message.role === 'assistant' || isSearchMessage) {
+            // Parse content for assistant messages OR our combined user search message
+            try {
+                let finalHTML = "";
+                if (isSearchMessage) {
+                    // For search message, add prefix BEFORE parsing
+                    const parts = displayContentString.split('\n\n--- Search Results ---\n');
+                    const userQueryPart = `<span class="user-prompt-indicator">&gt;</span> ${parts[0].replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
+                    const resultsPart = parts.length > 1 ? `\n\n--- Search Results ---\n${parts[1]}` : '';
+                    // Parse the results part only
+                    const parsedResults = marked.parse(resultsPart, { gfm: true, breaks: true });
+                    finalHTML = `${userQueryPart}${parsedResults}`;
+                } else {
+                    // Standard assistant message parsing
+                    finalHTML = marked.parse(displayContentString, { gfm: true, breaks: true });
+                }
+                contentElement.innerHTML = `<div class="markdown-content">${finalHTML}</div>`;
+                ui.setLinksToOpenInNewTab(contentElement.querySelector('.markdown-content'));
+            } catch (error) {
+                console.error('Error parsing markdown content:', error);
+                // Fallback for assistant/search - still wrap, show raw content
+                contentElement.innerHTML = `<div class="markdown-content">${displayContentString.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
+                ui.setLinksToOpenInNewTab(contentElement.querySelector('.markdown-content'));
+            }
+        } else if (isSystemSearchResults) {
+            // Special rendering for system message containing search results
+            try {
+                // Extract query and results
+                const lines = displayContentString.split('\n');
+                const titleLine = lines[0] || ''; // e.g., "# Search Results for: ..."
+                const queryMatch = titleLine.match(/# Search Results for: (.*)/);
+                const query = queryMatch ? queryMatch[1].trim() : 'Search';
+                const resultsMarkdown = lines.slice(2).join('\n'); // Skip title and blank line
+
+                const parsedResultsHTML = marked.parse(resultsMarkdown, { gfm: true, breaks: true });
+
+                // Create collapsible structure with Alpine
+                contentElement.innerHTML = `
+                    <div x-data="{ expanded: false }" class="search-results-container border border-outline/50 rounded bg-surface-alt/50">
+                        <button @click="expanded = !expanded" class="flex justify-between items-center w-full p-2 text-sm font-semibold text-on-surface/80 hover:bg-surface-alt">
+                            <span>Search Results for: "${window.escapeHtml(query)}"</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 transition-transform duration-200" :class="{ 'rotate-180': expanded }">
+                                <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div x-show="expanded" x-collapse class="p-3 border-t border-outline/50 markdown-content search-results-content">
+                            ${parsedResultsHTML}
+                        </div>
+                    </div>
+                `;
+                // Add target="_blank" to links within the results
+                ui.setLinksToOpenInNewTab(contentElement.querySelector('.search-results-content'));
+            } catch (error) {
+                console.error('Error parsing system search results:', error);
+                contentElement.innerHTML = `<div class="markdown-content text-danger">Error displaying search results.</div>`;
+            }
+        } else if (message.role === 'user') {
+            // Standard user message (already prefixed and escaped)
+            contentElement.innerHTML = displayContentString;
+        } else {
+             // Handle other roles like standard 'system' (basic rendering)
+             contentElement.textContent = displayContentString;
         }
     } else {
          console.warn("Could not find content element for message:", message.id);
@@ -904,7 +961,7 @@ ui.setupEventListeners = function() {
 /**
  * Adds a message element directly to the UI for optimistic updates (e.g., user message).
  */
-ui.addMessageToUI = function(type, content, tempId = null) {
+ui.addMessageToUI = function(type, content, tempId = null, messageType = 'chat') {
     if (!chatHistory) return;
 
     const messageWrapper = ui.createMessageElement(type, tempId, null);
@@ -913,29 +970,56 @@ ui.addMessageToUI = function(type, content, tempId = null) {
     if (contentElement) {
         messageWrapper.dataset.rawContent = content; // Store original raw content
         
-        // --- FIX: Render HTML directly for user message indicator --- 
+        // Handle message type-specific rendering
         if (type === 'user') {
-            // Construct the string with the HTML span
-            const displayContentString = `<span class="user-prompt-indicator">&gt;</span> ${content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}`; // Escape only the user content part
-            // Set innerHTML directly to render the span
-            contentElement.innerHTML = displayContentString;
+            // Add search icon for search messages
+            if (messageType === 'search') {
+                const searchIcon = '<span class="inline-block mr-2 text-primary"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" /></svg></span>';
+                const displayContentString = `<span class="user-prompt-indicator">&gt;</span> ${searchIcon}${content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
+                contentElement.innerHTML = displayContentString;
+            } else {
+                // Standard user message
+                const displayContentString = `<span class="user-prompt-indicator">&gt;</span> ${content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
+                contentElement.innerHTML = displayContentString;
+            }
+        } else if (type === 'system') {
+            // For system messages
+            if (messageType === 'error') {
+                contentElement.classList.add('text-danger');
+                contentElement.innerHTML = `<span class="font-semibold">[ERROR]</span> ${content}`;
+            } else {
+                contentElement.innerHTML = content;
+            }
         } else {
-            // For other types (if this function were used for them), just set text content
-        contentElement.textContent = content;
+            // For other types, use markdown parsing
+            try {
+                contentElement.innerHTML = marked.parse(content);
+            } catch (error) {
+                console.error('Error parsing markdown:', error);
+                contentElement.textContent = content;
+            }
         }
-        // --- END FIX ---
-
     } else {
         console.warn("Could not find content element in newly created message wrapper.");
     }
 
-    chatHistory.appendChild(messageWrapper);
-    // Ensure scroll after adding optimistic message
-    setTimeout(() => ui.scrollToBottom(chatHistory), 50);
-    console.log(`[UI] Added optimistic ${type} message to UI.`);
+    // For search-related system messages, add a spinner
+    if (type === 'system' && tempId && tempId.includes('search-system')) {
+        const spinnerHTML = '<div class="inline-block ml-2 animate-spin"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg></div>';
+        if (contentElement) {
+            contentElement.innerHTML += spinnerHTML;
+        }
+    }
 
-    // --- Update regenerate button state after adding message ---
+    chatHistory.appendChild(messageWrapper);
+    // Ensure scroll after adding message
+    setTimeout(() => ui.scrollToBottom(chatHistory), 50);
+    console.log(`[UI] Added ${type} message to UI with ID ${tempId || 'unknown'}.`);
+
+    // Update regenerate button state after adding message
     ui.updateRegenerateButtonState();
+    
+    return messageWrapper;
 }
 
 /**
@@ -1081,4 +1165,116 @@ ui.updateRegenerateButtonState = function() {
         regenerateButton.title = 'Cannot regenerate (requires a previous assistant response)';
     }
     console.log(`[UI Update] Regenerate button ${canRegenerate ? 'enabled' : 'disabled'}`);
+};
+
+// --- Message Rendering Functions ---
+
+// Add a temporary user message while waiting for the response
+ui.addTempUserMessage = function(content, type = 'chat') {
+    if (!chatHistory) return;
+    
+    const tempId = 'temp-message-' + Date.now();
+    const messageElement = document.createElement('div');
+    messageElement.id = tempId;
+    messageElement.className = 'message user-message mb-4 animate-fade-in';
+    
+    let icon = '';
+    if (type === 'search') {
+        icon = '<span class="icon search-icon inline-block mr-2"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" /></svg></span>';
+    }
+    
+    messageElement.innerHTML = `
+        <div class="flex items-start mb-2">
+            <div class="user-avatar flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-on-primary text-sm font-medium mr-3">U</div>
+            <div class="content bg-surface-alt rounded-lg p-3 shadow-sm max-w-3xl">
+                ${icon}${window.marked.parse(window.escapeHtml(content))}
+            </div>
+        </div>
+    `;
+    
+    chatHistory.appendChild(messageElement);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    return tempId;
+};
+
+// Remove temporary messages
+ui.removeTempMessages = function() {
+    if (!chatHistory) return;
+    
+    const tempMessages = chatHistory.querySelectorAll('[id^="temp-message-"]');
+    tempMessages.forEach(msg => msg.remove());
+};
+
+// Add assistant message with search results
+ui.addAssistantMessageWithSearchResults = function(content, searchResults) {
+    if (!chatHistory) return;
+    
+    // Remove any temporary messages first
+    ui.removeTempMessages();
+    
+    const messageElement = document.createElement('div');
+    messageElement.className = 'message assistant-message mb-4 animate-fade-in';
+    
+    // Format the search results section
+    let searchResultsHTML = '';
+    if (searchResults && searchResults.length > 0) {
+        searchResultsHTML = '<div class="search-results mt-3 pt-3 border-t border-outline">';
+        searchResultsHTML += '<h4 class="text-sm font-semibold mb-2">Search Results:</h4>';
+        searchResultsHTML += '<ul class="search-results-list space-y-2 text-sm">';
+        
+        searchResults.forEach(result => {
+            searchResultsHTML += `
+                <li class="result-item">
+                    <a href="${window.escapeHtml(result.url)}" class="block hover:bg-surface-alt p-2 rounded" target="_blank" rel="noopener noreferrer">
+                        <div class="font-medium text-primary">${window.escapeHtml(result.title)}</div>
+                        <div class="text-xs text-on-surface/70 truncate">${window.escapeHtml(result.url)}</div>
+                        <div class="mt-1 text-on-surface/90">${window.escapeHtml(result.snippet)}</div>
+                    </a>
+                </li>
+            `;
+        });
+        
+        searchResultsHTML += '</ul></div>';
+    }
+    
+    // Parse Markdown in the assistant's response
+    const parsedContent = window.marked.parse(content);
+    
+    messageElement.innerHTML = `
+        <div class="flex items-start mb-2">
+            <div class="assistant-avatar flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-on-secondary text-sm font-medium mr-3">AI</div>
+            <div class="content bg-surface-alt rounded-lg p-3 shadow-sm max-w-3xl">
+                <div class="markdown-content">${parsedContent}</div>
+                ${searchResultsHTML}
+            </div>
+        </div>
+    `;
+    
+    chatHistory.appendChild(messageElement);
+    
+    // Apply syntax highlighting to code blocks
+    if (window.hljs) {
+        messageElement.querySelectorAll('pre code').forEach(block => {
+            window.hljs.highlightElement(block);
+        });
+    }
+    
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    
+    return messageElement;
+};
+
+// Helper function to set target="_blank" on links within an element
+ui.setLinksToOpenInNewTab = function(element) {
+    if (!element) return;
+    const links = element.querySelectorAll('a');
+    links.forEach(link => {
+        // Only add target="_blank" if it's an external link or not an anchor link
+        const href = link.getAttribute('href');
+        if (href && !href.startsWith('#') && !href.startsWith(window.location.origin)) {
+            link.setAttribute('target', '_blank');
+            // Add rel="noopener noreferrer" for security
+            link.setAttribute('rel', 'noopener noreferrer'); 
+        }
+    });
 };

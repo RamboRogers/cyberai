@@ -58,11 +58,7 @@
         <div class="flex flex-1 flex-col gap-y-7 overflow-y-auto px-4 py-4">
 
             <!-- Models Section (MOVED HERE) -->
-            <div x-data="{ selectedProviderId: localStorage.getItem('activeProviderId') || '', selectedModelId: localStorage.getItem('activeModelId') || '' }" x-init="
-                    /* 
-                    REMOVED: This logic is now handled in api.fetchModels after data is loaded.
-                    */
-                ">
+            <div x-data="{ selectedProviderId: localStorage.getItem('activeProviderId') || '', selectedModelId: localStorage.getItem('activeModelId') || '' }">
                 <div class="text-xs font-semibold leading-6 text-on-surface/60 px-2 py-1">MODELS</div>
                 <div class="mt-1 space-y-3 px-2">
                     <!-- Provider Select -->
@@ -116,7 +112,7 @@
                 <ul role="list" class="mt-1 space-y-1" id="chats-list">
                     <li>
                         <a href="#" id="new-chat-button"
-                           class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-primary hover:bg-surface-alt">
+                           class="chat-link flex items-center gap-x-3 text-sm font-semibold leading-6">
                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 shrink-0">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                             </svg>
@@ -195,9 +191,17 @@
             <div class="input-container border-t border-outline bg-surface p-4">
                 <div class="flex items-center space-x-3">
                     <input type="text" id="message-input"
-                           placeholder="> Type your message or command here..."
+                           placeholder="> Type message (Enter) or search query (Shift+Enter)..."
                            autocomplete="off"
                            class="flex-1 block w-full rounded-md border-0 bg-surface-alt py-2 px-3 text-on-surface placeholder:text-on-surface/50 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6 transition-shadow shadow-sm">
+                    <button id="search-button"
+                            class="inline-flex items-center justify-center rounded-md bg-surface-alt px-3 py-2 text-sm font-semibold text-on-surface shadow-sm hover:bg-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary search-button-with-shortcut"
+                            title="Search the Web (Shift+Enter)">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+                            <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11a5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
+                        </svg>
+                        <span class="sr-only">Search</span>
+                    </button>
                     <button id="send-button"
                             class="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Send Message">

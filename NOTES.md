@@ -552,3 +552,11 @@ type ModelConnector interface {
 - **Thinking Block Position:** Modified `ui.ensureThinkingBoxExists` to insert the thinking container *before* the main content container.
 - **Boxed Formatting:** Added JavaScript `.replace(/\\boxed\{([^}]+)\}/g, '<span class="boxed-answer">$1</span>')` logic to `ui.renderMessage` and `websocket.handleAssistantChunk` *before* calling `marked.parse`.
 - **Boxed Styling:** Added CSS rules for `.boxed-answer` class in `styles.css`.
+
+- **Stop Thinking Spinner:** Added `thinking-spinner-icon` class to spinner SVG in `ui.js`. Modified `websocket.handleAssistantChunk` to remove this element when the final chunk (`is_final`) arrives.
+
+- **Search Provider Management UI (Structure):**
+    - Added "Search" link to the sidebar in `admin.html`.
+    - Added "Search Provider Management" title and "New Search Provider" button to the header bar in `admin.html`.
+    - Added content `<section>` (`#search-providers-tab`) for displaying search provider cards.
+    - Added modal structure (`#search-provider-modal`) with form (`#search-provider-form`) for adding/editing search providers (Brave, Google CSE), including conditional field for Google's Search Engine ID.

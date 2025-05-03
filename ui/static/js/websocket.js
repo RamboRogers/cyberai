@@ -84,6 +84,17 @@ websocket.connect = function() {
     }
 };
 
+// Add a method to check if WebSocket is connected and reconnect if needed
+websocket.ensureConnected = function() {
+    // If WebSocket doesn't exist or isn't open, reconnect
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.log("WebSocket not connected. Reconnecting...");
+        websocket.connect();
+        return false;
+    }
+    return true;
+};
+
 // Handle different types of WebSocket messages
 websocket.handleWebSocketMessage = function(message) {
     console.log('WebSocket message received:', message);
@@ -128,6 +139,9 @@ websocket.handleWebSocketMessage = function(message) {
             }
             break;
         case 'assistant_message':
+            // Remove any temporary search system messages
+            document.querySelectorAll('[id^="search-system-"]').forEach(el => el.remove());
+            
             // Render the complete assistant message
             const assistantMsg = message.message_payload;
             if (assistantMsg) {
@@ -142,6 +156,11 @@ websocket.handleWebSocketMessage = function(message) {
             }
             break;
         case 'assistant_chunk':
+            // Remove any temporary search system messages when first chunk arrives
+            if (document.querySelectorAll('[id^="search-system-"]').length > 0) {
+                document.querySelectorAll('[id^="search-system-"]').forEach(el => el.remove());
+            }
+            
             // Handle a chunk of the assistant's response
             const chunkPayload = message.chunk_payload;
             if (chunkPayload) {
@@ -317,15 +336,17 @@ websocket.handleAssistantChunk = function(payload) {
                 // Append to the main content element's raw buffer
                 contentElement._rawContent += chunkToProcess;
                 try { 
-                    // --- ADDED: Preprocess for \\boxed{} ---
                     const processedContent = contentElement._rawContent.replace(/\\\\boxed\\{([^}]+)\\}/g, '<span class="boxed-answer">$1</span>');
-                    // --- END ADDED ---
-                    // Parse the accumulated raw content and render as HTML
-                    contentElement.innerHTML = marked.parse(processedContent, { gfm: true, breaks: true });
+                    // Parse the accumulated raw content and render as HTML INSIDE the markdown wrapper
+                    contentElement.innerHTML = `<div class="markdown-content">${marked.parse(processedContent, { gfm: true, breaks: true })}</div>`;
+                    // *** ADDED: Set links to open in new tab AFTER updating innerHTML ***
+                    ui.setLinksToOpenInNewTab(contentElement.querySelector('.markdown-content')); 
                 } catch (error) {
                     console.error('Error parsing regular markdown chunk:', error);
-                    // Fallback: render accumulated raw content as text
-                    contentElement.textContent = contentElement._rawContent;
+                    // Fallback: render accumulated raw content as text, still wrap
+                    contentElement.innerHTML = `<div class="markdown-content">${contentElement._rawContent}</div>`;
+                    // *** ADDED: Also apply to fallback content ***
+                    ui.setLinksToOpenInNewTab(contentElement.querySelector('.markdown-content'));
                 }
             }
         }

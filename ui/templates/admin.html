@@ -104,6 +104,17 @@
                         Roles
                     </a>
                 </li>
+                <!-- NEW SEARCH LINK -->
+                <li>
+                    <a href="#" @click.prevent="activeSection = 'search'; showSidebar = false"
+                       :class="{ 'bg-surface-alt text-primary': activeSection === 'search', 'text-on-surface hover:bg-surface-alt hover:text-primary': activeSection !== 'search' }"
+                       class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6">
+                        <!-- Search Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 shrink-0"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" /></svg>
+                        Search
+                    </a>
+                </li>
+                <!-- END NEW SEARCH LINK -->
             </ul>
 
             <!-- Separator -->
@@ -145,6 +156,7 @@
                 <span x-show="activeSection === 'models'">AI Model Management</span>
                 <span x-show="activeSection === 'users'">User Management</span>
                 <span x-show="activeSection === 'roles'">Role Management</span>
+                <span x-show="activeSection === 'search'">Search Provider Management</span>
             </h1>
             <!-- Dynamic Action Button -->
             <div>
@@ -166,6 +178,14 @@
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6"></path></svg>
                     New User
                 </button>
+                <!-- NEW SEARCH PROVIDER BUTTON -->
+                <button x-show="activeSection === 'search'" id="add-search-provider-btn"
+                        @click="openSearchProviderModal('add'); $nextTick(() => { $dispatch('open-search-provider-modal') })"
+                        class="bg-primary hover:bg-secondary text-on-primary font-bold py-2 px-4 rounded inline-flex items-center transition-colors duration-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6"></path></svg>
+                    New Search Provider
+                </button>
+                <!-- END NEW SEARCH PROVIDER BUTTON -->
                 <!-- No Add button for Roles currently -->
             </div>
         </div>
@@ -236,6 +256,18 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- NEW: Search Providers Section -->
+                <section x-show="activeSection === 'search'" id="search-providers-tab" class="space-y-6">
+                    <div class="bg-surface-alt p-4 rounded-lg shadow">
+                        <div id="search-provider-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div class="loading-indicator text-center col-span-full p-6 text-on-surface opacity-60">Loading search providers...</div>
+                            <!-- Search Provider cards will be loaded here -->
+                        </div>
+                    </div>
+                </section>
+                <!-- END NEW: Search Providers Section -->
+
             </div>
         </main>
     </div>
@@ -654,6 +686,99 @@
             </div>
         </div>
     </div>
+
+    <!-- NEW: Search Provider Form Modal -->
+    <div id="search-provider-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 overflow-y-auto" 
+        x-data="{ open: false, isGoogle: false }" 
+        x-show="open" 
+        @open-search-provider-modal.window="open = true; isGoogle = ($event.detail?.provider?.type === 'google_cse');" 
+        @close-search-provider-modal.window="open = false"
+        x-transition.opacity.duration.200ms
+        style="display: none">
+
+        <!-- Modal Dialog -->
+        <div class="w-full max-w-lg transform overflow-hidden rounded-lg bg-surface-alt border border-outline p-6 shadow-xl transition-all"
+            x-show="open" 
+            x-transition:enter="transition ease-out duration-300" 
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" 
+            x-transition:leave="transition ease-in duration-200" 
+            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" 
+            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            @click.away="open = false">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-outline pb-4 mb-4">
+                <h3 id="search-provider-modal-title" class="text-xl font-semibold text-primary">Add New Search Provider</h3>
+                <button class="text-on-surface hover:text-on-surface-strong" @click="open = false">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="modal-body">
+                <form id="search-provider-form" class="space-y-4">
+                    <input type="hidden" id="search-provider-id">
+
+                    <div class="form-group">
+                        <label for="search-provider-name" class="block text-sm font-medium text-primary mb-1">Provider Name</label>
+                        <input type="text" id="search-provider-name" name="name" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" 
+                            placeholder="e.g., My Brave Search" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="search-provider-type" class="block text-sm font-medium text-primary mb-1">Provider Type</label>
+                        <select id="search-provider-type" name="type" @change="isGoogle = ($event.target.value === 'google_cse')"
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" required>
+                            <option value="">Select Type</option>
+                            <option value="brave">Brave Search</option>
+                            <option value="google_cse">Google Custom Search</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="search-provider-api-key" class="block text-sm font-medium text-primary mb-1">API Key</label>
+                        <input type="password" id="search-provider-api-key" name="api_key" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" 
+                            placeholder="Enter API Key (required)">
+                    </div>
+
+                    <!-- Conditional Field for Google CSE -->
+                    <div class="form-group" x-show="isGoogle">
+                        <label for="search-engine-id" class="block text-sm font-medium text-primary mb-1">Search Engine ID (CX)</label>
+                        <input type="text" id="search-engine-id" name="search_engine_id" 
+                            class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" 
+                            placeholder="Enter Google Search Engine ID">
+                        <p class="mt-1 text-xs text-on-surface opacity-80">Required only for Google Custom Search Engine.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="flex items-center space-x-2 text-on-surface cursor-pointer">
+                            <input type="checkbox" id="is-default" name="is-default" 
+                                class="h-5 w-5 text-primary bg-surface-alt border-outline rounded focus:ring-primary">
+                            <span>Set as Default Search Provider</span>
+                        </label>
+                        <p class="mt-1 text-xs text-on-surface opacity-80">Only one provider can be the default.</p>
+                    </div>
+
+                    <div class="form-actions flex justify-end space-x-3 pt-4 border-t border-outline">
+                        <button type="button" id="search-provider-cancel-btn" @click="open = false"
+                            class="py-2 px-4 bg-surface-alt hover:bg-outline text-on-surface font-semibold rounded shadow">
+                            Cancel
+                        </button>
+                        <button type="submit" id="search-provider-save-btn"
+                            class="py-2 px-4 bg-primary hover:bg-secondary text-on-primary font-semibold rounded shadow">
+                            Save Search Provider
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- END NEW: Search Provider Form Modal -->
 
     <!-- Ollama Import Modal (Deprecated - Maybe remove or restyle?) -->
     <div id="ollama-import-modal" class="modal">
