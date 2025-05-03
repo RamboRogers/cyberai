@@ -256,6 +256,20 @@ func (h *SearchHandlers) SearchAndChat(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error adding system results message to new chat %d: %v", newChat.ID, err)
 		// Log error but continue, AI will generate without results context
 	} else {
+		// *** Add the specific search instruction prompt AFTER the results ***
+		instructionMsg := models.Message{
+			ChatID:    newChat.ID,
+			UserID:    0, // System message
+			Role:      "system",
+			Content:   searchInstructionPrompt,
+			ModelID:   &modelID,                             // Associate with the same model
+			CreatedAt: time.Now().Add(2 * time.Millisecond), // Ensure it sorts after results msg
+		}
+		if instructionErr := h.chatService.AddMessage(&instructionMsg); instructionErr != nil {
+			log.Printf("Error adding search instruction message to new chat %d: %v", newChat.ID, instructionErr)
+			// Log error, but AI generation will still proceed (just without specific instructions)
+		}
+
 		// 7. Trigger AI response for the NEW chat using the determined model ID
 		log.Printf("[SearchAndChat %d] Triggering AI response using model %d", newChat.ID, modelID)
 		go func() {
@@ -392,6 +406,20 @@ func (h *SearchHandlers) ChatSearch(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error adding system results message to chat %d: %v", chatID, err)
 		// Log error but continue
 	} else {
+		// *** Add the specific search instruction prompt AFTER the results ***
+		instructionMsg := models.Message{
+			ChatID:    chatID,
+			UserID:    0, // System message
+			Role:      "system",
+			Content:   searchInstructionPrompt,
+			ModelID:   &modelID,                             // Associate with the same model
+			CreatedAt: time.Now().Add(2 * time.Millisecond), // Ensure it sorts after results msg
+		}
+		if instructionErr := h.chatService.AddMessage(&instructionMsg); instructionErr != nil {
+			log.Printf("Error adding search instruction message to chat %d: %v", chatID, instructionErr)
+			// Log error, but AI generation will still proceed (just without specific instructions)
+		}
+
 		// 6. Trigger AI Response asynchronously for the EXISTING chat
 		log.Printf("[Chat %d Search] Triggering AI response using model %d", chatID, modelID)
 		go func() {

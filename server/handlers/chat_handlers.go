@@ -20,6 +20,9 @@ import (
 	"github.com/ramborogers/cyberai/server/ws"         // Import ws package
 )
 
+// Define the specific prompt for handling search results
+const searchInstructionPrompt = "You were just provided a list of search results.  Reflect on the results and provide a pretty markdown formatted response to the user's query. ONLY use the search results to answer the user's query. Ensure you include the source URLs in your response. Use Emojis to make your response more engaging."
+
 type ChatHandlers struct {
 	ChatService            *models.ChatService
 	Hub                    *ws.Hub                // WebSocket hub
@@ -667,6 +670,21 @@ func (h *ChatHandlers) SearchChat(w http.ResponseWriter, r *http.Request) {
 	if err := h.ChatService.AddMessage(&sysMsg); err != nil {
 		log.Printf("Error adding system results message to chat %d: %v", chatID, err)
 		// Log error but continue - AI will generate without search context
+	} else {
+		// *** Add the specific search instruction prompt AFTER the results ***
+		instructionMsg := models.Message{
+			ChatID:    chatID,
+			UserID:    0, // System message
+			Role:      "system",
+			Content:   searchInstructionPrompt,
+			ModelID:   &req.ModelID,                         // Associate with the same model
+			AgentID:   req.AgentID,                          // And agent
+			CreatedAt: time.Now().Add(2 * time.Millisecond), // Ensure it sorts after results msg
+		}
+		if instructionErr := h.ChatService.AddMessage(&instructionMsg); instructionErr != nil {
+			log.Printf("Error adding search instruction message to chat %d: %v", chatID, instructionErr)
+			// Log error, but AI generation will still proceed (just without specific instructions)
+		}
 	}
 
 	// Return the created user message object with 202 Accepted immediately
