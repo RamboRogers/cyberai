@@ -731,7 +731,7 @@ Authentication/Authorization: *TODO: All user routes should require standard use
         *   `500 Internal Server Error`: Failed to delete chat.
 
 *   **`DELETE /api/chats/purge`**
-    *   **Implementation**: `server/handlers/chat_handlers.go` (Needs Implementation)
+    *   **Implementation**: `server/handlers/chat_handlers.go` (PurgeUserChats function)
     *   Description: Deletes ALL chats and associated messages for the currently authenticated user.
     *   Path Parameter: None.
     *   Response Body: None.
@@ -740,16 +740,16 @@ Authentication/Authorization: *TODO: All user routes should require standard use
         *   `403 Forbidden`: User not authenticated or authorized.
         *   `500 Internal Server Error`: Failed to delete chats.
 
-### Search
+### Search (Standalone & New Chat)
 
 *   **`POST /api/search`**
-    *   **Implementation**: `server/handlers/search_handlers.go` (To be implemented)
-    *   Description: Performs a web search using the configured default search provider and returns formatted results.
+    *   **Implementation**: `server/handlers/search_handlers.go` (Search function)
+    *   Description: Performs a web search using the configured default or specified search provider and returns raw search results.
     *   Request Body (`application/json`):
         ```json
         {
           "query": "What is quantum computing",
-          "provider_id": 1 // Optional: Specific provider ID to use. If omitted, uses the default search provider
+          "search_provider_id": 1 // Optional: Specific provider ID to use. If omitted, uses the default.
         }
         ```
     *   Response Body (`application/json`):
@@ -762,12 +762,8 @@ Authentication/Authorization: *TODO: All user routes should require standard use
               "snippet": "Quantum computing is a type of computation whose operations can harness the phenomena of quantum mechanics..."
             },
             // ... more results
-          ],
-          "search_provider": {
-            "id": 1,
-            "name": "Brave Search",
-            "type": "brave"
-          }
+          ]
+          // "search_provider" details could be added here if needed
         }
         ```
     *   Status Codes:
@@ -775,45 +771,34 @@ Authentication/Authorization: *TODO: All user routes should require standard use
         *   `400 Bad Request`: Missing or invalid query.
         *   `404 Not Found`: Specified search provider not found.
         *   `500 Internal Server Error`: Failed to execute search or format results.
+        *   `503 Service Unavailable`: Error retrieving search provider configuration.
 
 *   **`POST /api/search/chat`**
-    *   **Implementation**: `server/handlers/search_handlers.go` (To be implemented) 
-    *   Description: Performs a web search and passes the results to the AI model to generate a response with properly formatted content and source links.
+    *   **Implementation**: `server/handlers/search_handlers.go` (SearchAndChat function)
+    *   Description: Performs a web search and creates a **new chat** with the search query as the first user message, the formatted results as a system message, and then triggers an AI response based on the results.
     *   Request Body (`application/json`):
         ```json
         {
-          "query": "What is quantum computing",
-          "chat_id": 123, // Optional: Chat ID to add the search results and AI response as messages
-          "model_id": 2, // Required: Model ID to use for generating the response
-          "search_provider_id": 1 // Optional: Specific search provider ID to use
+          "query": "Latest news on AI hardware",
+          "model_id": 2, // Optional: Model ID for the AI response. If omitted, uses default.
+          "search_provider_id": 1 // Optional: Specific search provider ID. If omitted, uses the default.
         }
         ```
     *   Response Body (`application/json`):
         ```json
         {
-          "message_id": 456, // ID of the newly created message containing the AI's response
-          "chat_id": 123,
-          "content": "Quantum computing is a field that uses quantum mechanics to process information...",
-          "search_results": [
-            {
-              "title": "Quantum computing - Wikipedia",
-              "url": "https://en.wikipedia.org/wiki/Quantum_computing",
-              "snippet": "Quantum computing is a type of computation whose operations can harness the phenomena of quantum mechanics..."
-            },
-            // ... more results
-          ],
-          "search_provider": {
-            "id": 1,
-            "name": "Brave Search",
-            "type": "brave"
-          }
+          "chat_id": 124, // ID of the newly created chat
+          "chat_name": "Search: Latest news on AI hardware", // Title of the new chat
+          "user_message_id": 501 // ID of the user's query message added to the chat
         }
         ```
+        *Note: The AI response is sent asynchronously via WebSocket.* 
     *   Status Codes:
-        *   `200 OK`: Search and AI response generation successful.
-        *   `400 Bad Request`: Missing query, invalid model_id, or other required parameter issues.
-        *   `404 Not Found`: Specified chat, model, or search provider not found.
-        *   `500 Internal Server Error`: Failed to execute search or generate AI response.
+        *   `200 OK`: Search performed, new chat created, AI response initiated.
+        *   `400 Bad Request`: Missing query or other required parameter issues.
+        *   `404 Not Found`: Specified search provider not found.
+        *   `500 Internal Server Error`: Failed to create chat, save messages, or perform search.
+        *   `503 Service Unavailable`: Error retrieving search provider or model configuration.
 
 ### Current User
 
@@ -852,15 +837,15 @@ Authentication/Authorization: *TODO: All user routes should require standard use
 ### Messages
 
 *   **`POST /api/chats/{chat_id}/messages`**
-    *   **Implementation**: `server/handlers/chat_handlers.go`
+    *   **Implementation**: `server/handlers/chat_handlers.go` (CreateMessage function)
     *   Description: Sends a new user message to a chat. The backend retrieves conversation history, sends it to the selected model, and streams the response back via WebSocket.
     *   Path Parameter: `{chat_id}` - The integer ID of the chat.
     *   Request Body (`application/json`):
         ```json
         {
           "content": "Tell me about Go's concurrency model.",
-          "model_id": 1 // ID of the model to use for the response
-          // Optional: agent_id if using an agent
+          "model_id": 1, // ID of the model to use for the response
+          "agent_id": null // Optional: ID of the agent to use
         }
         ```
     *   Response Body (`application/json`): The created user Message object. The assistant's response is handled via WebSocket.
@@ -872,6 +857,7 @@ Authentication/Authorization: *TODO: All user routes should require standard use
            "role": "user",
            "content": "Tell me about Go's concurrency model.",
            "model_id": null,
+           "agent_id": null,
            "created_at": "2023-10-28T17:00:00Z"
         }
         ```
@@ -882,9 +868,39 @@ Authentication/Authorization: *TODO: All user routes should require standard use
         *   `404 Not Found`: Chat or Model with the given ID does not exist.
         *   `500 Internal Server Error`: Failed to save user message or initiate AI request.
 
+*   **`POST /api/chats/{chat_id}/search`**
+    *   **Implementation**: `server/handlers/chat_handlers.go` (SearchChat function)
+    *   Description: Performs a web search and adds the results as context to an **existing chat**. It saves the user's query, adds a system message with formatted search results, and then triggers an AI response based on the context. Handles cases where no search provider is configured.
+    *   Path Parameter: `{chat_id}` - The integer ID of the chat.
+    *   Request Body (`application/json`):
+        ```json
+        {
+          "query": "Recent developments in Go generics",
+          "model_id": 1, // Required: Model ID for the AI response. If 0 or invalid, backend tries to use model from history.
+          "agent_id": null, // Optional: Agent ID to use
+          "search_provider_id": 1 // Optional: Specific provider ID. If omitted, uses default.
+        }
+        ```
+    *   Response Body (`application/json`):
+        ```json
+        {
+           "chat_id": 1,
+           "user_message_id": 104 // ID of the newly created user message (containing the query)
+        }
+        ```
+        *Note: The AI response is sent asynchronously via WebSocket.* 
+        *If search is not configured, a system message is added instead of results, and no AI response is triggered.*
+    *   Status Codes:
+        *   `202 Accepted`: Search request received, context added, AI processing started (or system message added if no provider). Includes user message ID.
+        *   `400 Bad Request`: Invalid chat ID format, missing query, or failure to determine a `model_id`.
+        *   `403 Forbidden`: User cannot search in this chat.
+        *   `404 Not Found`: Chat does not exist.
+        *   `500 Internal Server Error`: Failed to save messages or perform search.
+        *   `503 Service Unavailable`: Error retrieving search provider configuration.
+
 *   **`POST /api/chats/{chat_id}/messages/regenerate`**
     *   **Implementation**: `server/handlers/chat_handlers.go` (RegenerateMessage function)
-    *   Description: Finds the last assistant message in the chat, removes it, and generates a new response based on the preceding user message. Uses specialized context building to ensure the triggering message is properly included. The new response is streamed via WebSocket.
+    *   Description: Finds the last assistant message in the chat, removes it, and generates a new response based on the preceding user message(s). The new response is streamed via WebSocket.
     *   Path Parameter: `{chat_id}` - The integer ID of the chat.
     *   Request Body (`application/json`, Optional):
         ```json

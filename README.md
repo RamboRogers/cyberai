@@ -56,6 +56,7 @@ CyberAI is a powerful, secure multi-user chat platform that integrates multiple 
         <li>Chat history preservation</li>
         <li>Multi-user concurrent chat sessions</li>
         <li>Smooth scrolling interface</li>
+        <li>Web search integration (Brave Search, Google CSE)</li>
       </ul>
     </td>
   </tr>
@@ -212,6 +213,7 @@ CyberAI provides a unified interface for interacting with various AI models:
 2. **Select** your preferred AI model
 3. **Chat** in real-time with streaming responses
 4. **Create** custom agents with specialized system prompts
+5. **Search** the web directly from your chat with integrated search providers
 
 ### Admin Features
 
@@ -222,6 +224,7 @@ http://localhost:8080/admin
 # Add new API endpoints
 # Manage user permissions
 # Create specialized agents
+# Configure search providers (Brave Search, Google CSE)
 # View system metrics
 ```
 
@@ -232,6 +235,7 @@ http://localhost:8080/admin
 - User authentication and session management
 - WebSocket handlers for real-time chat updates
 - Admin API for managing system resources
+- Search provider integration for web search capabilities
 
 ### Frontend
 - Responsive chat interface with S3270 terminal-inspired design
@@ -242,6 +246,7 @@ http://localhost:8080/admin
 - User credentials and permissions storage
 - Chat history preservation
 - Configuration management
+- Search provider settings
 
 ## ⚖️ License
 
