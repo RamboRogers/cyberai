@@ -345,7 +345,7 @@
                             <input type="range" id="max-tokens" x-model="tokens" name="max-tokens" 
                                 class="w-full h-2 bg-outline rounded-lg appearance-none cursor-pointer accent-primary" 
                                 min="1000" max="131072" step="1000">
-                            <output for="max-tokens" id="temperature-output" 
+                            <output for="max-tokens" id="max-tokens-output" 
                                 class="text-sm text-on-surface font-mono p-1 bg-surface-alt rounded w-20 text-center" 
                                 x-text="tokens"></output>
                         </div>
@@ -362,7 +362,13 @@
                         </div>
                     </div>
 
-                    <div class="form-group" x-data="{ tempValue: 0.8, tempDisabled: false }">
+                    <div class="form-group" 
+                         x-data="{ tempValue: 0.8, tempDisabled: false }"
+                         x-on:update-temperature.window="
+                            tempValue = isNaN(parseFloat($event.detail.value)) ? 0.8 : parseFloat($event.detail.value);
+                            tempDisabled = $event.detail.disabled;
+                            console.log('[Alpine] update-temperature event received:', $event.detail);
+                         ">
                         <div class="flex justify-between items-center mb-1">
                             <label for="temperature" class="block text-sm font-medium text-primary">Temperature</label>
                             <label class="flex items-center space-x-2 text-on-surface cursor-pointer text-xs">
@@ -375,9 +381,9 @@
                             <input type="range" id="temperature" x-model="tempValue" name="temperature" 
                                 class="w-full h-2 bg-outline rounded-lg appearance-none cursor-pointer accent-primary disabled:opacity-50" 
                                 min="0" max="1" step="0.01" :disabled="tempDisabled">
-                            <output for="temperature" id="temperature-output" 
-                                class="text-sm text-on-surface font-mono p-1 bg-surface-alt rounded w-16 text-center" 
-                                x-text="tempDisabled ? 'N/A' : (typeof tempValue === 'number' ? tempValue.toFixed(2) : '0.00')"></output>
+                            <output for="temperature" id="temperature-output"
+                                class="text-sm text-on-surface font-mono p-1 bg-surface-alt rounded w-16 text-center"
+                                x-text="tempDisabled ? 'N/A' : (isNaN(parseFloat(tempValue)) ? '0.00' : parseFloat(tempValue).toFixed(2))"></output>
                         </div>
                     </div>
 

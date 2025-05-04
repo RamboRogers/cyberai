@@ -140,8 +140,8 @@ func (c *AnthropicConnector) GenerateChatCompletion(ctx context.Context, req Cha
 		params.System = []anthropic.TextBlockParam{textBlock}
 	}
 
-	// Set temperature if provided
-	if req.Temperature > 0 {
+	// Set temperature if provided and non-negative
+	if req.Temperature >= 0 { // Use the negative value convention
 		// Use the Float helper function to create an Opt[float64]
 		params.Temperature = anthropic.Float(req.Temperature)
 	}

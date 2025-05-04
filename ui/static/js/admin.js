@@ -124,17 +124,24 @@ window.fetchModelDetails = function(modelId) {
                     // Handle temperature which can be null
                     const temperatureInput = document.getElementById('temperature');
                     const temperatureNACheckbox = document.getElementById('temperature-na');
+                    const tokenSlider = document.getElementById('max-tokens'); // Still need reference for its event dispatch
+
+                    // Use event dispatch to update Alpine state
+                    let detailValue = 0.8; // Default
+                    let detailDisabled = false;
                     
-                    if (model.temperature === null && temperatureNACheckbox) {
-                        temperatureNACheckbox.checked = true;
-                        if (temperatureInput) temperatureInput.disabled = true;
+                    if (model.temperature < 0) { // Check for negative convention
+                       detailValue = 0.8; // Reset to default value when N/A
+                       detailDisabled = true;
                     } else {
-                        if (temperatureNACheckbox) temperatureNACheckbox.checked = false;
-                        if (temperatureInput) {
-                            temperatureInput.disabled = false;
-                            temperatureInput.value = model.temperature || 0;
-                        }
+                        detailValue = model.temperature != null ? parseFloat(model.temperature) : 0.8;
+                        detailDisabled = false;
                     }
+
+                    // Dispatch the custom event for Alpine to handle
+                    const detail = { value: detailValue, disabled: detailDisabled };
+                    console.log("[JS] Dispatching update-temperature event with detail:", detail);
+                    window.dispatchEvent(new CustomEvent('update-temperature', { detail: detail }));
                     
                     // Set provider dropdown
                     const providerSelect = document.getElementById('model-provider-id');
@@ -1713,7 +1720,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const temperatureNACheckbox = document.getElementById('temperature-na');
             let temperatureValue;
             if (temperatureNACheckbox && temperatureNACheckbox.checked) {
-                temperatureValue = null; // Use null for N/A
+                temperatureValue = -1.0; // Use negative convention for N/A
             } else {
                 temperatureValue = parseFloat(document.getElementById('temperature')?.value || '0');
             }
@@ -1746,7 +1753,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (isNaN(modelData.max_tokens) || modelData.max_tokens <= 0) {
             showError('Max Tokens must be a positive number.'); return false;
         }
-        if (modelData.temperature !== null && (isNaN(modelData.temperature) || modelData.temperature < 0 || modelData.temperature > 1)) {
+        if (modelData.temperature !== -1.0 && (isNaN(modelData.temperature) || modelData.temperature < 0 || modelData.temperature > 1)) {
              showError('Temperature must be between 0.0 and 1.0 (or N/A).'); return false;
         }
         return true;

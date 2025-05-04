@@ -98,22 +98,27 @@ func (c *OllamaConnector) GenerateChatCompletion(ctx context.Context, req ChatCo
 	}
 
 	// 2. Create Ollama API request payload
-	chatReq := OllamaChatRequest{
+	ollamaReq := OllamaChatRequest{
 		Model:    req.Model,
 		Messages: ollamaMessages,
 		Stream:   req.Stream,
-		Options: map[string]interface{}{
-			"temperature": req.Temperature,
+		Options:  map[string]interface{}{
+			// Temperature and MaxTokens handled conditionally below
 		},
 	}
 
-	// Add max_tokens if specified
+	// Conditionally add temperature if non-negative
+	if req.Temperature >= 0 {
+		ollamaReq.Options["temperature"] = req.Temperature
+	}
+
+	// Conditionally add max_tokens if positive
 	if req.MaxTokens > 0 {
-		chatReq.Options["num_predict"] = req.MaxTokens
+		ollamaReq.Options["num_predict"] = req.MaxTokens // Ollama uses num_predict
 	}
 
 	// Convert request to JSON
-	reqBody, err := json.Marshal(chatReq)
+	reqBody, err := json.Marshal(ollamaReq)
 	if err != nil {
 		return fmt.Errorf("failed to marshal Ollama chat request: %w", err)
 	}

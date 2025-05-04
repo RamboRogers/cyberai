@@ -120,14 +120,12 @@ func (c *OpenAIConnector) GenerateChatCompletion(ctx context.Context, req ChatCo
 		MaxTokens: openai.Int(int64(req.MaxTokens)),
 	}
 
-	// Conditionally add Temperature only if non-zero
-	if req.Temperature > 0 {
+	// Conditionally add Temperature only if non-negative
+	if req.Temperature >= 0 { // Use the negative value convention
 		openaiReq.Temperature = openai.Float(float64(req.Temperature))
 	}
 
-	log.Printf("OpenAI GenerateChatCompletion called for model %s (Streaming: %v)", req.Model, req.Stream)
-
-	// 3. Make API call
+	// 3. Handle Streaming or Full Response
 	if req.Stream {
 		// Use NewStreaming method for streaming
 		stream := c.client.Chat.Completions.NewStreaming(ctx, openaiReq)
