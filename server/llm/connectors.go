@@ -119,17 +119,6 @@ func (cs *ConnectorService) GetConnectorForModel(ctx context.Context, modelID in
 			return nil, nil, fmt.Errorf("failed to create OpenAI connector: %w", err)
 		}
 		return conn, model, nil
-	case models.ProviderAnthropic:
-		cfg := AnthropicConfig{
-			BaseURL: provider.BaseURL, // Direct string assignment
-			APIKey:  provider.APIKey,  // Direct string assignment
-			// Timeout: 0, // Use default in constructor
-		}
-		conn, err := NewAnthropicConnector(cfg)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create Anthropic connector: %w", err)
-		}
-		return conn, model, nil
 	default:
 		return nil, nil, fmt.Errorf("unsupported provider type: %s", provider.Type)
 	}

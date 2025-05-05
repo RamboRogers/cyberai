@@ -676,6 +676,14 @@ func (h *AdminHandlers) CreateProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Map external provider types to 'openai' for the database constraint
+	// These providers use OpenAI-compatible APIs
+	switch provider.Type {
+	case "google", "cerebras", "groq", "mistral":
+		log.Printf("Converting external provider type '%s' to 'openai' for database storage", provider.Type)
+		provider.Type = models.ProviderOpenAI
+	}
+
 	if err := h.ProviderService.CreateProvider(&provider); err != nil {
 		log.Printf("Error creating provider: %v", err)
 		// Check for unique constraint error
@@ -752,6 +760,14 @@ func (h *AdminHandlers) UpdateProvider(w http.ResponseWriter, r *http.Request) {
 		providerID, provider.Name, provider.Type, provider.APIKey != "")
 
 	provider.ID = providerID
+
+	// Map external provider types to 'openai' for the database constraint
+	// These providers use OpenAI-compatible APIs
+	switch provider.Type {
+	case "google", "cerebras", "groq", "mistral":
+		log.Printf("Converting external provider type '%s' to 'openai' for database storage", provider.Type)
+		provider.Type = models.ProviderOpenAI
+	}
 
 	if err := h.ProviderService.UpdateProvider(&provider); err != nil {
 		// Check for not found error from service
@@ -839,10 +855,20 @@ func (h *AdminHandlers) SyncProviderModels(w http.ResponseWriter, r *http.Reques
 		createdModels, syncErrors = h.ModelService.SyncOllamaModelsForProvider(providerID, request.DefaultTokens, request.SetActive)
 	case models.ProviderOpenAI:
 		log.Printf("Starting OpenAI model sync for provider %d (%s)", providerID, provider.Name)
-		createdModels, syncErrors = h.ModelService.SyncOpenAIModelsForProvider(providerID, request.DefaultTokens, request.SetActive)
-	case models.ProviderAnthropic:
-		http.Error(w, "Sync not yet implemented for Anthropic providers", http.StatusNotImplemented)
-		return
+		// *** Ensure we use the provider with the key for syncing ***
+		providerWithKey, err := h.ProviderService.GetProviderByIDWithKey(providerID)
+		if err != nil {
+			log.Printf("Error getting OpenAI provider %d with key for sync: %v", providerID, err)
+			http.Error(w, "Failed to get provider details with key for sync", http.StatusInternalServerError)
+			return
+		}
+		if providerWithKey.APIKey == "" {
+			log.Printf("Error: API Key missing for OpenAI provider %d during sync attempt.", providerID)
+			http.Error(w, "API Key is missing for this OpenAI provider, cannot sync.", http.StatusBadRequest)
+			return
+		}
+		// Pass the full provider struct which contains the API key
+		createdModels, syncErrors = h.ModelService.SyncOpenAIModelsForProvider(providerWithKey, request.DefaultTokens, request.SetActive)
 	default:
 		http.Error(w, fmt.Sprintf("Sync not supported for provider type '%s'", provider.Type), http.StatusBadRequest)
 		return

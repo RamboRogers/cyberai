@@ -507,6 +507,16 @@ type OpenAIModelResponse struct {
 	} `json:"data"`
 }
 
+// GoogleModelResponse represents the response format from Google's OpenAI-compatible API
+type GoogleModelResponse struct {
+	Object string `json:"object"`
+	Data   []struct {
+		ID      string `json:"id"`
+		Object  string `json:"object"`
+		OwnedBy string `json:"owned_by"`
+	} `json:"data"`
+}
+
 // SyncOllamaModelsForProvider fetches the list of models from an Ollama provider and
 // syncs them with the database (creates new, updates sync time, marks missing as inactive).
 func (s *ModelService) SyncOllamaModelsForProvider(providerID int64, defaultTokens int, setActive bool) ([]Model, []error) {
@@ -643,29 +653,43 @@ func (s *ModelService) SyncOllamaModelsForProvider(providerID int64, defaultToke
 
 // SyncOpenAIModelsForProvider fetches the list of models from an OpenAI provider and
 // syncs them with the database (creates new models, updates sync time).
-func (s *ModelService) SyncOpenAIModelsForProvider(providerID int64, defaultTokens int, setActive bool) ([]Model, []error) {
-	// 1. Fetch Provider details (need BaseURL and APIKey)
-	providerService := NewProviderService(s.DB)
-	provider, err := providerService.GetProviderByIDWithKey(providerID)
-	if err != nil {
-		return nil, []error{fmt.Errorf("failed to get provider details for ID %d: %w", providerID, err)}
+// Accepts the full Provider object which includes the necessary API key.
+func (s *ModelService) SyncOpenAIModelsForProvider(provider *Provider, defaultTokens int, setActive bool) ([]Model, []error) {
+	// 1. Validate Provider Input
+	if provider == nil {
+		return nil, []error{fmt.Errorf("provider cannot be nil")}
 	}
 	if provider.Type != ProviderOpenAI {
-		return nil, []error{fmt.Errorf("provider ID %d is not an OpenAI provider (type: %s)", providerID, provider.Type)}
+		return nil, []error{fmt.Errorf("provider ID %d is not an OpenAI provider (type: %s)", provider.ID, provider.Type)}
 	}
 	if provider.APIKey == "" {
-		return nil, []error{fmt.Errorf("OpenAI provider ID %d has no API key configured", providerID)}
+		return nil, []error{fmt.Errorf("OpenAI provider ID %d has no API key configured", provider.ID)}
 	}
 
 	// Use custom base URL if provided, otherwise use default OpenAI API URL
 	apiURL := "https://api.openai.com/v1/models"
 	if provider.BaseURL != "" {
 		baseURL := strings.TrimSuffix(provider.BaseURL, "/")
-		// Check if baseURL already ends with /v1
-		if strings.HasSuffix(baseURL, "/v1") {
-			apiURL = baseURL + "/models" // Only append /models if /v1 is present
+
+		// Special case for Google AI (Gemini) which has a different endpoint structure
+		if strings.Contains(baseURL, "generativelanguage.googleapis.com") {
+			// For Google's API, we need to use their OpenAI-compatible endpoint format
+			// and append the API key as a query parameter, but also use it as a bearer token
+			apiURL = "https://generativelanguage.googleapis.com/v1beta/openai/models?key=" + provider.APIKey
+			log.Printf("Using Google AI OpenAI-compatible endpoint: %s", apiURL)
+		} else if strings.Contains(baseURL, "api.anthropic.com") {
+			// Anthropic doesn't provide an OpenAI-compatible /models endpoint
+			// Instead, we'll hardcode the available Claude models based on the documentation
+			log.Printf("Using Anthropic API with hardcoded models list (Anthropic doesn't support OpenAI-compatible /models endpoint)")
+			return s.processAnthropicModels(provider, defaultTokens, setActive)
 		} else {
-			apiURL = baseURL + "/v1/models" // Otherwise, append the full /v1/models path
+			// Standard OpenAI-compatible API handling
+			// Check if baseURL already ends with /v1
+			if strings.HasSuffix(baseURL, "/v1") {
+				apiURL = baseURL + "/models" // Only append /models if /v1 is present
+			} else {
+				apiURL = baseURL + "/v1/models" // Otherwise, append the full /v1/models path
+			}
 		}
 	}
 
@@ -674,6 +698,9 @@ func (s *ModelService) SyncOpenAIModelsForProvider(providerID int64, defaultToke
 	if err != nil {
 		return nil, []error{fmt.Errorf("failed to create OpenAI API request: %w", err)}
 	}
+
+	// For Google's OpenAI-compatible API, we need both query param AND bearer token
+	// For other OpenAI-compatible APIs, we just need the bearer token
 	req.Header.Add("Authorization", "Bearer "+provider.APIKey)
 	req.Header.Add("Content-Type", "application/json")
 
@@ -690,16 +717,41 @@ func (s *ModelService) SyncOpenAIModelsForProvider(providerID int64, defaultToke
 		return nil, []error{fmt.Errorf("OpenAI API returned status %d: %s", resp.StatusCode, bodyStr)}
 	}
 
-	// 3. Parse response
-	var openaiResp OpenAIModelResponse
-	if err := json.NewDecoder(resp.Body).Decode(&openaiResp); err != nil {
-		return nil, []error{fmt.Errorf("failed to parse OpenAI response: %w", err)}
+	// 3. Parse response - handle different formats for Google vs OpenAI
+	var createdModels []Model
+	var syncErrors []error
+
+	// Check if we're dealing with Google's API
+	isGoogleAPI := strings.Contains(apiURL, "generativelanguage.googleapis.com")
+
+	if isGoogleAPI {
+		var googleResp GoogleModelResponse
+		if err := json.NewDecoder(resp.Body).Decode(&googleResp); err != nil {
+			return nil, []error{fmt.Errorf("failed to parse Google AI response: %w", err)}
+		}
+
+		// Process Google models
+		createdModels, syncErrors = s.processGoogleModels(googleResp, provider, defaultTokens, setActive)
+	} else {
+		// Standard OpenAI model processing
+		var openaiResp OpenAIModelResponse
+		if err := json.NewDecoder(resp.Body).Decode(&openaiResp); err != nil {
+			return nil, []error{fmt.Errorf("failed to parse OpenAI response: %w", err)}
+		}
+
+		createdModels, syncErrors = s.processOpenAIModels(openaiResp, provider, defaultTokens, setActive)
 	}
 
+	// Return models and errors
+	return createdModels, syncErrors
+}
+
+// processOpenAIModels handles the specific OpenAI model format
+func (s *ModelService) processOpenAIModels(openaiResp OpenAIModelResponse, provider *Provider, defaultTokens int, setActive bool) ([]Model, []error) {
 	// 4. Get existing models for this provider from DB
-	existingModelsDB, err := s.getModelsWithFilter(fmt.Sprintf("%d", providerID), false)
+	existingModelsDB, err := s.getModelsWithFilter(fmt.Sprintf("%d", provider.ID), false)
 	if err != nil {
-		return nil, []error{fmt.Errorf("failed to get existing models for provider %d: %w", providerID, err)}
+		return nil, []error{fmt.Errorf("failed to get existing models for provider %d: %w", provider.ID, err)}
 	}
 
 	// Create maps for efficient lookup
@@ -756,7 +808,7 @@ func (s *ModelService) SyncOpenAIModelsForProvider(providerID int64, defaultToke
 			displayName := formatOpenAIModelName(openaiModel.ID)
 
 			newModel := Model{
-				ProviderID:  providerID,
+				ProviderID:  provider.ID,
 				Name:        displayName,
 				ModelID:     openaiModel.ID,
 				MaxTokens:   maxTokens,
@@ -784,7 +836,7 @@ func (s *ModelService) SyncOpenAIModelsForProvider(providerID int64, defaultToke
 	for modelID, dbModel := range existingModelMap {
 		if !apiModelMap[modelID] {
 			// Model exists in database but not in the current API response - delete it
-			log.Printf("Deleting OpenAI model %s (ID %d) for provider %d as it was not found during sync.", dbModel.Name, dbModel.ID, providerID)
+			log.Printf("Deleting OpenAI model %s (ID %d) for provider %d as it was not found during sync.", dbModel.Name, dbModel.ID, provider.ID)
 
 			if err := s.DeleteModel(dbModel.ID); err != nil {
 				syncErrors = append(syncErrors, fmt.Errorf("failed to delete model %s (ID %d): %w", dbModel.Name, dbModel.ID, err))
@@ -796,9 +848,132 @@ func (s *ModelService) SyncOpenAIModelsForProvider(providerID int64, defaultToke
 
 	// Log summary of sync operation
 	log.Printf("OpenAI sync complete for provider %d (%s): %d created, %d updated, %d deleted, %d errors",
-		providerID, provider.Name, len(createdModels), len(updatedModels), len(deletedModels), len(syncErrors))
+		provider.ID, provider.Name, len(createdModels), len(updatedModels), len(deletedModels), len(syncErrors))
 
 	// Return only newly created models for consistency with Ollama implementation
+	return createdModels, syncErrors
+}
+
+// processGoogleModels handles the specific Google AI model format
+func (s *ModelService) processGoogleModels(googleResp GoogleModelResponse, provider *Provider, defaultTokens int, setActive bool) ([]Model, []error) {
+	// Get existing models for this provider from DB
+	existingModelsDB, err := s.getModelsWithFilter(fmt.Sprintf("%d", provider.ID), false)
+	if err != nil {
+		return nil, []error{fmt.Errorf("failed to get existing models for provider %d: %w", provider.ID, err)}
+	}
+
+	// Create maps for efficient lookup
+	existingModelMap := make(map[string]Model)
+	for _, m := range existingModelsDB {
+		existingModelMap[m.ModelID] = m
+	}
+	apiModelMap := make(map[string]bool)
+
+	var createdModels []Model
+	var updatedModels []Model
+	var deletedModels []Model
+	var syncErrors []error
+	now := time.Now()
+
+	// Process models found in the API response
+	for _, googleModel := range googleResp.Data {
+		// Extract model ID removing the 'models/' prefix if present
+		modelID := googleModel.ID
+		if strings.HasPrefix(modelID, "models/") {
+			modelID = strings.TrimPrefix(modelID, "models/")
+		}
+
+		// Skip any non-Gemini models if desired
+		if !strings.Contains(modelID, "gemini") && !strings.Contains(modelID, "gemma") {
+			// Skip older models that might not be compatible with chat
+			continue
+		}
+
+		apiModelMap[modelID] = true
+
+		// Determine max tokens based on model name
+		maxTokens := defaultTokens
+		if maxTokens <= 0 {
+			// Set default tokens based on model ID
+			switch {
+			case strings.Contains(modelID, "gemini-1.5-pro"):
+				maxTokens = 2000000 // 2M context for Pro
+			case strings.Contains(modelID, "gemini-1.5-flash"):
+				maxTokens = 1000000 // 1M context for Flash
+			case strings.Contains(modelID, "gemini-2"):
+				maxTokens = 1048576 // 1M context for Gemini 2
+			case strings.Contains(modelID, "gemma-3-27b"):
+				maxTokens = 131072 // 128K context
+			default:
+				maxTokens = 32768 // Conservative default for other models
+			}
+		}
+
+		// Check if model exists in our DB for this provider
+		if existing, exists := existingModelMap[modelID]; exists {
+			// Model exists - Update LastSyncedAt and ensure it's active if requested
+			existing.LastSyncedAt = sql.NullTime{Time: now, Valid: true}
+			if setActive {
+				existing.IsActive = true
+			}
+
+			// Keep max tokens updated if larger than current setting
+			if maxTokens > existing.MaxTokens {
+				existing.MaxTokens = maxTokens
+			}
+
+			if err := s.UpdateModel(&existing); err != nil {
+				syncErrors = append(syncErrors, fmt.Errorf("failed to update sync time for model %s (ID %d): %w", existing.Name, existing.ID, err))
+			} else {
+				updatedModels = append(updatedModels, existing)
+			}
+		} else {
+			// Model is new - Create it with the display name derived from model ID
+			modelName := formatOpenAIModelName(modelID)
+
+			newModel := Model{
+				ProviderID:  provider.ID,
+				Name:        "Google " + modelName,
+				ModelID:     modelID,
+				MaxTokens:   maxTokens,
+				Temperature: 0.8, // Default temperature
+				IsActive:    setActive,
+				Configuration: Configuration{
+					"model_type": "chat",
+					"owned_by":   googleModel.OwnedBy,
+				},
+				LastSyncedAt: sql.NullTime{Time: now, Valid: true},
+			}
+
+			if err := s.CreateModel(&newModel); err != nil {
+				syncErrors = append(syncErrors, fmt.Errorf("failed to create new model %s: %w", modelID, err))
+			} else {
+				// Fetch the provider details to include in the response model
+				newModel.Provider = provider
+				createdModels = append(createdModels, newModel)
+			}
+		}
+	}
+
+	// DELETE models that are in the database but no longer in the API response
+	for modelID, dbModel := range existingModelMap {
+		if !apiModelMap[modelID] {
+			// Model exists in database but not in the current API response - delete it
+			log.Printf("Deleting Google AI model %s (ID %d) for provider %d as it was not found during sync.", dbModel.Name, dbModel.ID, provider.ID)
+
+			if err := s.DeleteModel(dbModel.ID); err != nil {
+				syncErrors = append(syncErrors, fmt.Errorf("failed to delete model %s (ID %d): %w", dbModel.Name, dbModel.ID, err))
+			} else {
+				deletedModels = append(deletedModels, dbModel)
+			}
+		}
+	}
+
+	// Log summary of sync operation
+	log.Printf("Google AI sync complete for provider %d (%s): %d created, %d updated, %d deleted, %d errors",
+		provider.ID, provider.Name, len(createdModels), len(updatedModels), len(deletedModels), len(syncErrors))
+
+	// Return only newly created models for consistency with other implementations
 	return createdModels, syncErrors
 }
 
@@ -950,4 +1125,152 @@ func (s *ModelService) GetActiveUserFacingModels() ([]UserFacingModel, error) {
 	}
 
 	return userFacingModels, nil
+}
+
+// processAnthropicModels creates models for Anthropic providers using the Anthropic API
+// instead of using hardcoded model information
+func (s *ModelService) processAnthropicModels(provider *Provider, defaultTokens int, setActive bool) ([]Model, []error) {
+	// Get existing models for this provider from DB
+	existingModelsDB, err := s.getModelsWithFilter(fmt.Sprintf("%d", provider.ID), false)
+	if err != nil {
+		return nil, []error{fmt.Errorf("failed to get existing models for provider %d: %w", provider.ID, err)}
+	}
+
+	// Create maps for efficient lookup
+	existingModelMap := make(map[string]Model)
+	for _, m := range existingModelsDB {
+		existingModelMap[m.ModelID] = m
+	}
+
+	// Call Anthropic API to get models
+	apiURL := "https://api.anthropic.com/v1/models"
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return nil, []error{fmt.Errorf("failed to create Anthropic API request: %w", err)}
+	}
+
+	// Anthropic requires x-api-key header and anthropic-version header
+	req.Header.Add("x-api-key", provider.APIKey)
+	req.Header.Add("anthropic-version", "2023-06-01")
+	req.Header.Add("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, []error{fmt.Errorf("failed to connect to Anthropic API: %w", err)}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyStr := string(bodyBytes)
+		return nil, []error{fmt.Errorf("Anthropic API returned status %d: %s", resp.StatusCode, bodyStr)}
+	}
+
+	// Parse response
+	type AnthropicModel struct {
+		Type        string `json:"type"`
+		ID          string `json:"id"`
+		DisplayName string `json:"display_name"`
+		CreatedAt   string `json:"created_at"`
+	}
+
+	type AnthropicResponse struct {
+		Data    []AnthropicModel `json:"data"`
+		HasMore bool             `json:"has_more"`
+		FirstID string           `json:"first_id"`
+		LastID  string           `json:"last_id"`
+	}
+
+	var anthropicResp AnthropicResponse
+	if err := json.NewDecoder(resp.Body).Decode(&anthropicResp); err != nil {
+		return nil, []error{fmt.Errorf("failed to parse Anthropic response: %w", err)}
+	}
+
+	var createdModels []Model
+	var updatedModels []Model
+	var syncErrors []error
+	now := time.Now()
+
+	// Process models from the API response
+	apiModelMap := make(map[string]bool)
+	for _, anthropicModel := range anthropicResp.Data {
+		modelID := anthropicModel.ID
+		apiModelMap[modelID] = true
+
+		// Default to 200k tokens for newer Claude models, 100k for older ones
+		maxTokens := defaultTokens
+		if maxTokens <= 0 {
+			if strings.Contains(modelID, "claude-3") {
+				maxTokens = 200000
+			} else {
+				maxTokens = 100000
+			}
+		}
+
+		// Check if model exists in our DB for this provider
+		if existing, exists := existingModelMap[modelID]; exists {
+			// Model exists - Update LastSyncedAt and ensure it's active if requested
+			existing.LastSyncedAt = sql.NullTime{Time: now, Valid: true}
+			if setActive {
+				existing.IsActive = true
+			}
+
+			// Keep max tokens updated if larger than current setting
+			if maxTokens > existing.MaxTokens {
+				existing.MaxTokens = maxTokens
+			}
+
+			if err := s.UpdateModel(&existing); err != nil {
+				syncErrors = append(syncErrors, fmt.Errorf("failed to update sync time for model %s (ID %d): %w", existing.Name, existing.ID, err))
+			} else {
+				updatedModels = append(updatedModels, existing)
+			}
+		} else {
+			// Model is new - Create it with the display name from the API
+			displayName := anthropicModel.DisplayName
+
+			newModel := Model{
+				ProviderID:  provider.ID,
+				Name:        displayName,
+				ModelID:     modelID,
+				MaxTokens:   maxTokens,
+				Temperature: 0.7, // Default temperature for Claude
+				IsActive:    setActive,
+				Configuration: Configuration{
+					"model_type": "chat",
+					"created":    anthropicModel.CreatedAt,
+					"owned_by":   "anthropic",
+				},
+				LastSyncedAt: sql.NullTime{Time: now, Valid: true},
+			}
+
+			if err := s.CreateModel(&newModel); err != nil {
+				syncErrors = append(syncErrors, fmt.Errorf("failed to create new model %s: %w", modelID, err))
+			} else {
+				// Fetch the provider details to include in the response model
+				newModel.Provider = provider
+				createdModels = append(createdModels, newModel)
+			}
+		}
+	}
+
+	// DELETE models that are in the database but no longer in the API response
+	for modelID, dbModel := range existingModelMap {
+		if !apiModelMap[modelID] {
+			// Model exists in database but not in the current API response - delete it
+			log.Printf("Deleting Anthropic model %s (ID %d) for provider %d as it was not found during sync.", dbModel.Name, dbModel.ID, provider.ID)
+
+			if err := s.DeleteModel(dbModel.ID); err != nil {
+				syncErrors = append(syncErrors, fmt.Errorf("failed to delete model %s (ID %d): %w", dbModel.Name, dbModel.ID, err))
+			}
+		}
+	}
+
+	// Log summary of sync operation
+	log.Printf("Anthropic model sync complete for provider %d (%s): %d created, %d updated, %d errors",
+		provider.ID, provider.Name, len(createdModels), len(updatedModels), len(syncErrors))
+
+	// Return only newly created models for consistency with other implementations
+	return createdModels, syncErrors
 }

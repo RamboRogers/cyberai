@@ -12,9 +12,8 @@ import (
 type ProviderType string
 
 const (
-	ProviderOllama    ProviderType = "ollama"
-	ProviderOpenAI    ProviderType = "openai"
-	ProviderAnthropic ProviderType = "anthropic"
+	ProviderOllama ProviderType = "ollama"
+	ProviderOpenAI ProviderType = "openai"
 )
 
 // Provider represents an AI provider configuration in the database

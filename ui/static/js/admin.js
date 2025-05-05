@@ -195,14 +195,12 @@ window.fetchProviderDetails = function(providerId) {
                     if (typeSelect && provider.type) {
                         typeSelect.value = provider.type;
                         
-                        // Trigger Alpine.js update on type change
-                        const providerScope = typeSelect.closest('[x-data*="selectedType"]');
-                        if (providerScope && providerScope.__x) {
-                            providerScope.__x.data.selectedType = provider.type;
-                        }
+                        // Dispatch event to update Alpine state instead of direct manipulation
+                        console.log("[JS] Dispatching set-provider-type event with type:", provider.type);
+                        window.dispatchEvent(new CustomEvent('set-provider-type', { detail: { type: provider.type } }));
                         
-                        // Show conditional fields based on type
-                        window.toggleProviderConditionalFields();
+                        // REMOVE direct DOM manipulation call
+                        // window.toggleProviderConditionalFields(); 
                     }
                     
                     // Set URL if present
@@ -286,20 +284,16 @@ window.toggleProviderConditionalFields = function() {
     // Get all conditional field containers
     const openaiFields = document.getElementById('openai-fields');
     const ollamaFields = document.getElementById('ollama-fields');
-    const anthropicFields = document.getElementById('anthropic-fields');
     
     // Hide all first
     if (openaiFields) openaiFields.style.display = 'none';
     if (ollamaFields) ollamaFields.style.display = 'none';
-    if (anthropicFields) anthropicFields.style.display = 'none';
     
     // Show relevant fields based on selected type
     if (providerType === 'openai' && openaiFields) {
         openaiFields.style.display = 'block';
     } else if (providerType === 'ollama' && ollamaFields) {
         ollamaFields.style.display = 'block';
-    } else if (providerType === 'anthropic' && anthropicFields) {
-        anthropicFields.style.display = 'block';
     }
 };
 
@@ -414,20 +408,12 @@ window.openProviderModal = function(action, providerId = null) {
     if (idInput) idInput.value = '';
     if (title) title.textContent = action === 'add' ? 'Add New Provider' : 'Edit Provider';
 
-    const providerTypeSelect = document.getElementById('provider-type');
-    if (providerTypeSelect) {
-        providerTypeSelect.value = ''; // Reset dropdown
-        // Manually trigger Alpine update for conditional fields (if needed)
-        const providerScope = providerTypeSelect.closest('[x-data*="selectedType"]');
-        if(providerScope && providerScope.__x) {
-            providerScope.__x.data.selectedType = '';
-        }
-        if (window.toggleProviderConditionalFields) window.toggleProviderConditionalFields(); // Ensure fields are hidden initially
-    }
+    // Reset Alpine state via event
+    window.dispatchEvent(new CustomEvent('set-provider-type', { detail: { type: '' } }));
     
     if (action === 'edit' && providerId) {
         if(idInput) idInput.value = providerId;
-        if (window.fetchProviderDetails) window.fetchProviderDetails(providerId); // Populates form
+        if (window.fetchProviderDetails) window.fetchProviderDetails(providerId); // Populates form and dispatches event
     }
     console.log(`Provider modal ready for ${action}. Waiting for Alpine to show.`);
 };
@@ -1544,7 +1530,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (changePasswordForm) changePasswordForm.addEventListener('submit', handleChangePasswordSubmit);
 
         if (providerForm) providerForm.addEventListener('submit', handleProviderFormSubmit);
-        if (providerTypeSelect) providerTypeSelect.addEventListener('change', toggleProviderConditionalFields);
+        // REMOVE listener relying on toggleProviderConditionalFields
+        // if (providerTypeSelect) providerTypeSelect.addEventListener('change', toggleProviderConditionalFields);
 
         if (confirmYesBtn) confirmYesBtn.addEventListener('click', handleConfirmAction);
 
@@ -1825,10 +1812,10 @@ document.addEventListener('DOMContentLoaded', function() {
             showError('Base URL is required for Ollama providers.'); return false;
         }
         
-        // API Key required for NEW OpenAI/Anthropic, optional otherwise
+        // API Key required for NEW OpenAI, optional otherwise
         const providerId = document.getElementById('provider-id')?.value;
         const isNewProvider = !providerId;
-        if (isNewProvider && (data.type === 'openai' || data.type === 'anthropic') && (!data.api_key || data.api_key.trim() === '')) {
+        if (isNewProvider && data.type === 'openai' && (!data.api_key || data.api_key.trim() === '')) {
             showError(`API Key is required for new ${data.type} providers.`); return false;
         }
         return true;

@@ -657,14 +657,55 @@
                             placeholder="e.g., My Local Ollama" required>
                     </div>
 
-                    <div class="form-group" x-data="{ selectedType: '' }">
+                    <div class="form-group" x-data="{ 
+                        selectedType: '', 
+                        updateBaseUrl() {
+                            const baseUrlInput = document.getElementById('provider-base-url');
+                            if (!baseUrlInput) return;
+                            
+                            // Only pre-fill if field is empty or user hasn't modified it yet
+                            if (!baseUrlInput.value || baseUrlInput.dataset.prefilled === 'true') {
+                                switch(this.selectedType) {
+                                    case 'ollama':
+                                        baseUrlInput.value = 'http://localhost:11434';
+                                        break;
+                                    case 'anthropic':
+                                        baseUrlInput.value = 'https://api.anthropic.com/v1';
+                                        break;
+                                    case 'cerebras':
+                                        baseUrlInput.value = 'https://api.cerebras.ai/v1';
+                                        break;
+                                    case 'google':
+                                        baseUrlInput.value = 'https://generativelanguage.googleapis.com/v1beta/openai';
+                                        break;
+                                    case 'groq':
+                                        baseUrlInput.value = 'https://api.groq.com/openai/v1';
+                                        break;
+                                    case 'mistral':
+                                        baseUrlInput.value = 'https://api.mistral.ai/v1';
+                                        break;
+                                    case 'openai':
+                                        baseUrlInput.value = '';
+                                        break;
+                                    default:
+                                        baseUrlInput.value = '';
+                                }
+                                baseUrlInput.dataset.prefilled = 'true';
+                            }
+                        }
+                    }" 
+                    @set-provider-type.window="selectedType = $event.detail.type; updateBaseUrl()">
                         <label for="provider-type" class="block text-sm font-medium text-primary mb-1">Provider Type</label>
-                        <select id="provider-type" name="type" x-model="selectedType"
+                        <select id="provider-type" name="type" x-model="selectedType" @change="updateBaseUrl()"
                             class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" required>
                             <option value="">Select Type</option>
                             <option value="ollama">Ollama</option>
                             <option value="openai">OpenAI</option>
                             <option value="anthropic">Anthropic</option>
+                            <option value="cerebras">Cerebras</option>
+                            <option value="google">Google AI (Gemini)</option>
+                            <option value="groq">Groq</option>
+                            <option value="mistral">Mistral AI</option>
                         </select>
                     
                         <!-- Conditional Fields -->
@@ -672,9 +713,10 @@
                             <label for="provider-base-url" class="block text-sm font-medium text-primary mb-1">Base URL</label>
                             <input type="url" id="provider-base-url" name="base_url" 
                                 class="w-full bg-surface-alt border border-outline text-on-surface rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" 
-                                :placeholder="selectedType === 'ollama' ? 'http://localhost:11434' : 'Leave empty for default'">
+                                @input="this.dataset.prefilled = 'false'"
+                                :placeholder="selectedType === 'ollama' ? 'http://localhost:11434' : 'URL will be pre-filled based on provider'">
                             <p class="mt-1 text-xs text-on-surface opacity-80" 
-                                x-text="selectedType === 'ollama' ? 'Required for Ollama.' : 'Optional for this provider (leave empty for default).'"></p>
+                                x-text="selectedType === 'ollama' ? 'Required for Ollama.' : 'Pre-filled for selected provider. Can be modified if using a proxy or custom endpoint.'"></p>
                         </div>
 
                         <div class="form-group mt-4" x-show="selectedType !== ''">

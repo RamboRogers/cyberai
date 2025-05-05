@@ -232,7 +232,7 @@ Authentication/Authorization: *TODO: All admin routes should require administrat
         *   `400 Bad Request`: Invalid provider ID format or provider type does not support sync.
         *   `404 Not Found`: Provider with the given ID does not exist.
         *   `500 Internal Server Error`: Failed to get provider details or sync failed critically.
-        *   `501 Not Implemented`: Sync not implemented for this provider type (e.g., Anthropic).
+        *   `501 Not Implemented`: Sync not implemented for this provider type.
 
 *   **`POST /api/admin/models/import-ollama`**
     *   **Implementation**: `server/handlers/admin_handlers.go`

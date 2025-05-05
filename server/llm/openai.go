@@ -70,14 +70,41 @@ func (c *OpenAIConnector) GetType() models.ProviderType {
 
 // HealthCheck attempts to list available models as a basic connectivity and auth check.
 func (c *OpenAIConnector) HealthCheck(ctx context.Context) error {
+	// Special case for Anthropic API - they don't support the /models endpoint via OpenAI compatibility
+	if strings.Contains(c.baseURL, "api.anthropic.com") {
+		log.Println("Attempting Anthropic OpenAI-compatible API health check (chat completion)...")
+
+		// For Anthropic, we'll do a simple chat completion request as a health check
+		// using one of their standard models
+		testMsg := openai.UserMessage("Hello")
+		req := openai.ChatCompletionNewParams{
+			Model:     "claude-3-sonnet-20240229", // Use a standard Claude model
+			Messages:  []openai.ChatCompletionMessageParamUnion{testMsg},
+			MaxTokens: openai.Int(5), // Just need a minimal response
+		}
+
+		_, err := c.client.Chat.Completions.New(ctx, req)
+		if err != nil {
+			log.Printf("Anthropic OpenAI-compatible API health check failed: %v", err)
+
+			if strings.Contains(err.Error(), "401") {
+				return fmt.Errorf("Anthropic authentication failed (check API key): %w", err)
+			}
+
+			return fmt.Errorf("Anthropic health check failed: %w", err)
+		}
+
+		log.Printf("Anthropic OpenAI-compatible API health check successful for %s", c.baseURL)
+		return nil
+	}
+
+	// Standard OpenAI model listing for health check
 	log.Println("Attempting OpenAI health check (ListModels)...")
-	// Assuming client.Models.List exists
 	_, err := c.client.Models.List(ctx)
 	if err != nil {
 		log.Printf("OpenAI health check (ListModels) failed: %v", err)
 
 		// Attempt to check for standard HTTP status code errors if possible
-		// The exact way to get the status code might differ, this is a guess
 		var httpErr interface {
 			StatusCode() int
 		}
