@@ -777,8 +777,7 @@ func (s *ModelService) processOpenAIModels(openaiResp OpenAIModelResponse, provi
 			openaiModel.ID == "moderation-latest" ||
 			strings.HasPrefix(openaiModel.ID, "embedding") ||
 			strings.HasPrefix(openaiModel.ID, "tts") ||
-			strings.HasPrefix(openaiModel.ID, "dall-e") ||
-			strings.Contains(openaiModel.ID, "instruct") {
+			strings.HasPrefix(openaiModel.ID, "dall-e") {
 			continue
 		}
 
