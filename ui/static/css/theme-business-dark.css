@@ -1,0 +1,76 @@
+/* Business Dark Theme */
+:root {
+    /* Base variables from main.css & style.css context */
+    --primary-bg: #1F1F1F;
+    --secondary-bg: #2C2C2C;
+    --text-color: #E8EAED;
+    --primary-color: #89B4F8; /* Muted Blue for primary actions/accents */
+    --secondary-color: #BDC1C6; /* Lighter Grey for secondary text or less important elements */
+    --accent-color: #8AB4F8; /* Muted Blue for links/highlights (can be same as primary) */
+    
+    --danger-color: #D93025;
+    --success-color: #1E8E3E;
+    --success-hover-color: #1A7A35; /* Slightly darker/richer green for hover */
+    --info-color: #1A73E8;
+    --info-hover-color: #1765C8; /* Slightly darker/richer blue for hover */
+
+    --disabled-bg-color: #3C4043;
+    --disabled-text-color: #9AA0A6;
+    
+    --dark-text: #1F1F1F; /* For text on light backgrounds if any, or on primary-color buttons */
+    --border-color: #3C4043;
+    --border-color-subtle: #303134;
+    --shadow-color: rgba(0, 0, 0, 0.3); /* Softer, more professional shadows */
+
+    /* Variables specific to style.css (Chat UI) context */
+    --bg-color: #1F1F1F; /* Typically same as --primary-bg */
+    /* --text-color is already defined */
+    /* --accent-color is already defined */
+    /* --secondary-color for style.css hover effects might need adjustment if #BDC1C6 isn't suitable.
+       For now, style.css will use #BDC1C6. A theme-specific rule might be needed later. */
+    --tertiary-color: #35363A; /* A slightly different dark grey for some UI elements in chat */
+    --grid-color: rgba(138, 180, 248, 0.1); /* Using primary blue, very transparent */
+    --sidebar-bg: #2C2C2C; /* Typically same as --secondary-bg */
+    --chat-bg: #272727; /* Can be same as --primary-bg or slightly different */
+    --input-bg: #2C2C2C; /* Typically same as --secondary-bg */
+    
+    --status-available: #1E8E3E; /* Matches --success-color */
+    --status-busy: #F9AB00; /* Professional amber/yellow */
+    --status-offline: #D93025; /* Matches --danger-color */
+    --glow-color: rgba(138, 180, 248, 0.15); /* Subtle glow using primary blue */
+
+    /* Font variables */
+    --font-family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    --font-family-monospace: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    /* General body font for this theme will be overridden by rules using --font-family-sans-serif */
+    /* Monospace font for this theme */
+    --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; /* For elements specifically asking for mono in this theme */
+
+
+    /* Admin Panel Variables (Penguin Naming Convention) */
+    --color-surface: #1F1F1F;
+    --color-surface-alt: #2C2C2C;
+    --color-on-surface: #E8EAED;
+    --color-on-surface-strong: #FFFFFF; /* Brighter for data */
+    
+    --color-primary: #89B4F8; /* Admin's primary accent */
+    --color-on-primary: #1F1F1F; /* Text on primary buttons */
+    
+    --color-secondary: #5F8CDA; /* Admin's secondary accent (e.g., for secondary buttons or highlights) */
+    --color-on-secondary: #FFFFFF; /* Text on secondary buttons */
+    
+    --color-outline: #3C4043;
+    --color-outline-strong: #4A4E51;
+    
+    --color-info: #1A73E8;
+    --color-on-info: #FFFFFF;
+    --color-success: #1E8E3E;
+    --color-on-success: #FFFFFF;
+    --color-warning: #F9AB00;
+    --color-on-warning: #1F1F1F;
+    --color-danger: #D93025;
+    --color-on-danger: #FFFFFF;
+    
+    /* --font-mono is already defined above */
+    --radius-radius: 0.25rem; /* Modern, sharper radius (4px) */
+}

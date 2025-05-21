@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-surface">
+<html lang="en" data-theme="hacker" class="h-full bg-surface">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="/static/css/styles.css">
     <!-- Link Admin CSS for shared theme variables and styles -->
     <link rel="stylesheet" href="/static/css/admin.css">
+    <link rel="stylesheet" href="/static/css/theme-business-dark.css">
     <!-- Add Marked.js for markdown parsing -->
     <script src="/static/js/vendor/marked.min.js"></script>
     <!-- Add highlight.js for code highlighting -->
@@ -129,6 +130,17 @@
             <!-- User Section (at the bottom) -->
             <div class="mt-auto border-t border-outline -mx-4 pt-4">
                  <ul class="space-y-1 px-4">
+                    <li class="px-2 py-1"> <!-- Added li wrapper for consistent spacing -->
+                        <button id="theme-toggle-button" class="w-full flex items-center justify-center gap-x-2 rounded-md p-2 text-sm font-semibold text-on-surface hover:bg-surface-alt hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                            <svg id="theme-icon-light" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 hidden">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-6.364-.386l1.591-1.591M3 12h2.25m.386-6.364l1.591 1.591" />
+                            </svg>
+                            <svg id="theme-icon-dark" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 hidden">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21c1.603 0 3.113-.358 4.5-1.002z" />
+                            </svg>
+                            <span id="theme-toggle-text">Switch to Business Mode</span>
+                        </button>
+                    </li>
                     <li>
                         <div class="group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-on-surface">
                             <div class="user-avatar flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-on-primary text-lg font-medium">?</div>
@@ -282,5 +294,6 @@
     <script src="/static/js/ui.js"></script>
     <script src="/static/js/websocket.js"></script>
     <script src="/static/js/chat.js"></script>
+    <script src="/static/js/theme.js" defer></script>
 </body>
 </html>
