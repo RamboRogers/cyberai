@@ -15,6 +15,8 @@
     <link rel="stylesheet" href="/static/css/styles.css">
     <!-- Link Admin CSS for shared theme variables and styles -->
     <link rel="stylesheet" href="/static/css/admin.css">
+    <!-- Link Theme CSS for theme definitions -->
+    <link rel="stylesheet" href="/static/css/themes.css">
     <!-- Add Marked.js for markdown parsing -->
     <script src="/static/js/vendor/marked.min.js"></script>
     <!-- Add highlight.js for code highlighting -->
@@ -99,7 +101,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Chats Section -->
             <div>
                 <div class="flex items-center justify-between px-2 py-1">
@@ -140,11 +142,17 @@
                                 <a href="/admin" id="admin-link" class="p-1 rounded text-on-surface/60 hover:text-primary hover:bg-surface-alt focus:outline-none focus:ring-1 focus:ring-primary" title="Admin Panel" style="display: none;">
                                     <span class="sr-only">Admin Panel</span>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                    </a>
+                                </a>
+                                <button id="theme-toggle-button" class="p-1 rounded text-on-surface/60 hover:text-primary hover:bg-surface-alt focus:outline-none focus:ring-1 focus:ring-primary" title="Toggle Theme">
+                                    <span class="sr-only">Toggle Theme</span>
+                                    <!-- Icon will be set by JS: sun for light/business, moon for dark/hacker -->
+                                    <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 hidden"><path d="M12 3a2.828 2.828 0 0 0 4 4L12 17l-4-10a2.828 2.828 0 0 0 4-4z"/><path d="M12 21a2.828 2.828 0 0 0-4-4L12 7l4 10a2.828 2.828 0 0 0-4 4z"/><path d="M12 3v18"/><path d="M3 12h18"/><path d="m19.071 4.929-14.142 14.142"/><path d="m4.929 4.929 14.142 14.142"/></svg>
+                                    <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 hidden"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                                </button>
                                 <button id="logout-button" class="p-1 rounded text-on-surface/60 hover:text-primary hover:bg-surface-alt focus:outline-none focus:ring-1 focus:ring-primary" title="Logout">
                                     <span class="sr-only">Logout</span>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                    </button>
+                                </button>
                 </div>
                         </div>
                     </li>
@@ -279,8 +287,29 @@
     <!-- Load external JavaScript -->
     <!-- Load order: API logic, UI rendering, WebSocket, then Chat orchestration -->
     <script src="/static/js/api.js"></script>
+    <script src="/static/js/theme.js"></script>
     <script src="/static/js/ui.js"></script>
     <script src="/static/js/websocket.js"></script>
     <script src="/static/js/chat.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize theme
+            loadTheme('theme-icon-sun', 'theme-icon-moon');
+
+            // Setup browser theme change listener
+            setupBrowserThemeListener();
+
+            // Setup theme toggle button listener
+            const themeToggleButton = document.getElementById('theme-toggle-button');
+            if (themeToggleButton) {
+                themeToggleButton.addEventListener('click', () => {
+                    toggleTheme('theme-icon-sun', 'theme-icon-moon');
+                });
+            }
+
+            // Initialize the chat system
+            chat.initChat();
+        });
+    </script>
 </body>
 </html>

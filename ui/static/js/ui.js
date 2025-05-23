@@ -39,7 +39,7 @@ ui.renderProviderSelect = function() {
     providerSelect.innerHTML = ''; // Clear
     if (defaultOption) providerSelect.appendChild(defaultOption); // Add default back
 
-    // --- UPDATED: Extract provider name from model name --- 
+    // --- UPDATED: Extract provider name from model name ---
     const providers = modelsList.reduce((acc, model) => {
         // Extract provider name from parentheses in model.name
         const match = model.name?.match(/\(([^)]+)\)/);
@@ -47,14 +47,14 @@ ui.renderProviderSelect = function() {
         const providerKey = providerName || 'Unknown'; // Use a key for grouping
 
         if (!acc[providerKey]) {
-            acc[providerKey] = { 
+            acc[providerKey] = {
                 id: providerKey, // Use the extracted name/type as the ID for selection
                 name: providerKey // Display name
             };
         }
         return acc;
     }, {});
-    // --- END UPDATE --- 
+    // --- END UPDATE ---
 
     // Sort providers alphabetically by name
     const sortedProviders = Object.values(providers).sort((a, b) => {
@@ -158,12 +158,12 @@ ui.updateActiveModelIndicator = function() {
     const selectedModel = modelsList.find(m => m.id == activeModel);
     if (selectedModel) {
         activeModelIndicator.textContent = `${selectedModel.name}`;
-        
-        // --- UPDATED: Extract provider name from model name --- 
+
+        // --- UPDATED: Extract provider name from model name ---
         const match = selectedModel.name?.match(/\(([^)]+)\)/);
         const providerName = match ? match[1] : (selectedModel.provider_type || 'N/A');
         // --- END UPDATE ---
-        
+
         activeModelIndicator.title = `Using ${selectedModel.name} (Provider: ${providerName})`;
         activeModelIndicator.style.display = 'inline-block'; // Show it
         console.log(`[UI Update] Active model indicator updated: ${selectedModel.name} (ID: ${activeModel})`);
@@ -195,6 +195,7 @@ ui.renderChatsList = function(chats) {
     // Add each chat to the list
     chats.forEach(chat => {
         const chatListItem = document.createElement('li');
+        chatListItem.className = 'chat-item'; // Use our custom chat item class
 
         const chatLink = document.createElement('a');
         chatLink.href = '#'; // Prevent page jump
@@ -231,12 +232,17 @@ ui.renderChatsList = function(chats) {
              }
         });
 
-        // Add delete button (absolutely positioned within the link/li)
+        // Add epic delete button (absolutely positioned within the list item)
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
-        deleteBtn.className = 'absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded text-on-surface/50 opacity-0 group-hover:opacity-100 hover:text-danger hover:bg-surface-alt focus:opacity-100 focus:text-danger focus:bg-surface-alt transition-opacity';
-        deleteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>';
-        deleteBtn.title = 'Delete chat';
+        deleteBtn.className = 'chat-delete-btn'; // Use our custom chat delete button class
+        // Epic trash/delete icon - more thematic than simple X
+        deleteBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        `;
+        deleteBtn.title = 'Delete chat permanently';
         deleteBtn.addEventListener('click', (e) => {
             e.preventDefault(); // Prevent link navigation
             e.stopPropagation(); // Prevent chat selection handler
@@ -246,9 +252,9 @@ ui.renderChatsList = function(chats) {
                 (confirmationEl) => api.confirmDeleteChat(chat.id, chat.title, confirmationEl)
             );
         });
-        chatLink.appendChild(deleteBtn); // Append button to the link
 
         chatListItem.appendChild(chatLink);
+        chatListItem.appendChild(deleteBtn); // Append button to the list item (not the link)
 
         // Add to container (insert after the "New Chat" button's LI)
         if (newChatListItem && newChatListItem.parentNode) {
@@ -576,9 +582,9 @@ ui.renderMessage = function(message) {
             contentElement.innerHTML = `<div class="markdown-content text-danger">Error displaying search results.</div>`;
         }
     } else if (message.role === 'user') {
-        // Standard user message (already prefixed and escaped if needed)
-        // Assuming user messages don't contain markdown that needs parsing
-        contentElement.innerHTML = mainContent;
+        // Standard user message - add the ">" indicator and escape HTML
+        const displayContentString = `<span class="user-prompt-indicator">&gt;</span> ${mainContent.replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
+        contentElement.innerHTML = displayContentString;
     } else {
          // Handle other roles like standard 'system' (basic rendering)
          contentElement.textContent = mainContent;
@@ -709,8 +715,8 @@ ui.addModelInfo = function(containerElement, model_id) {
     const model = modelsList.find(m => m.id == model_id);
     // Defensive check in case model is not found
     const modelName = model ? model.name : (model_id ? `Model #${model_id}` : 'Unknown Model');
-    
-    // --- UPDATED: Extract provider name from model name --- 
+
+    // --- UPDATED: Extract provider name from model name ---
     const match = model?.name?.match(/\(([^)]+)\)/);
     const providerName = match ? match[1] : (model?.provider_type || 'Unknown Provider');
     // --- END UPDATE ---
@@ -1045,7 +1051,7 @@ ui.addMessageToUI = function(type, content, tempId = null, messageType = 'chat')
 
     if (contentElement) {
         messageWrapper.dataset.rawContent = content; // Store original raw content
-        
+
         // Handle message type-specific rendering
         if (type === 'user') {
             // Add search icon for search messages
@@ -1094,7 +1100,7 @@ ui.addMessageToUI = function(type, content, tempId = null, messageType = 'chat')
 
     // Update regenerate button state after adding message
     ui.updateRegenerateButtonState();
-    
+
     return messageWrapper;
 }
 
@@ -1248,17 +1254,17 @@ ui.updateRegenerateButtonState = function() {
 // Add a temporary user message while waiting for the response
 ui.addTempUserMessage = function(content, type = 'chat') {
     if (!chatHistory) return;
-    
+
     const tempId = 'temp-message-' + Date.now();
     const messageElement = document.createElement('div');
     messageElement.id = tempId;
     messageElement.className = 'message user-message mb-4 animate-fade-in';
-    
+
     let icon = '';
     if (type === 'search') {
         icon = '<span class="icon search-icon inline-block mr-2"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" /></svg></span>';
     }
-    
+
     messageElement.innerHTML = `
         <div class="flex items-start mb-2">
             <div class="user-avatar flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-on-primary text-sm font-medium mr-3">U</div>
@@ -1267,7 +1273,7 @@ ui.addTempUserMessage = function(content, type = 'chat') {
             </div>
         </div>
     `;
-    
+
     chatHistory.appendChild(messageElement);
     chatHistory.scrollTop = chatHistory.scrollHeight;
     return tempId;
@@ -1276,7 +1282,7 @@ ui.addTempUserMessage = function(content, type = 'chat') {
 // Remove temporary messages
 ui.removeTempMessages = function() {
     if (!chatHistory) return;
-    
+
     const tempMessages = chatHistory.querySelectorAll('[id^="temp-message-"]');
     tempMessages.forEach(msg => msg.remove());
 };
@@ -1284,20 +1290,20 @@ ui.removeTempMessages = function() {
 // Add assistant message with search results
 ui.addAssistantMessageWithSearchResults = function(content, searchResults) {
     if (!chatHistory) return;
-    
+
     // Remove any temporary messages first
     ui.removeTempMessages();
-    
+
     const messageElement = document.createElement('div');
     messageElement.className = 'message assistant-message mb-4 animate-fade-in';
-    
+
     // Format the search results section
     let searchResultsHTML = '';
     if (searchResults && searchResults.length > 0) {
         searchResultsHTML = '<div class="search-results mt-3 pt-3 border-t border-outline">';
         searchResultsHTML += '<h4 class="text-sm font-semibold mb-2">Search Results:</h4>';
         searchResultsHTML += '<ul class="search-results-list space-y-2 text-sm">';
-        
+
         searchResults.forEach(result => {
             searchResultsHTML += `
                 <li class="result-item">
@@ -1309,13 +1315,13 @@ ui.addAssistantMessageWithSearchResults = function(content, searchResults) {
                 </li>
             `;
         });
-        
+
         searchResultsHTML += '</ul></div>';
     }
-    
+
     // Parse Markdown in the assistant's response
     const parsedContent = window.marked.parse(content);
-    
+
     messageElement.innerHTML = `
         <div class="flex items-start mb-2">
             <div class="assistant-avatar flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-on-secondary text-sm font-medium mr-3">AI</div>
@@ -1325,18 +1331,18 @@ ui.addAssistantMessageWithSearchResults = function(content, searchResults) {
             </div>
         </div>
     `;
-    
+
     chatHistory.appendChild(messageElement);
-    
+
     // Apply syntax highlighting to code blocks
     if (window.hljs) {
         messageElement.querySelectorAll('pre code').forEach(block => {
             window.hljs.highlightElement(block);
         });
     }
-    
+
     chatHistory.scrollTop = chatHistory.scrollHeight;
-    
+
     return messageElement;
 };
 
@@ -1350,7 +1356,7 @@ ui.setLinksToOpenInNewTab = function(element) {
         if (href && !href.startsWith('#') && !href.startsWith(window.location.origin)) {
             link.setAttribute('target', '_blank');
             // Add rel="noopener noreferrer" for security
-            link.setAttribute('rel', 'noopener noreferrer'); 
+            link.setAttribute('rel', 'noopener noreferrer');
         }
     });
 };

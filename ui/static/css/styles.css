@@ -1,3 +1,206 @@
+/* themes.css */
+
+/* Default Theme: Hacker (Cyberpunk) */
+
+:root,
+html[data-theme="hacker"] {
+  --bg-color: #0f0f0f;
+  /* Very dark gray, almost black */
+  --text-color: #e0e0e0;
+  /* Light gray for text */
+  --accent-color: #00ff66;
+  /* Bright cyberpunk green */
+  --secondary-color: #00cc66;
+  /* Slightly darker green */
+  --tertiary-color: #007744;
+  /* Even darker green, for less emphasis */
+  --border-color: #333333;
+  /* Dark gray for borders */
+  --link-hover-color: var(--secondary-color);
+  /* Link hover uses secondary green */
+  --card-bg-color: #1a1a1a;
+  /* Dark background for cards/modals */
+  --input-bg-color: #222222;
+  /* Background for input fields */
+  --button-text-color: var(--bg-color);
+  /* Text color for primary buttons (on accent background) */
+  --code-bg-color: #1e1e1e;
+  /* Background for code blocks */
+  --scrollbar-thumb-color: var(--accent-color);
+  --scrollbar-track-color: var(--border-color);
+  /* RGB values for rgba() usage */
+  --accent-color-rgb: 0, 255, 102;
+  --secondary-color-rgb: 0, 204, 102;
+  --text-color-rgb: 224, 224, 224;
+  --bg-color-rgb: 15, 15, 15;
+  --border-color-rgb: 51, 51, 51;
+  /* Penguin UI Overrides - Hacker Theme */
+  --color-surface: var(--bg-color);
+  /* Base background */
+  --color-surface-alt: var(--card-bg-color);
+  /* Slightly lighter for cards, inputs etc. */
+  --color-on-surface: var(--text-color);
+  /* Main text color */
+  --color-on-surface-strong: #ffffff;
+  /* For very prominent text */
+  --color-primary: var(--accent-color);
+  /* Main accent */
+  --color-on-primary: var(--button-text-color);
+  /* Text on primary buttons */
+  --color-secondary: var(--secondary-color);
+  /* Secondary accent */
+  --color-on-secondary: var(--bg-color);
+  /* Text on secondary buttons */
+  --color-outline: var(--border-color);
+  /* Borders, dividers */
+  --color-outline-strong: #555555;
+  /* Stronger borders */
+  --color-info: #2693FF;
+  /* Blue for info messages (can adjust) */
+  --color-on-info: #ffffff;
+  --color-info-rgb: 38, 147, 255;
+  --color-success: var(--accent-color);
+  /* Green for success (using accent) */
+  --color-on-success: var(--bg-color);
+  --color-success-rgb: var(--accent-color-rgb);
+  --color-warning: #FFB627;
+  /* Amber/Orange for warnings */
+  --color-on-warning: #000000;
+  --color-warning-rgb: 255, 182, 39;
+  --color-danger: #FF3131;
+  /* Red for errors/danger */
+  --color-on-danger: #ffffff;
+  --color-danger-rgb: 255, 49, 49;
+  /* Fonts */
+  --font-sans: 'Roboto', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: 'Source Code Pro', Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* Radius */
+  --radius-radius: 0.375rem;
+  /* Equivalent to Tailwind's rounded-md */
+  /* Ensure scrollbars are styled for hacker theme */
+  scrollbar-color: var(--scrollbar-thumb-color) var(--scrollbar-track-color);
+}
+
+html[data-theme="hacker"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html[data-theme="hacker"] ::-webkit-scrollbar-track {
+  background: var(--scrollbar-track-color);
+}
+
+html[data-theme="hacker"] ::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-color);
+  border-radius: 4px;
+  border: 2px solid var(--scrollbar-track-color);
+}
+
+/* Business Theme */
+
+html[data-theme="business"] {
+  --bg-color: #fafbfc;
+  /* Clean light gray-white */
+  --text-color: #1a202c;
+  /* Very dark gray, almost black for excellent readability */
+  --accent-color: #4a5568;
+  /* Professional dark gray */
+  --secondary-color: #2d3748;
+  /* Darker gray */
+  --tertiary-color: #e2e8f0;
+  /* Light gray for backgrounds or borders */
+  --border-color: #cbd5e1;
+  /* Subtle border color */
+  --link-hover-color: var(--secondary-color);
+  --card-bg-color: #ffffff;
+  /* Pure white for cards/modals */
+  --input-bg-color: #ffffff;
+  /* White for input fields */
+  --button-text-color: #ffffff;
+  /* Text color for primary buttons */
+  --code-bg-color: #f8fafc;
+  /* Very light background for code blocks */
+  --scrollbar-thumb-color: #a0aec0;
+  --scrollbar-track-color: var(--tertiary-color);
+  /* RGB values for rgba() usage */
+  --accent-color-rgb: 74, 85, 104;
+  --secondary-color-rgb: 45, 55, 72;
+  --text-color-rgb: 26, 32, 44;
+  --bg-color-rgb: 250, 251, 252;
+  --border-color-rgb: 203, 213, 225;
+  /* Penguin UI Overrides - Business Theme */
+  --color-surface: var(--bg-color);
+  --color-surface-alt: var(--card-bg-color);
+  --color-on-surface: var(--text-color);
+  --color-on-surface-strong: var(--text-color);
+  --color-primary: var(--accent-color);
+  --color-on-primary: var(--button-text-color);
+  --color-secondary: var(--secondary-color);
+  --color-on-secondary: var(--button-text-color);
+  --color-outline: var(--border-color);
+  --color-info: #3182ce;
+  /* Keeping blue for info messages */
+  --color-on-info: #ffffff;
+  --color-info-rgb: 49, 130, 206;
+  --color-success: #38a169;
+  /* Professional green for success */
+  --color-on-success: #ffffff;
+  --color-success-rgb: 56, 161, 105;
+  --color-warning: #d69e2e;
+  /* Professional amber for warnings */
+  --color-on-warning: #ffffff;
+  --color-warning-rgb: 214, 158, 46;
+  --color-danger: #e53e3e;
+  /* Professional red for danger/errors */
+  --color-on-danger: #ffffff;
+  --color-danger-rgb: 229, 62, 62;
+  /* Fonts - Potentially different or same as hacker */
+  --font-sans: 'Roboto', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: 'Source Code Pro', Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* Keep mono for code */
+  /* Radius */
+  --radius-radius: 0.25rem;
+  /* Slightly less rounded for business theme */
+  /* Ensure scrollbars are styled for business theme */
+  scrollbar-color: var(--scrollbar-thumb-color) var(--scrollbar-track-color);
+}
+
+html[data-theme="business"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html[data-theme="business"] ::-webkit-scrollbar-track {
+  background: var(--scrollbar-track-color);
+}
+
+html[data-theme="business"] ::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-color);
+  border-radius: 4px;
+  border: 2px solid var(--scrollbar-track-color);
+}
+
+/* Generic body styling that might apply to both or be overridden by themes */
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: var(--font-sans);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Ensure Tailwind's CSS variables for colors are picked up by components */
+
+.bg-surface {
+  background-color: var(--color-surface);
+}
+
+.text-on-surface {
+  color: var(--color-on-surface);
+}
+
+/* Add more as needed if Tailwind direct classes are used without theme context */
+
 *, ::before, ::after {
   --tw-border-spacing-x: 0;
   --tw-border-spacing-y: 0;
@@ -106,9 +309,7 @@
   --tw-contain-style:  ;
 }
 
-/*
-! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com
-*/
+/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */
 
 /*
 1. Prevent padding and border from affecting element width. (https://github.com/mozdevs/cssremedy/issues/4)
@@ -585,11 +786,11 @@ pre {
   border: 1px solid var(--color-outline);
 }
 
+/* Remove hard-coded styles to let theme variables take control */
+
 body {
-  --tw-bg-opacity: 1;
-  background-color: rgb(0 0 0 / var(--tw-bg-opacity, 1));
-  --tw-text-opacity: 1;
-  color: rgb(255 255 255 / var(--tw-text-opacity, 1));
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
 }
 
 .container {
@@ -695,6 +896,73 @@ body {
   color: var(--color-primary);
 }
 
+/* Chat list item styles for epic delete buttons */
+
+.chat-item {
+  position: relative;
+  transition: all 0.2s;
+}
+
+.chat-item:hover {
+  background-color: var(--color-surface-alt);
+  opacity: 0.5;
+}
+
+/* Epic delete button that appears on hover with theme-aware styling */
+
+.chat-delete-btn {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0.375rem;
+  border-radius: 0.375rem;
+  color: var(--color-on-surface);
+  opacity: 0;
+  transition: all 0.2s;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.chat-delete-btn:hover {
+  color: var(--color-danger);
+  background-color: var(--color-danger);
+  background-color: rgba(220, 38, 38, 0.1);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.chat-delete-btn:focus {
+  opacity: 1;
+  color: var(--color-danger);
+  background-color: rgba(220, 38, 38, 0.1);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.5);
+}
+
+/* Show delete button on parent hover */
+
+.chat-item:hover .chat-delete-btn {
+  opacity: 1;
+}
+
+/* Hacker theme - add a subtle glow effect on hover */
+
+html[data-theme="hacker"] .chat-delete-btn:hover {
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.3), 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* Business theme - cleaner, more subtle styling */
+
+html[data-theme="business"] .chat-delete-btn {
+  color: rgba(var(--text-color-rgb, 26, 32, 44), 0.4);
+}
+
+html[data-theme="business"] .chat-delete-btn:hover {
+  background-color: rgba(220, 38, 38, 0.05);
+  color: var(--color-danger);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -768,20 +1036,12 @@ body {
   right: 0px;
 }
 
-.right-1 {
-  right: 0.25rem;
-}
-
 .right-4 {
   right: 1rem;
 }
 
 .top-0 {
   top: 0px;
-}
-
-.top-1\/2 {
-  top: 50%;
 }
 
 .top-4 {
@@ -1074,11 +1334,6 @@ body {
 
 .-translate-x-full {
   --tw-translate-x: -100%;
-  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
-}
-
-.-translate-y-1\/2 {
-  --tw-translate-y: -50%;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 
@@ -1935,24 +2190,12 @@ body {
   background-color: var(--color-primary);
 }
 
-.focus\:bg-surface-alt:focus {
-  background-color: var(--color-surface-alt);
-}
-
 .focus\:p-3:focus {
   padding: 0.75rem;
 }
 
-.focus\:text-danger:focus {
-  color: var(--color-danger);
-}
-
 .focus\:text-on-primary:focus {
   color: var(--color-on-primary);
-}
-
-.focus\:opacity-100:focus {
-  opacity: 1;
 }
 
 .focus\:outline-none:focus {
@@ -2018,10 +2261,6 @@ body {
 
 .group:hover .group-hover\:text-primary {
   color: var(--color-primary);
-}
-
-.group:hover .group-hover\:opacity-100 {
-  opacity: 1;
 }
 
 @media (min-width: 640px) {
@@ -2106,4 +2345,4 @@ body {
   .lg\:pl-64 {
     padding-left: 16rem;
   }
-} 
+}

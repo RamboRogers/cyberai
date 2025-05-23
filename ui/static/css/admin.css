@@ -1,44 +1,4 @@
 /* Admin Panel Styles with Cyberpunk Theme */
-:root {
-    /* Core Surface & Text */
-    --color-surface: #0D0D0D; /* Near black */
-    --color-surface-alt: #1A1A1A; /* Dark Gray */
-    --color-on-surface: #FFFFFF; /* Bright White for general text */
-    --color-on-surface-strong: #FFFFFF; /* Bright White for data */
-
-    /* Primary Accent (Cyberpunk Green) */
-    --color-primary: #00FF41;
-    --color-on-primary: #0D0D0D; /* Near black text on primary buttons */
-
-    /* Secondary Accent */
-    --color-secondary: #00CC66;
-    --color-on-secondary: #0D0D0D;
-
-    /* Outlines */
-    --color-outline: #2A2A2A;
-    --color-outline-strong: #444444;
-
-    /* Status Colors */
-    --color-info: #00E5FF;
-    --color-on-info: #0D0D0D;
-    --color-success: #00FF41; /* Match primary green */
-    --color-on-success: #0D0D0D;
-    --color-warning: #FFF700;
-    --color-on-warning: #0D0D0D;
-    --color-danger: #FF073A;
-    --color-on-danger: #FFFFFF;
-
-    /* Fonts & Radius */
-    --font-mono: 'Source Code Pro', monospace; /* Keep Monospace */
-    --radius-radius: 0.375rem;
-
-    /* --- REMOVED OLD VARIABLES --- */
-    /* --bg-color, --secondary-bg, --accent-color, --tertiary-color, */
-    /* --glow-color, --text-color, --text-secondary-color, --border-color, */
-    /* --border-color-subtle, --shadow-color, --shadow-color-subtle, */
-    /* --modal-bg, --disabled-*, --dark-text, --light-text, --*-hover-color */
-    /* etc. */
-}
 
 /* Main layout */
 .admin-panel {

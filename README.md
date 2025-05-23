@@ -28,6 +28,8 @@
 
 CyberAI is a powerful, secure multi-user chat platform that integrates multiple AI models through a cyberpunk-inspired terminal interface. Built with performance, security, and flexibility in mind, it provides a centralized interface for interacting with various language models, leveraging Retrieval-Augmented Generation (RAG) with web search and chat history to deliver more informed and contextually relevant responses.
 
+**Features dual theme modes:** Switch between the signature cyberpunk "Hacker" theme and a professional "Business" theme for corporate environments, with automatic browser dark/light mode detection.
+
 > The intention is to provide a sleek, secure, and efficient way to interact with AI language models through a unified interface.
 
 ## 🌟 Features
@@ -69,6 +71,8 @@ CyberAI is a powerful, secure multi-user chat platform that integrates multiple 
     <td>
       <ul>
         <li>Modern, responsive UI built with Tailwind CSS</li>
+        <li>Dual theme system: Cyberpunk "Hacker" theme and professional "Business" theme</li>
+        <li>Automatic browser dark/light mode detection with manual override</li>
         <li>Cyberpunk S3270 terminal-inspired design (Penguin UI theme)</li>
         <li>Unified style across Chat and Admin interfaces</li>
         <li>Dynamic model selection dropdowns</li>

@@ -560,3 +560,211 @@ type ModelConnector interface {
     - Added "Search Provider Management" title and "New Search Provider" button to the header bar in `admin.html`.
     - Added content `<section>` (`#search-providers-tab`) for displaying search provider cards.
     - Added modal structure (`#search-provider-modal`) with form (`#search-provider-form`) for adding/editing search providers (Brave, Google CSE), including conditional field for Google's Search Engine ID.
+
+# Project Notes
+
+## Theme Toggle Feature
+
+**Objective:** Add a theme toggle button to `index.html` and `admin.html` to switch between "hacker" and "business" themes. Theme preference should be persisted in `localStorage`.
+
+**Files to Modify/Create:**
+
+*   `ui/static/css/themes.css` (New)
+*   `ui/static/css/admin.css` (Refactor)
+*   `tailwind.config.js` (Verify/Adjust)
+*   `ui/templates/index.html` (Add button, link CSS, add JS)
+*   `ui/templates/admin.html` (Add button, link CSS, add JS)
+*   `ui/static/js/ui.js` (Theme switching logic for index.html)
+*   `ui/static/js/admin.js` (Theme switching logic for admin.html)
+*   `EDITS.md` (Track changes)
+
+**Theme Definitions:**
+
+*   **Hacker Theme (Default):**
+    *   Based on existing `admin.css` styles (dark, cyberpunk green).
+*   **Business Theme:**
+    *   Background: Light gray/white.
+    *   Text: Dark gray/black.
+    *   Primary/Accent: Professional blue or muted green.
+    *   Fonts: Standard sans-serif.
+    *   Overall: Clean, modern, minimalist.
+
+**Progress:**
+
+*   [x] Create `themes.css` and define theme variables.
+*   [x] Refactor `admin.css` to use `themes.css`.
+*   [x] Verify/Adjust `tailwind.config.js`. (Verified, no changes needed for core functionality)
+*   [x] Implement button and JS in `index.html` and `ui/static/js/theme.js`.
+*   [x] Implement button and JS in `admin.html` and `ui/static/js/theme.js`.
+*   [ ] Update `EDITS.md`.
+
+**Function List (New - in `ui/static/js/theme.js`):**
+
+*   `applyTheme(themeName, sunIconId, moonIconId)`: Applies the specified theme and updates icons.
+*   `toggleTheme(sunIconId, moonIconId)`: Toggles between 'hacker' and 'business' themes.
+*   `loadTheme(sunIconId, moonIconId)`: Loads the saved theme or applies the default.
+
+## Thinking Animation Fix for OpenAI Models
+
+**Issue:** Thinking animation not showing for OpenAI-compatible models (like Google Flash) but working for Ollama models.
+
+**Root Cause:** WebSocket status message handling was incorrectly structured. Backend sends status with `data` field but frontend expected `status_payload` field. Also, thinking indicator was being hidden too early before content arrived.
+
+**Fix Applied:**
+- Updated `websocket.js` status message handler to read from correct field (`message.data?.message`)
+- Modified thinking indicator logic to hide only when actual content chunks arrive, not just when handler is called
+- Ensures proper visual feedback during AI processing time
+
+**Files Modified:**
+- `ui/static/js/websocket.js`: Fixed status message parsing and thinking indicator timing
+
+## User Message ">" Indicator Fix
+
+**Issue:** When loading historical chats, user messages were missing the ">" indicator that appears when sending messages in real-time.
+
+**Root Cause:** The `renderMessage` function (used for loading historical messages) was not adding the ">" indicator for user messages, while `addMessageToUI` (used for real-time messages) correctly added it.
+
+**Fix Applied:**
+- Updated `ui.renderMessage` function to add the `<span class="user-prompt-indicator">&gt;</span>` prefix to user messages
+- Added proper HTML escaping for user message content
+
+**Files Modified:**
+- `ui/static/js/ui.js`: Fixed user message rendering in `renderMessage` function
+
+## Business Theme Color Improvement
+
+**Issue:** Business theme had poor readability with light blue text that was hard to read on light backgrounds.
+
+**Improvements Made:**
+- **Text Color**: Changed from `#333333` to `#1a202c` (much darker, almost black) for excellent readability
+- **Background**: Improved from `#f4f7f9` to `#fafbfc` (cleaner light gray-white)
+- **Accent Colors**: Updated to professional dark gray palette (`#4a5568`, `#2d3748`) instead of blue
+- **Status Colors**: Improved info, success, warning, and danger colors for better contrast
+- **Borders**: Updated to lighter, more subtle borders (`#e2e8f0`, `#cbd5e1`)
+- **Code Blocks**: Better contrast with `#f8fafc` background
+
+**Result:** Much more readable and professional appearance with dark gray theme instead of blue
+
+**Files Modified:**
+- `ui/static/css/themes.css`: Updated business theme color palette to use dark gray instead of blue
+- `ui/static/css/tailwind.css`: Added import for themes.css and updated body styles to use theme variables
+- Rebuild process: Required `npm run build:css` to compile themes into final styles.css
+
+## Epic Chat Delete Buttons Feature
+
+**Objective:** Add individual delete buttons to chat items that appear on hover with epic styling matching both themes.
+
+**Implementation:**
+- **Delete Button Styling**: Added epic trash icon delete buttons that appear on hover
+- **Theme-Aware**: Different styling for hacker theme (with glow effect) vs business theme (subtle)
+- **Positioning**: Absolute positioning on the right side of chat items
+- **Hover Effects**: Scale animation, color changes, and theme-specific effects
+- **Epic Icon**: Used more thematic trash/delete SVG icon instead of simple X
+
+**Features:**
+- Buttons only appear on hover to maintain clean UI
+- Confirmation dialog before deletion
+- Theme-specific styling (hacker theme gets glow effects, business theme is more subtle)
+- Proper focus states for accessibility
+
+**Files Modified:**
+- `ui/static/js/ui.js`: Updated `renderChatsList` function to include delete buttons and CSS classes
+- `ui/static/css/tailwind.css`: Added comprehensive CSS for `.chat-item` and `.chat-delete-btn` classes with theme-specific variants
+- Fixed @apply compatibility issues by using regular CSS for hover effects
+- Rebuild process: Required `npm run build:css` to compile new styles
+
+## Browser Theme Detection & Login Page Integration
+
+**Objective:** Implement automatic theme detection based on browser dark/light mode preference and integrate login page with theme system.
+
+**Key Features:**
+- **Automatic Detection**: Uses `window.matchMedia('(prefers-color-scheme: dark)')` to detect browser preference
+- **Smart Defaults**: Dark mode → hacker theme, Light mode → business theme
+- **User Override**: Once user manually changes theme, it's saved and takes precedence
+- **Real-time Updates**: Responds to browser theme changes if no manual selection made
+- **Login Page Integration**: Login page now fully integrated with theme system
+
+**Implementation Details:**
+
+*Browser Theme Detection Logic:*
+- `detectBrowserTheme()`: Detects current browser preference
+- `getDefaultTheme()`: Returns appropriate theme based on browser
+- `setupBrowserThemeListener()`: Listens for browser theme changes
+- `loadTheme()`: Loads saved theme or browser-detected default
+
+*Login Page Changes:*
+- Added theme toggle button (top-right corner)
+- Converted all hardcoded colors to use CSS variables
+- Added theme-aware styling for all components
+- Integrated with main theme system
+
+*Theme Priority System:*
+1. User manually selected theme (saved in localStorage)
+2. Browser-detected theme preference (dark/light mode)
+3. Fallback to hacker theme
+
+**Files Modified:**
+- `ui/static/js/theme.js`:
+  - Added browser theme detection functions
+  - Updated theme loading logic to check browser preference
+  - Added real-time browser theme change listener
+  - Improved logging for theme changes
+- `ui/templates/login.html`:
+  - Added theme toggle button with sun/moon icons
+  - Converted all inline styles to use CSS variables
+  - Added themes.css link and theme initialization script
+  - Enhanced branding section with theme-aware styling
+- `ui/static/css/themes.css`:
+  - Added RGB color values for both themes (enables rgba() usage)
+  - Enhanced color palette for better theme consistency
+- `ui/templates/index.html` & `ui/templates/admin.html`:
+  - Added `setupBrowserThemeListener()` call to initialization
+  - Enhanced theme system documentation
+
+**User Experience:**
+- New users see theme matching their OS/browser preference automatically
+- Smooth transitions between themes (0.3s ease)
+- Theme preference persists across sessions
+- Login page matches main application theme
+- Real-time response to system theme changes (when no manual override)
+
+## Current Chat System Capabilities
+
+### Supported Features
+- Text-only chat interface
+- Real-time WebSocket communication
+- Multiple AI model support (OpenAI, Ollama, Anthropic, etc.)
+- Web search integration
+- Chat history management
+- User/assistant message streaming
+
+### Multi-Modal Limitations
+**The current chat system is NOT multi-modal and cannot handle inline images:**
+
+#### Frontend Limitations:
+- Text input only (`<input type="text">`)
+- No file upload interface
+- No drag-and-drop support
+- No image preview/attachment area
+- No clipboard image paste handling
+
+#### Backend Limitations:
+- Message payload only supports text content
+- No file upload endpoints
+- No image storage system
+- WebSocket handlers only process text messages
+- Database schema only stores text content
+
+#### To Implement Multi-Modal Support:
+1. **Frontend**: Add file input, drag-drop, image preview, clipboard paste
+2. **Backend**: File upload endpoints, image storage, attachment metadata
+3. **Database**: Add attachments table linked to messages
+4. **WebSocket**: Support for multi-part message content
+
+## Documentation Updates
+
+### README.md Business Mode Update
+- Updated main description to mention dual theme system
+- Added Business Mode to User Interface features section
+- Highlighted automatic browser theme detection capability
+- Emphasized professional theme option for corporate environments
