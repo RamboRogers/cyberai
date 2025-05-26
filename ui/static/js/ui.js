@@ -219,6 +219,7 @@ ui.renderChatsList = function(chats) {
             e.preventDefault(); // Prevent '#' navigation
             console.log(`[UI] Chat item clicked: ${chat.id}`);
             if (currentChatId !== chat.id) {
+                isIntentionalNewChat = false; // Clear new chat flag when switching to existing chat
                 api.loadChat(chat.id);
             } else {
                 console.log(`[UI] Clicked on already active chat (${chat.id}), no action needed.`);

@@ -8,6 +8,7 @@ let chatsList = [];  // Populated by api.js, Used by api.js
 let activeModel = null; // Updated by api.js, chat.js, Used by api.js, ui.js
 let currentUser = null; // Populated by api.js, Used by ui.js
 let isInsideThinkBlock = false; // WebSocket message handling state (websocket.js)
+let isIntentionalNewChat = false; // Track when user intentionally wants a new chat (prevents auto-switching)
 
 // --- DOM Element References ---
 // Updated selectors based on new HTML structure
@@ -72,12 +73,12 @@ chat.searchWeb = function() {
         ui.showNotification('Please enter a search query', 'warning');
         return;
     }
-    
+
     if (!activeModel) {
         ui.showNotification('Please select a model first', 'warning');
         return;
     }
-    
+
     api.searchAndChat(query, activeModel)
         .then(() => {
             // Clear input after successful search
@@ -108,7 +109,7 @@ chat.initChat = function() {
                     chat.searchWeb();
                     return;
                 }
-                
+
                 // Regular Enter for normal send
                 api.sendMessage();
             }

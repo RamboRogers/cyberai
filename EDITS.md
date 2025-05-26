@@ -88,6 +88,30 @@
     *   `server/db/db.go`: Incremented `SchemaVersion` to 2. Added `search_providers` table definition and index.
     *   `ui/templates/admin.html`: Added sidebar link, header title/button, content section, and modal form structure for search providers.
 
+**Task:** Chat Switching Bug Fix (CRITICAL - Completed)
+
+**Issue:** When user starts typing in a new chat, the app automatically switches to an old chat due to WebSocket reconnection triggering automatic chat loading.
+
+**Root Cause:**
+- WebSocket reconnection calls `api.fetchChats()`
+- `fetchChats()` automatically loads first chat if `currentChatId` is null
+- This happens even when user intentionally wants a new chat
+- Timing issue: WebSocket can reconnect while user is typing
+
+**Changes Made:**
+*   **`ui/static/js/chat.js`**:
+    - Added `isIntentionalNewChat` global state variable to track when user intentionally wants a new chat
+*   **`ui/static/js/api.js`**:
+    - Updated `fetchChats()` to check `isIntentionalNewChat` flag and preserve new chat state during WebSocket reconnections
+    - Updated `prepareNewChat()` to set `isIntentionalNewChat = true` when user clicks "New Chat"
+    - Updated `loadChat()` to clear `isIntentionalNewChat = false` when loading existing chat
+    - Updated `sendMessage()` to clear `isIntentionalNewChat = false` when creating new chat with first message
+*   **`ui/static/js/ui.js`**:
+    - Updated chat click handler to clear `isIntentionalNewChat = false` when switching to existing chat
+*   **`NOTES.md`**: Added comprehensive bug analysis and solution documentation
+
+**Result:** Users can now start typing in a new chat without being automatically switched to an old chat, even during WebSocket reconnections.
+
 # Code Edits Log
 
 This file tracks significant code changes made during the development process, aligning with `NOTES.md`.
@@ -174,6 +198,37 @@ This file tracks significant code changes made during the development process, a
     - Enhanced logging and improved icon display logic
 *   **`ui/templates/login.html`**:
     - Added complete theme system integration with toggle button (top-right corner)
+
+## WebSocket Connection Spam Bug Fix (CRITICAL - Completed)
+
+**Issue:** "Connected to CyberAI chat server (User ID: X)" message being continuously spammed to the chat window container.
+
+**Root Cause:**
+- Multiple WebSocket connection attempts without proper state management
+- Backend sends welcome message on every connection establishment
+- No duplicate message filtering on frontend
+- Reconnection logic and search functions triggering multiple simultaneous connections
+- `websocket.connect()` being called from multiple places without coordination
+
+**Changes Made:**
+*   **`ui/static/js/websocket.js`**:
+    - Added `isConnecting` flag to prevent multiple simultaneous connection attempts
+    - Added `hasShownWelcome` flag to track initial connection vs reconnections
+    - Added connection state checks in `websocket.connect()` to prevent duplicate connections
+    - Modified `onopen` handler to only fetch initial data on first connection
+    - Added connection state reset in `onclose`, `onerror`, and catch blocks
+    - Added duplicate welcome message filtering in system message handler
+*   **`ui/static/js/api.js`**:
+    - Simplified WebSocket connection logic in `searchAndChat()` function
+    - Removed redundant connection attempts, now only uses `websocket.ensureConnected()`
+
+**Technical Details:**
+- Connection state management prevents race conditions
+- Welcome message filtering checks for existing messages before adding new ones
+- Only initial connection triggers data fetching (models/chats)
+- Reconnections maintain connection without re-initializing data
+
+**Result:** WebSocket connection messages should now appear only once per session, eliminating the spam issue.
     - Converted all hardcoded colors to CSS variables (--bg-color, --accent-color, etc.)
     - Added themes.css link and theme initialization script
     - Added sun/moon icons with theme-aware visibility
@@ -187,3 +242,24 @@ This file tracks significant code changes made during the development process, a
     - Added `setupBrowserThemeListener()` call to DOMContentLoaded initialization
     - Enhanced theme system integration documentation
 *   **`NOTES.md`**: Added comprehensive documentation of browser theme detection and login page integration
+
+## Version Management Implementation (COMPLETED)
+
+**Issue:** Version was hardcoded in multiple places and not dynamically sourced from build script.
+
+**Changes Made:**
+*   **`build.sh`**:
+    - Modified to use existing VERSION variable to set LDFLAGS for version injection
+    - Added logic to inject version into Go binary at build time via `-X main.Version=${VERSION}`
+    - Made .env file optional and added support for additional LDFLAGS if needed
+*   **`cmd/cyberai/main.go`**:
+    - Added `Version` variable that can be set at build time (defaults to "dev" for development)
+    - Converted hardcoded BannerText constant to `getBannerText()` function that includes dynamic version
+    - Updated startup to display banner with version using `fmt.Print(getBannerText())`
+    - Updated `/api/info` endpoint to return current version dynamically
+*   **`ui/templates/admin.html`**:
+    - Added version display element in footer with `id="version-display"`
+    - Added JavaScript to fetch version from `/api/info` endpoint and display it
+    - Added error handling for version fetch with fallback display
+
+**Result:** Version is now dynamically sourced from build script, displayed in startup banner, available via API, and visible on admin page.

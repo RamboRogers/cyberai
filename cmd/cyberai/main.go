@@ -32,13 +32,19 @@ import (
 var (
 	// Store for session management
 	cookieStore *sessions.CookieStore
+	// Version is set at build time via ldflags
+	Version = "dev" // Default value for development builds
 )
 
 const (
 	DefaultPort       = "8080"
 	DefaultSessionKey = "default-dev-session-key-replace-me!" // Replace in production!
 	SessionName       = "cyberai-session"
-	BannerText        = "\033[32m" + `
+)
+
+// getBannerText returns the banner text with the current version
+func getBannerText() string {
+	return "\033[32m" + `
  █████╗ ██╗   ██╗██████╗ ███████╗██████╗  █████╗ ██╗
 ██╔══██╗╚██╗ ██╔╝██╔══██╗██╔════╝██╔══██╗██╔══██╗██║
 ██║  ╚═╝ ╚████╔╝ ██████╔╝█████╗  ██████╔╝███████║██║
@@ -47,9 +53,9 @@ const (
  ╚═════╝  ╚═╝   ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝
 
      [ Secure Multi-Model AI Chat Platform ]
-           << Version 0.1.0 >>
+           << Version ` + Version + ` >>
 ` + "\033[0m"
-)
+}
 
 // -- Logging Middleware --
 
@@ -216,6 +222,9 @@ func (a *SearchHandlersAdapter) PerformSearch(query string, provider *models.Sea
 }
 
 func main() {
+	// Display banner
+	fmt.Print(getBannerText())
+
 	// Log startup information
 	log.Printf("Starting CyberAI Server")
 	log.Printf("OS: %s, Architecture: %s", runtime.GOOS, runtime.GOARCH)
@@ -443,7 +452,8 @@ func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService
 	mux.HandleFunc("/api/info", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"name": "CyberAI", "version": "0.1.0", "status": "development"}`))
+		response := fmt.Sprintf(`{"name": "CyberAI", "version": "%s", "status": "development"}`, Version)
+		w.Write([]byte(response))
 	})
 
 	// Register WebSocket handler on the separate mux

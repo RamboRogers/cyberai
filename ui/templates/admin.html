@@ -286,7 +286,7 @@
 
         <footer class="mt-auto py-4 px-4 md:px-6 lg:px-8 text-center text-xs text-on-surface/60 border-t border-outline bg-surface">
             <div class="flex flex-col sm:flex-row justify-between items-center gap-2">
-                <span>🔒 CyberAI - Secure Multi-Model AI Chat Platform 🤖</span>
+                <span>🔒 CyberAI - Secure Multi-Model AI Chat Platform 🤖 <span id="version-display" class="font-mono">v...</span></span>
                 <span>© 2024 <a href="https://github.com/RamboRogers" target="_blank" rel="noopener noreferrer" class="link-subtle font-semibold">@RamboRogers</a> (GitHub) / <a href="https://x.com/RogersCISSP" target="_blank" rel="noopener noreferrer" class="link-subtle font-semibold">@RogersCISSP</a> (X)</span>
                 <span>License: <a href="https://github.com/RamboRogers/cyberai/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" class="link-subtle font-semibold">GPLv3</a></span>
             </div>
@@ -972,6 +972,23 @@
                     toggleTheme('theme-icon-sun-admin', 'theme-icon-moon-admin');
                 });
             }
+
+            // Fetch and display version
+            fetch('/api/info')
+                .then(response => response.json())
+                .then(data => {
+                    const versionDisplay = document.getElementById('version-display');
+                    if (versionDisplay && data.version) {
+                        versionDisplay.textContent = `v${data.version}`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching version:', error);
+                    const versionDisplay = document.getElementById('version-display');
+                    if (versionDisplay) {
+                        versionDisplay.textContent = 'v?';
+                    }
+                });
 
             // Existing Alpine.js initializations and other admin.js setup will proceed as normal.
             // If admin.js has a specific init function that should run after theme setup, call it here.

@@ -4,6 +4,59 @@
 - Initial README and DESIGN documents created
 - Planning phase in progress
 
+## Current Bug Analysis
+
+### Chat Switching Bug (CRITICAL - FIXED)
+**Issue**: When user starts typing in a new chat, the app automatically switches to an old chat
+**Root Cause**:
+- WebSocket reconnection triggers `api.fetchChats()`
+- `fetchChats()` automatically loads first chat if `currentChatId` is null
+- This happens even when user intentionally wants a new chat
+- Timing issue: WebSocket can reconnect while user is typing
+
+**Solution**:
+- Add state tracking for "intentional new chat" vs "no chat selected"
+- Preserve user's new chat intent during WebSocket reconnections
+- Only auto-load first chat on initial page load, not on reconnections
+
+**Files Affected**:
+- `ui/static/js/api.js` - fetchChats() function
+- `ui/static/js/chat.js` - state management
+- `ui/static/js/websocket.js` - connection handling
+
+### WebSocket Connection Spam Bug (CRITICAL - FIXED)
+**Issue**: "Connected to CyberAI chat server (User ID: X)" message being spammed to chat window
+**Root Cause**:
+- Multiple WebSocket connection attempts without proper state management
+- Backend sends welcome message on every connection
+- No duplicate message filtering on frontend
+- Reconnection logic triggering multiple simultaneous connections
+
+**Solution**:
+- Added connection state management (`isConnecting` flag)
+- Prevent multiple simultaneous connection attempts
+- Added duplicate welcome message filtering
+- Only fetch initial data on first connection, not reconnections
+- Cleaned up redundant connection calls
+
+**Files Affected**:
+- `ui/static/js/websocket.js` - connection state management and message filtering
+- `ui/static/js/api.js` - removed redundant connection calls
+
+### Version Management Implementation (COMPLETED)
+**Issue**: Version was hardcoded in multiple places and not dynamically sourced from build script
+**Solution**:
+- Modified `build.sh` to inject version from VERSION variable into Go binary via ldflags
+- Updated `main.go` to use a Version variable that can be set at build time
+- Added getBannerText() function to display version in startup banner
+- Updated `/api/info` endpoint to return current version
+- Added version display to admin page footer with JavaScript fetch
+
+**Files Affected**:
+- `build.sh` - added LDFLAGS with version injection
+- `cmd/cyberai/main.go` - added Version variable and getBannerText() function
+- `ui/templates/admin.html` - added version display and fetch logic
+
 ## Architecture Decisions
 - **Backend**: Go for performance and concurrent handling
 - **Database**: SQLite for simplicity and embedded deployment

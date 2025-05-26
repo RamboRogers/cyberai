@@ -1,16 +1,19 @@
 #!/bin/bash
-VERSION="0.1.0"
+VERSION="0.2.0"
 rm -rf bins/*
 mkdir -p bins
 
-# Check if .env file exists
-if [ ! -f .env ]; then
-    echo "Error: .env file not found"
-    exit 1
-fi
+# Set LDFLAGS to inject version at build time
+LDFLAGS="-X main.Version=${VERSION}"
 
-# Source the .env file
-source .env
+# Check if .env file exists and source it for additional flags
+if [ -f .env ]; then
+    source .env
+    # If .env has additional LDFLAGS, append them
+    if [ ! -z "$ADDITIONAL_LDFLAGS" ]; then
+        LDFLAGS="${LDFLAGS} ${ADDITIONAL_LDFLAGS}"
+    fi
+fi
 
 # Build for current platform
 echo "Building for $(go env GOOS)/$(go env GOARCH)..."

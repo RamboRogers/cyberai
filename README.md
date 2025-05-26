@@ -2,6 +2,14 @@
 <table>
   <tr>
     <td>
+      <img src="media/screenw.png" alt="chat interface">
+    </td>
+    <td>
+      <img src="media/dashboardw.png" alt="admin dashboard">
+    </td>
+  </tr>
+  <tr>
+    <td>
       <img src="media/screen2.png" alt="chat interface">
     </td>
     <td>
@@ -17,7 +25,7 @@
   <p><strong>Secure Multi-Model AI Chat Platform</strong></p>
   <p>🤖 Multiple AI Models | 🌍 Web UI | ⚡ Real-time Streaming | 🔒 Secure | 🎨 Cyberpunk Terminal</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.1.0-blue.svg" alt="Version 0.1.0">
+    <img src="https://img.shields.io/badge/version-0.2.0-blue.svg" alt="Version 0.2.0">
     <img src="https://img.shields.io/badge/go-%3E%3D1.21-00ADD8.svg" alt="Go Version">
     <img src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20docker-brightgreen.svg" alt="Platform Support">
     <img src="https://img.shields.io/badge/license-GPLv3-green.svg" alt="License">
@@ -94,6 +102,13 @@ CyberAI is a powerful, secure multi-user chat platform that integrates multiple 
   </tr>
 </table>
 
+## Updates
+
+- 0.2.0 First Tagged Release
+  - White mode/business theme added.
+  - Fixed a new chat bug where you would be driven back to a previous chat session.
+  - Fixed a JS session bug where lots of logs were generated.
+
 ## Todo 📋
 
 - [ ] Gated User Profile (Can only access Persona's)
@@ -114,6 +129,17 @@ You can run CyberAI using Docker with either `docker run` or `docker-compose`.
 This command uses a Docker named volume (`cyberai-data`) to store the application's data (like the SQLite database) persistently.
 
 ```bash
+docker run -d --name cyberai \
+  -p 8080:8080 \
+  -v cyberai-data:/cyberai/data \
+  mattrogers/cyberai:latest
+```
+
+**Upgrade:**
+
+```bash
+docker pull mattrogers/cyberai:latest
+docker stop cyberai && docker rm cyberai
 docker run -d --name cyberai \
   -p 8080:8080 \
   -v cyberai-data:/cyberai/data \

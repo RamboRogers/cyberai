@@ -6,6 +6,8 @@ const websocket = {};
 // --- State Variables (These are available globally from chat.js) ---
 // WebSocket instance (initialized later)
 let ws = null;
+let isConnecting = false; // Prevent multiple simultaneous connection attempts
+let hasShownWelcome = false; // Track if we've already shown the welcome message
 // let isInsideThinkBlock = false; // Defined in chat.js
 
 // --- UI Functions (now namespaced with ui.) ---
@@ -30,9 +32,23 @@ let ws = null;
 
 // Connect to WebSocket server
 websocket.connect = function() {
+    // Prevent multiple simultaneous connection attempts
+    if (isConnecting) {
+        console.log("WebSocket connection already in progress, skipping...");
+        return;
+    }
+
+    // If already connected, don't reconnect
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log("WebSocket already connected, skipping...");
+        return;
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     console.log(`Attempting to connect to WebSocket at ${wsUrl}`);
+
+    isConnecting = true;
 
     if (ws) {
         try { ws.close(); } catch (e) { console.error("Error closing WS:", e); }
@@ -44,12 +60,18 @@ websocket.connect = function() {
         ws.onopen = function() {
             console.log('Connected to server');
             console.log("[System WS] Connection established. CyberAI terminal ready.");
-            // Fetch initial data after connection
-            api.fetchModels().then(() => {
-                // Fetch chats AFTER models are fetched and processed by the handler
-                // The model_list handler should populate the dropdowns now.
-                api.fetchChats();
-            });
+            isConnecting = false; // Reset connection flag
+
+            // Only fetch initial data on first connection, not on reconnections
+            if (!hasShownWelcome) {
+                hasShownWelcome = true;
+                // Fetch initial data after connection
+                api.fetchModels().then(() => {
+                    // Fetch chats AFTER models are fetched and processed by the handler
+                    // The model_list handler should populate the dropdowns now.
+                    api.fetchChats();
+                });
+            }
         };
 
         ws.onmessage = function(event) {
@@ -64,6 +86,8 @@ websocket.connect = function() {
 
         ws.onclose = function(event) {
             console.log('Disconnected from server', event);
+            isConnecting = false; // Reset connection flag
+
             if (event.code !== 1000) { // Don't show reconnect on normal close
                 console.warn("[System WS] Connection lost. Attempting to reconnect...");
                 setTimeout(websocket.connect, 3000);
@@ -75,11 +99,13 @@ websocket.connect = function() {
         ws.onerror = function(error) {
             console.error('WebSocket error:', error);
             console.error("[System WS] Connection error. Check console.");
+            isConnecting = false; // Reset connection flag on error
             // ws.onclose will handle reconnection attempts
         };
     } catch (error) {
         console.error('Error creating WebSocket:', error);
         console.error("[System WS] Failed to create WebSocket connection: " + error.message);
+        isConnecting = false; // Reset connection flag on error
         setTimeout(websocket.connect, 5000); // Retry connection after longer delay
     }
 };
@@ -106,7 +132,19 @@ websocket.handleWebSocketMessage = function(message) {
 
     switch (message.type) {
         case 'system':
-            ui.addSystemMessage(message.content_payload?.content || 'System message received without content');
+            const systemContent = message.content_payload?.content || 'System message received without content';
+
+            // Filter out duplicate welcome messages
+            if (systemContent.includes('Connected to CyberAI chat server')) {
+                // Check if we already have this message in the chat
+                const existingWelcomeMsg = document.querySelector('.message.system-message .content');
+                if (existingWelcomeMsg && existingWelcomeMsg.textContent.includes('Connected to CyberAI chat server')) {
+                    console.log('Skipping duplicate welcome message');
+                    break; // Skip adding duplicate welcome message
+                }
+            }
+
+            ui.addSystemMessage(systemContent);
             break;
         case 'status':
             // Handle both payload structures for backward compatibility
