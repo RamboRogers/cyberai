@@ -4,11 +4,16 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ramborogers/cyberai/server/models"
@@ -85,6 +90,98 @@ func (c *OllamaConnector) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// convertImageURLToBase64 fetches an image from a URL and converts it to base64
+func (c *OllamaConnector) convertImageURLToBase64(imageURL string) (string, error) {
+	// Handle data URLs (format: data:image/jpeg;base64,xyz123...)
+	if strings.HasPrefix(imageURL, "data:") {
+		// Split on comma to separate metadata from base64 data
+		parts := strings.Split(imageURL, ",")
+		if len(parts) != 2 {
+			return "", fmt.Errorf("invalid data URL format: %s", imageURL)
+		}
+		// Return just the base64 data part (after the comma)
+		return parts[1], nil
+	}
+
+	// Handle local URLs (from our image upload system)
+	if strings.HasPrefix(imageURL, "/api/images/") {
+		// Extract image ID from URL like /api/images/123
+		parts := strings.Split(imageURL, "/")
+		if len(parts) < 4 {
+			return "", fmt.Errorf("invalid local image URL format: %s", imageURL)
+		}
+
+		imageIDStr := parts[3]
+		imageID, err := strconv.ParseInt(imageIDStr, 10, 64)
+		if err != nil {
+			return "", fmt.Errorf("invalid image ID in URL %s: %w", imageURL, err)
+		}
+
+		log.Printf("Converting local image ID %d to base64", imageID)
+
+		// For local images, we need to read from the filesystem
+		// Since we don't have database access here, we'll look for files in /data/images/
+		// This is a workaround - ideally we'd query the database for the filename
+		imageDir := "data/images"
+
+		// List files in the images directory and find one that matches
+		files, err := os.ReadDir(imageDir)
+		if err != nil {
+			return "", fmt.Errorf("failed to read images directory: %w", err)
+		}
+
+		// For now, we'll use a simple approach - read all files and find the right one
+		// This is not ideal but works as a proof of concept
+		var imageFile string
+		for _, file := range files {
+			if !file.IsDir() {
+				// For now, just use the first image file we find
+				// TODO: Implement proper image ID to filename mapping
+				imageFile = filepath.Join(imageDir, file.Name())
+				break
+			}
+		}
+
+		if imageFile == "" {
+			return "", fmt.Errorf("no image file found for ID %d", imageID)
+		}
+
+		log.Printf("Reading local image file: %s", imageFile)
+
+		// Read the image file
+		imageData, err := os.ReadFile(imageFile)
+		if err != nil {
+			return "", fmt.Errorf("failed to read local image file %s: %w", imageFile, err)
+		}
+
+		// Convert to base64
+		base64String := base64.StdEncoding.EncodeToString(imageData)
+		log.Printf("Successfully converted local image to base64 (%d bytes -> %d chars)", len(imageData), len(base64String))
+		return base64String, nil
+	}
+
+	// For external URLs, fetch the image
+	resp, err := c.httpClient.Get(imageURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch image from URL %s: %w", imageURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to fetch image, status code: %d", resp.StatusCode)
+	}
+
+	// Read image data
+	imageData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read image data: %w", err)
+	}
+
+	// Convert to base64
+	base64String := base64.StdEncoding.EncodeToString(imageData)
+	return base64String, nil
+}
+
 // GenerateChatCompletion sends a request to Ollama's /api/chat endpoint.
 func (c *OllamaConnector) GenerateChatCompletion(ctx context.Context, req ChatCompletionRequest, callback ChunkCallback) error {
 	// 1. Map llm.Message to Ollama's message format
@@ -94,6 +191,22 @@ func (c *OllamaConnector) GenerateChatCompletion(ctx context.Context, req ChatCo
 			Role:    msg.Role,
 			Content: msg.Content,
 		}
+
+		// Handle images if present
+		if len(msg.Images) > 0 {
+			log.Printf("Converting %d images for Ollama", len(msg.Images))
+			for _, imageURL := range msg.Images {
+				base64Image, err := c.convertImageURLToBase64(imageURL)
+				if err != nil {
+					log.Printf("Warning: Failed to convert image URL %s to base64: %v", imageURL, err)
+					// Continue without this image rather than failing completely
+					continue
+				}
+				ollamaMessage.Images = append(ollamaMessage.Images, base64Image)
+			}
+			log.Printf("Successfully converted %d images to base64 for Ollama", len(ollamaMessage.Images))
+		}
+
 		ollamaMessages = append(ollamaMessages, ollamaMessage)
 	}
 

@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+
+	"encoding/base64"
 
 	"github.com/ramborogers/cyberai/server/models"
 )
@@ -13,6 +16,7 @@ type ChatContextService struct {
 	chatService  *models.ChatService
 	modelService *models.ModelService
 	agentService *models.AgentService
+	imageService *models.ImageService
 	defaultLimit int // Maximum number of messages to include in context
 }
 
@@ -21,11 +25,13 @@ func NewChatContextService(
 	chatService *models.ChatService,
 	modelService *models.ModelService,
 	agentService *models.AgentService,
+	imageService *models.ImageService,
 ) *ChatContextService {
 	return &ChatContextService{
 		chatService:  chatService,
 		modelService: modelService,
 		agentService: agentService,
+		imageService: imageService,
 		defaultLimit: 20, // Default context window size
 	}
 }
@@ -122,10 +128,31 @@ func (s *ChatContextService) BuildContextForModelRequest(
 			continue
 		}
 
-		llmMessages = append(llmMessages, Message{
+		llmMessage := Message{
 			Role:    msg.Role,
 			Content: msg.Content,
-		})
+		}
+
+		// Handle images if present
+		if len(msg.ImageIDs) > 0 {
+			images, err := s.imageService.GetImagesByIDs(msg.ImageIDs)
+			if err != nil {
+				log.Printf("[Chat %d] Warning: Failed to fetch images for message %d: %v", chatID, msg.ID, err)
+			} else {
+				// Convert images to data URL format (compatible with both OpenAI and Ollama)
+				for _, image := range images {
+					imageDataURL, err := s.convertImageToDataURL(image)
+					if err != nil {
+						log.Printf("[Chat %d] Warning: Failed to convert image %d: %v", chatID, image.ID, err)
+						continue
+					}
+					llmMessage.Images = append(llmMessage.Images, imageDataURL)
+				}
+				log.Printf("[Chat %d] Added %d images to message", chatID, len(llmMessage.Images))
+			}
+		}
+
+		llmMessages = append(llmMessages, llmMessage)
 	}
 
 	// 7. Add the new user message (if provided and not already the last message in history)
@@ -158,4 +185,21 @@ func (s *ChatContextService) SetContextWindowSize(limit int) {
 		s.defaultLimit = limit
 		log.Printf("Chat context window size set to %d messages", limit)
 	}
+}
+
+// convertImageToDataURL converts an image to data URL format (compatible with both OpenAI and Ollama)
+func (s *ChatContextService) convertImageToDataURL(image models.Image) (string, error) {
+	// Read the image file and convert to base64
+	imageData, err := os.ReadFile(image.FilePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read image file %s: %w", image.FilePath, err)
+	}
+
+	base64Data := base64.StdEncoding.EncodeToString(imageData)
+
+	// Return data URL format that works with both OpenAI and Ollama
+	// OpenAI uses this directly, Ollama converts it via convertImageURLToBase64
+	dataURL := fmt.Sprintf("data:%s;base64,%s", image.ContentType, base64Data)
+
+	return dataURL, nil
 }

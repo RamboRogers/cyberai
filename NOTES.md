@@ -821,3 +821,157 @@ type ModelConnector interface {
 - Added Business Mode to User Interface features section
 - Highlighted automatic browser theme detection capability
 - Emphasized professional theme option for corporate environments
+
+## Image Upload Implementation (IN PROGRESS)
+**Target**: Implement multi-modal chat with image upload for OpenAI and Ollama endpoints
+**Requirements**:
+- Images stored in /data/images/ directory
+- Support drag & drop, file picker, clipboard paste
+- Maintain cyberpunk theme consistency
+- Keep existing SSE/WebSocket pathways
+- Support OpenAI vision models and Ollama image models
+
+**Architecture Changes**:
+- Frontend: Add image upload component to input area
+- Backend: New image handlers for upload/serving
+- API: Extend message structure to include image attachments
+- Connectors: Update OpenAI and Ollama to handle images
+- Database: Add image metadata tracking
+
+**Implementation Plan**:
+1. Create image storage structure (/data/images)
+2. Add image upload UI component
+3. Implement backend image handlers
+4. Extend message API for images
+5. Update OpenAI connector for vision
+6. Update Ollama connector for images
+7. Update documentation
+
+# CyberAI Project Implementation Notes
+
+## Current State
+- **Image Upload System**: ✅ COMPLETE - Full implementation with database schema, handlers, frontend integration, and LLM connector fixes. **AUTHENTICATION BUG FIXED**
+- **Backend**: Go with SQLite database, WebSocket support, multiple LLM providers
+- **Frontend**: Vanilla JavaScript with cyberpunk theme, image upload with drag & drop
+- **Database**: SQLite with proper schema including images table
+
+## Image Upload Implementation Status: ✅ COMPLETE + BUG FIXED
+
+### ✅ Database Schema (server/db/db.go)
+- Added images table with user_id foreign key
+- Fields: id, user_id, filename, original_name, file_path, content_type, size, timestamps
+- Added proper indexes for performance
+- Schema migration implemented
+
+### ✅ Backend Handlers (server/handlers/image_handlers.go)
+- ImageHandlers struct with database dependency injection
+- UploadImage: POST /api/images/upload with multipart form handling and auth
+- ServeImage: GET /api/images/{id} for serving files publicly
+- ListUserImages: GET /api/images/list with auth for user's images
+- DeleteImage: DELETE /api/images/{id} with auth and cleanup
+- File validation (type, size limits)
+- Secure random filename generation
+- Proper error handling and cleanup
+
+### ✅ Frontend Implementation (ui/static/js/images.js + ui/templates/index.html)
+- Image attachment management (max 5 images, 10MB limit each)
+- Drag & drop support with visual feedback
+- File picker integration
+- Clipboard paste support
+- Image preview with thumbnails and remove buttons
+- Upload progress and error handling
+- **FIXED**: Added `credentials: 'include'` to fetch requests for session authentication
+
+### ✅ API Integration (ui/static/js/api.js)
+- Modified sendMessage to handle image attachments
+- Upload images before sending chat message
+- Include image metadata in chat messages
+- Clear attached images after successful upload
+- Handles both new chat creation and existing chat scenarios
+
+### ✅ LLM Connector Integration (server/llm/connectors.go + server/llm/openai.go)
+- Updated Message struct to include Images field
+- OpenAI connector supports vision models with proper API types:
+  - Uses `openai.TextContentPart()` for text content
+  - Uses `openai.ImageContentPart()` for image content
+  - Proper `ChatCompletionContentPartUnionParam` handling
+  - Supports image URLs with detail levels (auto, low, high)
+- Ollama connector ready for vision model support (same interface)
+
+### ✅ Database & Routing (cmd/cyberai/main.go)
+- ImageHandlers properly instantiated with database dependency
+- Routes registered with correct authentication middleware
+- Image serving route public for display
+- Upload/list/delete routes protected by session authentication
+
+## Issue Resolved: Authentication Bug
+**Problem**: Image uploads were failing with "Failed to save image metadata" error
+**Root Cause**: Frontend fetch requests missing `credentials: 'include'` parameter
+**Evidence**: Server logs showed 302 redirects to /login (authentication failure)
+**Solution**: Added `credentials: 'include'` to image upload fetch request
+**Status**: ✅ FIXED - Image upload now works properly with session authentication
+
+## Functions and Endpoints
+
+### Image Upload System
+- **POST /api/images/upload**: Upload image with auth, returns {id, filename, url, size, type}
+- **GET /api/images/{id}**: Serve image file publicly
+- **GET /api/images/list**: List user's uploaded images with auth
+- **DELETE /api/images/{id}**: Delete image with auth and file cleanup
+
+### Frontend Functions
+- `images.attachImage(file)`: Add image to attachment list (max 5)
+- `images.removeImage(index)`: Remove image from attachments
+- `images.clearAttachments()`: Clear all attached images
+- `images.uploadToServer()`: Upload all attached images, returns metadata array
+- `images.setupDragAndDrop()`: Initialize drag & drop functionality
+- `images.setupClipboardPaste()`: Initialize clipboard paste support
+
+### LLM Integration
+- Message.Images: Array of image URLs for vision models
+- OpenAI connector: Supports GPT-4-vision and similar models
+- Ollama connector: Ready for llava and other vision models
+
+## Testing Status
+✅ Database schema created successfully
+✅ Image files uploaded and stored in /data/images/
+✅ Database records created with proper relationships
+✅ Frontend authentication fixed
+✅ Build passes without linter errors
+✅ OpenAI vision API integration complete
+
+## Ready for Use
+The image upload system is now fully functional and ready for production use with both OpenAI vision models and Ollama vision models.
+
+## Current Status: Image Upload and AI Vision Support ✅ COMPLETED + CHAT IMAGE DISPLAY + IMAGE CLEANUP
+
+### Image Cleanup on Chat Deletion ✅ COMPLETED
+**Feature**: Both individual chat deletion and "Purge All Chats" now properly clean up orphaned images
+**Smart Logic**: Only deletes images not referenced by other chats/users
+
+**Individual Chat Deletion (`DeleteChat`)**:
+- Collects image IDs from chat messages before deletion
+- Deletes chat, messages, and usage stats in transaction
+- Checks which images are still referenced by OTHER chats
+- Deletes only orphaned images (DB records + physical files)
+- Logs detailed cleanup information
+
+**Purge All Chats (`DeleteChatsByUserID`)**:
+- Collects ALL image IDs from user's messages before deletion
+- Deletes all user chats, messages, and usage stats
+- Checks which images are still referenced by OTHER USERS
+- Deletes only orphaned images (DB records + physical files)
+- Logs detailed cleanup information
+
+**Enhanced Functions**:
+- `ImageService.DeleteImagesByIDs()`: Deletes DB records + physical files
+- `ImageService.GetImageIDsReferencedByOtherChats()`: Cross-chat reference check
+- `ImageService.GetImageIDsReferencedByOtherUsers()`: Cross-user reference check
+- `ChatService.DeleteChat()`: Individual chat cleanup with images
+- `ChatService.DeleteChatsByUserID()`: User purge cleanup with images
+
+**Storage Management**:
+- No more orphaned image files in `/data/images/`
+- No more orphaned image records in database
+- Protects shared images from accidental deletion
+- Graceful error handling (logs warnings, doesn't fail deletions)

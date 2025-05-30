@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -48,6 +49,7 @@ type Message struct {
 	ModelID    *int64    `json:"model_id,omitempty"`
 	AgentID    *int64    `json:"agent_id,omitempty"`
 	TokensUsed int       `json:"tokens_used,omitempty"`
+	ImageIDs   []int64   `json:"image_ids,omitempty"` // References to uploaded images
 	CreatedAt  time.Time `json:"created_at"`
 
 	// Optional relationships for API responses
@@ -57,16 +59,18 @@ type Message struct {
 
 // ChatService handles chat-related operations
 type ChatService struct {
-	DB  *db.DB
-	Hub WSHub // Use interface type
+	DB           *db.DB
+	Hub          WSHub         // Use interface type
+	ImageService *ImageService // Add ImageService for image cleanup
 	// ConnectorSvc *llm.ConnectorService // REMOVE ConnectorService dependency
 }
 
 // NewChatService creates a new ChatService
-func NewChatService(database *db.DB, hub WSHub) *ChatService { // Remove connSvc parameter
+func NewChatService(database *db.DB, hub WSHub, imageService *ImageService) *ChatService { // Add imageService parameter
 	return &ChatService{
-		DB:  database,
-		Hub: hub,
+		DB:           database,
+		Hub:          hub,
+		ImageService: imageService, // Store ImageService
 		// ConnectorSvc: connSvc, // REMOVE ConnectorService storage
 	}
 }
@@ -153,7 +157,7 @@ func (s *ChatService) GetChat(chatID int64, includeMessages bool) (*Chat, error)
 func (s *ChatService) GetChatMessages(chatID int64) ([]Message, error) {
 	rows, err := s.DB.Query(`
 		SELECT m.id, m.chat_id, m.user_id, m.role, m.content,
-		       m.model_id, m.agent_id, m.tokens_used, m.created_at
+		       m.model_id, m.agent_id, m.tokens_used, m.image_ids, m.created_at
 		FROM messages m
 		WHERE m.chat_id = ? AND m.role != 'system'
 		ORDER BY m.created_at ASC
@@ -167,12 +171,24 @@ func (s *ChatService) GetChatMessages(chatID int64) ([]Message, error) {
 	var messages []Message
 	for rows.Next() {
 		var msg Message
+		var imageIDsJSON sql.NullString
 		if err := rows.Scan(
 			&msg.ID, &msg.ChatID, &msg.UserID, &msg.Role, &msg.Content,
-			&msg.ModelID, &msg.AgentID, &msg.TokensUsed, &msg.CreatedAt,
+			&msg.ModelID, &msg.AgentID, &msg.TokensUsed, &imageIDsJSON, &msg.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan message: %w", err)
 		}
+
+		// Parse ImageIDs from JSON if present
+		if imageIDsJSON.Valid && imageIDsJSON.String != "" {
+			if err := json.Unmarshal([]byte(imageIDsJSON.String), &msg.ImageIDs); err != nil {
+				log.Printf("Warning: failed to parse image_ids for message %d: %v", msg.ID, err)
+				msg.ImageIDs = []int64{} // Set to empty slice on error
+			}
+		} else {
+			msg.ImageIDs = []int64{} // Initialize as empty slice
+		}
+
 		messages = append(messages, msg)
 	}
 
@@ -256,8 +272,34 @@ func (s *ChatService) ArchiveChat(chatID int64) error {
 	return nil
 }
 
-// DeleteChat deletes a chat and all its messages
+// DeleteChat deletes a chat and all its messages, including associated images
 func (s *ChatService) DeleteChat(chatID int64) error {
+	// 1. First, collect all image IDs from messages in this chat (before transaction)
+	var allImageIDs []int64
+	if s.ImageService != nil {
+		rows, err := s.DB.Query(`
+			SELECT DISTINCT json_extract(value, '$') as image_id
+			FROM messages, json_each(messages.image_ids)
+			WHERE messages.chat_id = ?
+			AND messages.image_ids IS NOT NULL
+			AND messages.image_ids != ''
+		`, chatID)
+		if err != nil {
+			log.Printf("Warning: failed to collect image IDs for chat deletion: %v", err)
+		} else {
+			defer rows.Close()
+			for rows.Next() {
+				var imageID int64
+				if err := rows.Scan(&imageID); err != nil {
+					log.Printf("Warning: failed to scan image ID: %v", err)
+					continue
+				}
+				allImageIDs = append(allImageIDs, imageID)
+			}
+		}
+	}
+
+	// 2. Delete chat and messages in transaction
 	err := s.DB.Transaction(func(tx *sql.Tx) error {
 		// Delete associated messages
 		_, err := tx.Exec("DELETE FROM messages WHERE chat_id = ?", chatID)
@@ -284,29 +326,138 @@ func (s *ChatService) DeleteChat(chatID int64) error {
 		return err
 	}
 
+	// 3. After successful transaction, handle image cleanup (outside transaction)
+	if s.ImageService != nil && len(allImageIDs) > 0 {
+		log.Printf("Chat %d deletion: found %d images to potentially clean up", chatID, len(allImageIDs))
+
+		// Check which images are still referenced by other chats
+		referencedImageIDs, err := s.ImageService.GetImageIDsReferencedByOtherChats(allImageIDs, chatID)
+		if err != nil {
+			log.Printf("Warning: failed to check image references in other chats: %v", err)
+			// Continue without image cleanup to avoid blocking chat deletion
+		} else {
+			// Create a map for quick lookup
+			referencedMap := make(map[int64]bool)
+			for _, id := range referencedImageIDs {
+				referencedMap[id] = true
+			}
+
+			// Find images that are NOT referenced elsewhere
+			var imagesToDelete []int64
+			for _, imageID := range allImageIDs {
+				if !referencedMap[imageID] {
+					imagesToDelete = append(imagesToDelete, imageID)
+				}
+			}
+
+			if len(imagesToDelete) > 0 {
+				log.Printf("Chat %d deletion: deleting %d orphaned images", chatID, len(imagesToDelete))
+				if err := s.ImageService.DeleteImagesByIDs(imagesToDelete); err != nil {
+					log.Printf("Warning: failed to delete orphaned images: %v", err)
+					// Log but don't fail the chat deletion
+				}
+			} else {
+				log.Printf("Chat %d deletion: all %d images are still referenced by other chats", chatID, len(allImageIDs))
+			}
+		}
+	}
+
 	return nil
 }
 
-// DeleteChatsByUserID deletes all chats and associated messages for a user.
+// DeleteChatsByUserID deletes all chats and associated messages for a user, including associated images.
 func (s *ChatService) DeleteChatsByUserID(userID int64) error {
-	// Call the database layer function to perform the deletion within a transaction
+	// 1. First, collect all image IDs from ALL user's messages (before deletion)
+	var allImageIDs []int64
+	if s.ImageService != nil {
+		rows, err := s.DB.Query(`
+			SELECT DISTINCT json_extract(value, '$') as image_id
+			FROM messages, json_each(messages.image_ids)
+			WHERE messages.user_id = ?
+			AND messages.image_ids IS NOT NULL
+			AND messages.image_ids != ''
+		`, userID)
+		if err != nil {
+			log.Printf("Warning: failed to collect image IDs for user %d purge: %v", userID, err)
+		} else {
+			defer rows.Close()
+			for rows.Next() {
+				var imageID int64
+				if err := rows.Scan(&imageID); err != nil {
+					log.Printf("Warning: failed to scan image ID during user %d purge: %v", userID, err)
+					continue
+				}
+				allImageIDs = append(allImageIDs, imageID)
+			}
+		}
+	}
+
+	// 2. Delete all chats and messages for the user
 	err := s.DB.DeleteChatsAndMessagesByUserID(userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete chats and messages for user %d: %w", userID, err)
 	}
 	log.Printf("ChatService successfully initiated deletion of chats for user %d", userID)
+
+	// 3. After successful deletion, handle image cleanup for ALL images from this user
+	if s.ImageService != nil && len(allImageIDs) > 0 {
+		log.Printf("User %d purge: found %d images to potentially clean up", userID, len(allImageIDs))
+
+		// For user purge, we check if ANY other users still reference these images
+		// (since we deleted ALL of this user's chats, we need to check other users)
+		referencedImageIDs, err := s.ImageService.GetImageIDsReferencedByOtherUsers(allImageIDs, userID)
+		if err != nil {
+			log.Printf("Warning: failed to check image references by other users during purge: %v", err)
+			// Continue without image cleanup to avoid blocking user purge
+		} else {
+			// Create a map for quick lookup
+			referencedMap := make(map[int64]bool)
+			for _, id := range referencedImageIDs {
+				referencedMap[id] = true
+			}
+
+			// Find images that are NOT referenced by other users
+			var imagesToDelete []int64
+			for _, imageID := range allImageIDs {
+				if !referencedMap[imageID] {
+					imagesToDelete = append(imagesToDelete, imageID)
+				}
+			}
+
+			if len(imagesToDelete) > 0 {
+				log.Printf("User %d purge: deleting %d orphaned images", userID, len(imagesToDelete))
+				if err := s.ImageService.DeleteImagesByIDs(imagesToDelete); err != nil {
+					log.Printf("Warning: failed to delete orphaned images during user %d purge: %v", userID, err)
+					// Log but don't fail the user purge
+				}
+			} else {
+				log.Printf("User %d purge: all %d images are still referenced by other users", userID, len(allImageIDs))
+			}
+		}
+	}
+
 	return nil
 }
 
 // AddMessage adds a new message to a chat and updates the chat's updated_at time
 func (s *ChatService) AddMessage(message *Message) error {
 	err := s.DB.Transaction(func(tx *sql.Tx) error {
+		// Convert ImageIDs to JSON string
+		var imageIDsJSON string
+		if len(message.ImageIDs) > 0 {
+			imageIDsBytes, err := json.Marshal(message.ImageIDs)
+			if err != nil {
+				return fmt.Errorf("failed to marshal image IDs: %w", err)
+			}
+			imageIDsJSON = string(imageIDsBytes)
+		}
+
 		// Insert the message
 		result, err := tx.Exec(`
-			INSERT INTO messages (chat_id, user_id, role, content, model_id, agent_id, tokens_used)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO messages (chat_id, user_id, role, content, model_id, agent_id, tokens_used, image_ids)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		`, message.ChatID, message.UserID, message.Role, message.Content,
-			message.ModelID, message.AgentID, message.TokensUsed)
+			message.ModelID, message.AgentID, message.TokensUsed, imageIDsJSON)
 
 		if err != nil {
 			return fmt.Errorf("failed to add message: %w", err)
@@ -375,7 +526,7 @@ func (s *ChatService) GetMessageHistory(chatID int64, limit int) ([]Message, err
 	rows, err := s.DB.Query(`
 		SELECT * FROM (
 			SELECT m.id, m.chat_id, m.user_id, m.role, m.content,
-				   m.model_id, m.agent_id, m.tokens_used, m.created_at
+				   m.model_id, m.agent_id, m.tokens_used, m.image_ids, m.created_at
 			FROM messages m
 			WHERE m.chat_id = ?
 			ORDER BY m.created_at DESC
@@ -392,12 +543,22 @@ func (s *ChatService) GetMessageHistory(chatID int64, limit int) ([]Message, err
 	var messages []Message
 	for rows.Next() {
 		var msg Message
+		var imageIDsJSON sql.NullString
 		if err := rows.Scan(
 			&msg.ID, &msg.ChatID, &msg.UserID, &msg.Role, &msg.Content,
-			&msg.ModelID, &msg.AgentID, &msg.TokensUsed, &msg.CreatedAt,
+			&msg.ModelID, &msg.AgentID, &msg.TokensUsed, &imageIDsJSON, &msg.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan message: %w", err)
 		}
+
+		// Parse ImageIDs from JSON
+		if imageIDsJSON.Valid && imageIDsJSON.String != "" {
+			if err := json.Unmarshal([]byte(imageIDsJSON.String), &msg.ImageIDs); err != nil {
+				// Log error but don't fail - continue without images
+				log.Printf("Warning: Failed to unmarshal image IDs for message %d: %v", msg.ID, err)
+			}
+		}
+
 		// Simply append normally, as query returns ASC order now
 		messages = append(messages, msg)
 	}

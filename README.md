@@ -1,6 +1,20 @@
 <div align="center">
 <table>
   <tr>
+    <td colspan="2">
+      <h2>🎯 Version 0.3.0: Multi-Modal AI Support</h2>
+      <p><strong>Now with Image Upload & Vision Model Integration</strong></p>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <img src="media/multimodal.png" alt="multimodal chat interface">
+    </td>
+    <td>
+      <img src="media/multimodal2.png" alt="multimodal image upload">
+    </td>
+  </tr>
+  <tr>
     <td>
       <img src="media/screenw.png" alt="chat interface">
     </td>
@@ -17,15 +31,15 @@
     </td>
   </tr>
 </table>
-<p><em>Note: Screenshots may not reflect the latest UI/UX rework.</em></p>
+<p><em>Note: Screenshots may not reflect the latest UI/UX rework. It's probably cooler than this.</em></p>
 </div>
 
 <div align="center">
   <h1>CyberAI</h1>
-  <p><strong>Secure Multi-Model AI Chat Platform</strong></p>
-  <p>🤖 Multiple AI Models | 🌍 Web UI | ⚡ Real-time Streaming | 🔒 Secure | 🎨 Cyberpunk Terminal</p>
+  <p><strong>Secure Multi-Modal AI Chat Platform</strong></p>
+  <p>🤖 Multiple AI Models | 🖼️ Image Upload & Vision | 🌍 Web UI | ⚡ Real-time Streaming | 🔒 Secure | 🎨 Cyberpunk Terminal</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.2.0-blue.svg" alt="Version 0.2.0">
+    <img src="https://img.shields.io/badge/version-0.3.0-blue.svg" alt="Version 0.3.0">
     <img src="https://img.shields.io/badge/go-%3E%3D1.21-00ADD8.svg" alt="Go Version">
     <img src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20docker-brightgreen.svg" alt="Platform Support">
     <img src="https://img.shields.io/badge/license-GPLv3-green.svg" alt="License">
@@ -35,6 +49,8 @@
 [Link to Video](https://x.com/rogerscissp/status/1917092440068047334)
 
 CyberAI is a powerful, secure multi-user chat platform that integrates multiple AI models through a cyberpunk-inspired terminal interface. Built with performance, security, and flexibility in mind, it provides a centralized interface for interacting with various language models, leveraging Retrieval-Augmented Generation (RAG) with web search and chat history to deliver more informed and contextually relevant responses.
+
+**NEW in 0.3.0:** Full multi-modal support with image upload capabilities - drag & drop images, paste from clipboard, or use the file picker to enhance your conversations with AI vision models like GPT-4V and Ollama's LLaVA models.
 
 **Features dual theme modes:** Switch between the signature cyberpunk "Hacker" theme and a professional "Business" theme for corporate environments, with automatic browser dark/light mode detection.
 
@@ -51,6 +67,7 @@ CyberAI is a powerful, secure multi-user chat platform that integrates multiple 
     <td>
       <ul>
         <li>Multiple LLM provider integration (Ollama, OpenAI)</li>
+        <li>Multi-modal vision model support (GPT-4V, LLaVA, etc.)</li>
         <li>Custom agent system with specialized prompts</li>
         <li>Model enumeration system</li>
         <li>Per-user model access control</li>
@@ -60,6 +77,10 @@ CyberAI is a powerful, secure multi-user chat platform that integrates multiple 
     </td>
     <td>
       <ul>
+        <li>Image upload via drag & drop, file picker, or clipboard paste</li>
+        <li>Multi-image attachment support (up to 5 images per message)</li>
+        <li>Image preview and management in chat interface</li>
+        <li>Automatic image cleanup on chat deletion</li>
         <li>Real-time message streaming</li>
         <li>Markdown rendering for responses</li>
         <li>Copy-to-clipboard functionality</li>
@@ -84,6 +105,7 @@ CyberAI is a powerful, secure multi-user chat platform that integrates multiple 
         <li>Cyberpunk S3270 terminal-inspired design (Penguin UI theme)</li>
         <li>Unified style across Chat and Admin interfaces</li>
         <li>Dynamic model selection dropdowns</li>
+        <li>Image attachment interface with visual feedback</li>
         <li>Admin dashboard for system management</li>
         <li>Agent creation/selection UI (Planned/Not Implemented)</li>
         <li>Metrics display component (Planned/Not Implemented)</li>
@@ -93,6 +115,8 @@ CyberAI is a powerful, secure multi-user chat platform that integrates multiple 
       <ul>
         <li>User authentication system</li>
         <li>Role-based access control</li>
+        <li>Secure file upload with validation</li>
+        <li>Image storage with user isolation</li>
         <li>Secure API endpoint storage</li>
         <li>Protected WebSocket connections</li>
         <li>Input sanitization</li>
@@ -103,6 +127,14 @@ CyberAI is a powerful, secure multi-user chat platform that integrates multiple 
 </table>
 
 ## Updates
+
+- 0.3.0 Multi-Modal Support Release
+  - Image upload support via drag & drop, file picker, and clipboard paste
+  - Integration with OpenAI vision models (GPT-4V, GPT-4-vision-preview)
+  - Support for Ollama vision models (LLaVA, Llama-Vision, etc.)
+  - Smart image cleanup on chat deletion
+  - Enhanced chat interface with image preview and management
+  - Secure image storage with user isolation
 
 - 0.2.0 First Tagged Release
   - White mode/business theme added.
@@ -281,10 +313,20 @@ http://localhost:8080/admin
 - Admin dashboard for system configuration
 
 ### Database
+
+Stored under /data/cyberai.db
 - User credentials and permissions storage
 - Chat history preservation
 - Configuration management
 - Search provider settings
+
+### Image Storage
+
+Stored under /data/images/
+- Image storage with user isolation
+- Image preview and management in chat interface
+- Automatic image cleanup on chat deletion
+
 
 ## ⚖️ License
 

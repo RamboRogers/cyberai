@@ -111,6 +111,7 @@ chat.initChat = function() {
                 }
 
                 // Regular Enter for normal send
+                event.preventDefault(); // Prevent form submission
                 api.sendMessage();
             }
         });

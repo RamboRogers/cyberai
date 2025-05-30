@@ -14,7 +14,7 @@ import (
 
 const (
 	// Schema version
-	SchemaVersion = 2
+	SchemaVersion = 3
 
 	// Default database file
 	DefaultDBPath = "./data/cyberai.db"
@@ -83,9 +83,15 @@ func (db *DB) Initialize() error {
 		return fmt.Errorf("failed to query schema version: %w", err)
 	}
 
-	if err == sql.ErrNoRows || version < SchemaVersion {
-		// Apply migrations
-		if err := db.migrate(); err != nil {
+	// Get current version (0 if no records exist)
+	currentVersion := 0
+	if err != sql.ErrNoRows {
+		currentVersion = version
+	}
+
+	// Apply migrations incrementally
+	if currentVersion < SchemaVersion {
+		if err := db.migrateFromVersion(currentVersion); err != nil {
 			return err
 		}
 	}
@@ -93,11 +99,41 @@ func (db *DB) Initialize() error {
 	return nil
 }
 
-// migrate applies database migrations
-func (db *DB) migrate() error {
-	log.Println("Applying migrations...")
+// migrateFromVersion applies migrations from a specific version to the current version
+func (db *DB) migrateFromVersion(fromVersion int) error {
+	log.Printf("Migrating database from version %d to version %d", fromVersion, SchemaVersion)
 
-	// Create tables if they don't exist
+	if fromVersion == 0 {
+		// Initial migration - create all tables
+		if err := db.createTables(); err != nil {
+			return err
+		}
+	}
+
+	// Apply incremental migrations
+	if fromVersion < 3 {
+		// Migration to version 3: Add image_ids column to messages table
+		log.Println("Applying migration to version 3: Adding image_ids column to messages table")
+		_, err := db.Exec(`ALTER TABLE messages ADD COLUMN image_ids TEXT`)
+		if err != nil {
+			return fmt.Errorf("failed to add image_ids column to messages table: %w", err)
+		}
+	}
+
+	// Record the new schema version
+	_, err := db.Exec(`INSERT INTO schema_versions (version) VALUES (?)`, SchemaVersion)
+	if err != nil {
+		log.Printf("Note: Schema version may already exist: %v", err)
+	}
+
+	log.Printf("Database migration completed to version %d", SchemaVersion)
+	return nil
+}
+
+// createTables creates all initial tables (for fresh installations)
+func (db *DB) createTables() error {
+	log.Println("Creating initial database tables...")
+
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS roles (
 			id INTEGER PRIMARY KEY,
@@ -184,11 +220,25 @@ func (db *DB) migrate() error {
 			model_id INTEGER,
 			agent_id INTEGER,
 			tokens_used INTEGER DEFAULT 0,
+			image_ids TEXT, -- JSON array of image IDs
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (chat_id) REFERENCES chats(id),
 			FOREIGN KEY (user_id) REFERENCES users(id),
 			FOREIGN KEY (model_id) REFERENCES models(id),
 			FOREIGN KEY (agent_id) REFERENCES agents(id)
+		);
+
+		CREATE TABLE IF NOT EXISTS images (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
+			filename TEXT NOT NULL,
+			original_name TEXT NOT NULL,
+			file_path TEXT NOT NULL,
+			content_type TEXT NOT NULL,
+			size INTEGER NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id)
 		);
 
 		CREATE TABLE IF NOT EXISTS usage_statistics (
@@ -230,6 +280,9 @@ func (db *DB) migrate() error {
 		CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id);
 		CREATE INDEX IF NOT EXISTS idx_messages_role ON messages(role);
 		CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
+
+		CREATE INDEX IF NOT EXISTS idx_images_user ON images(user_id);
+		CREATE INDEX IF NOT EXISTS idx_images_created ON images(created_at);
 
 		CREATE INDEX IF NOT EXISTS idx_usage_user ON usage_statistics(user_id);
 		CREATE INDEX IF NOT EXISTS idx_usage_chat ON usage_statistics(chat_id);
@@ -287,17 +340,6 @@ func (db *DB) migrate() error {
 
 	if err != nil {
 		return fmt.Errorf("failed to create default admin user: %w", err)
-	}
-
-	// Insert schema version record
-	_, err = db.Exec(`
-		INSERT INTO schema_versions (version)
-		VALUES (?)
-	`, SchemaVersion)
-
-	if err != nil {
-		// If the error is a constraint violation, the version is likely already there
-		log.Printf("Note: Schema version may already exist: %v", err)
 	}
 
 	return nil

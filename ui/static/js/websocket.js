@@ -162,18 +162,26 @@ websocket.handleWebSocketMessage = function(message) {
             ui.showThinkingIndicator(false); // Hide indicator on error
             break;
         case 'user_message':
-            // Update the UI for the confirmed user message (e.g., replace temp ID)
+            // Update the UI for the confirmed user message with complete data including images
             const userMsg = message.message_payload;
             if (userMsg) {
-                // Find the temporary message if it exists
+                // DEBUG: Log the complete message payload
+                console.log('[WS user_message] FULL PAYLOAD:', JSON.stringify(userMsg, null, 2));
+                console.log('[WS user_message] Image IDs:', userMsg.image_ids);
+                console.log('[WS user_message] Image IDs type:', typeof userMsg.image_ids);
+                console.log('[WS user_message] Image IDs isArray:', Array.isArray(userMsg.image_ids));
+
+                // Remove the temporary message if it exists
                 const tempMsgElement = document.getElementById('message-temp-user');
                 if (tempMsgElement) {
-                    tempMsgElement.id = `message-${userMsg.id}`;
-                    // Optionally update other attributes if needed
-                } else {
-                    // If the message wasn't optimistically rendered, render it now
-                    ui.renderMessage(userMsg);
+                    console.log('[WS user_message] Removing temp message element');
+                    tempMsgElement.remove();
                 }
+
+                // Always render the complete message with all data (including ImageIDs)
+                console.log('[WS user_message] About to call ui.renderMessage with:', userMsg);
+                ui.renderMessage(userMsg);
+                console.log(`[WS user_message] Rendered confirmed user message ${userMsg.id} with ${userMsg.image_ids?.length || 0} images`);
             } else {
                 console.warn('Received user_message confirmation without payload.');
             }

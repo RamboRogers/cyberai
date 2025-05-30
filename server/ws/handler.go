@@ -37,6 +37,7 @@ type MessagePayload struct {
 	ModelID    *int64    `json:"model_id,omitempty"`
 	AgentID    *int64    `json:"agent_id,omitempty"`
 	TokensUsed int       `json:"tokens_used,omitempty"`
+	ImageIDs   []int64   `json:"image_ids,omitempty"` // Support for image attachments
 	CreatedAt  time.Time `json:"created_at"`
 }
 

@@ -365,42 +365,76 @@ api.updateChatTitle = async function(chatId, newTitle) {
     }
 };
 
-// Send a message or create a new chat with the first message
+// Flag to prevent double submission
+let isSendingMessage = false;
+
+// Send Message Function
 api.sendMessage = async function() {
-    if (!messageInput) {
-        console.error("Message input element not found.");
-        return;
-    }
-    const content = messageInput.value.trim();
-    if (!content) return; // Don't send empty messages
-
-    // Ensure an active model is selected
-    if (!activeModel) {
-        console.error("[API] No active model selected. Cannot send message.");
-        ui.showNotification("Please select a model before sending a message.", 'error');
+    // Prevent double submission
+    if (isSendingMessage) {
+        console.log('[API] Message already being sent, ignoring duplicate call');
         return;
     }
 
-    // --- Trigger Send Animation ---
-    if (messageInput) {
-        messageInput.classList.add('input-sending');
-        setTimeout(() => {
-            messageInput.classList.remove('input-sending');
-        }, 300); // Match animation duration
-    }
-    // -----------------------------
-
-    // Optimistic UI update for user message (uses ui.js function)
-    const tempId = `temp-user-${Date.now()}`; // Generate a temporary ID for the element
-    ui.addMessageToUI('user', content, tempId); // Add message to UI optimistically
-
-    const firstMessageContent = content; // Store content before clearing
-    messageInput.value = ''; // Clear input field immediately
-
-    // Show thinking indicator (uses ui.js function)
-    ui.showThinkingIndicator(true);
+    isSendingMessage = true;
 
     try {
+        const messageInput = document.getElementById('message-input');
+        if (!messageInput || !messageInput.value.trim()) {
+            console.warn("[API] No message content to send.");
+            return;
+        }
+
+        const content = messageInput.value.trim();
+        if (!content && (!images || images.attachedImages.length === 0)) {
+            console.warn("[API] No content or images to send.");
+            return;
+        }
+
+        if (!activeModel) {
+            console.error("[API] No active model selected. Cannot send message.");
+            ui.showNotification("Please select a model before sending a message.", 'error');
+            return;
+        }
+
+        // --- Trigger Send Animation ---
+        if (messageInput) {
+            messageInput.classList.add('input-sending');
+            setTimeout(() => {
+                messageInput.classList.remove('input-sending');
+            }, 300); // Match animation duration
+        }
+        // -----------------------------
+
+        // Check for attached images and upload them first
+        let uploadedImages = [];
+        if (images && images.attachedImages.length > 0) {
+            try {
+                console.log('[API] Uploading attached images...');
+                uploadedImages = await images.uploadToServer();
+                console.log('[API] Images uploaded successfully:', uploadedImages);
+            } catch (error) {
+                console.error('[API] Error uploading images:', error);
+                ui.showNotification(`Error uploading images: ${error.message}`, 'error');
+                return; // Stop if image upload fails
+            }
+        }
+
+        // Optimistic UI update for user message (uses ui.js function)
+        const tempId = `temp-user-${Date.now()}`; // Generate a temporary ID for the element
+        ui.addMessageToUI('user', content, tempId); // Add message to UI optimistically
+
+        const firstMessageContent = content; // Store content before clearing
+        messageInput.value = ''; // Clear input field immediately
+
+        // Clear attached images after successful upload
+        if (images && images.attachedImages.length > 0) {
+            images.clearAll();
+        }
+
+        // Show thinking indicator (uses ui.js function)
+        ui.showThinkingIndicator(true);
+
         let response;
         let requestBody;
 
@@ -410,7 +444,8 @@ api.sendMessage = async function() {
             requestBody = {
                 first_message: {
                     content: firstMessageContent,
-                    model_id: parseInt(activeModel, 10)
+                    model_id: parseInt(activeModel, 10),
+                    images: uploadedImages // Include uploaded images
                 }
                 // No title field - backend will use first_message content
             };
@@ -437,23 +472,14 @@ api.sendMessage = async function() {
 
             // --- UPDATED ERROR HANDLING for non-JSON responses ---
             if (!response.ok) {
-                let errorDetail = `HTTP ${response.status}`;
+                let errorText = "Unknown error occurred";
                 try {
-                    // Try to parse JSON first
-                    const errorData = await response.json();
-                    errorDetail = errorData.detail || errorData.error || errorDetail;
-                } catch (jsonError) {
-                    // If JSON parsing fails, try to read response as text
-                    console.warn("[API] Failed to parse error response as JSON, reading as text.");
-                    try {
-                        const errorText = await response.text();
-                        errorDetail = errorText || errorDetail; // Use text if available
-                    } catch (textError) {
-                        console.error("[API] Failed to read error response as text.");
-                    }
+                    errorText = await response.text(); // Get error text from server
+                } catch (parseError) {
+                    console.error('[API] Error parsing server error response:', parseError);
                 }
-                console.error(`[API] Error creating chat (Status ${response.status}):`, errorDetail);
-                ui.displayChatError('new', errorDetail); // Display error in chat UI
+                console.error("[API] Error creating new chat. Server returned:", response.status, errorText);
+                ui.showNotification(`Error creating new chat: ${errorText}`, 'error');
                 // Remove optimistic message
                 const tempUserMsg = document.getElementById(tempId);
                 if (tempUserMsg) tempUserMsg.remove();
@@ -493,11 +519,12 @@ api.sendMessage = async function() {
             console.log(`[API] Sending message to existing chat ${currentChatId} using model ${activeModel}:`, firstMessageContent);
             requestBody = {
                 content: firstMessageContent,
-                model_id: parseInt(activeModel, 10)
+                model_id: parseInt(activeModel, 10),
+                images: uploadedImages // Include uploaded images
             };
 
-            // --- Check if parsing failed ---
-             if (isNaN(requestBody.model_id)) {
+            // --- Check if parsing failed (activeModel was not a valid number string) ---
+            if (isNaN(requestBody.model_id)) {
                 console.error("[API] Invalid activeModel ID for existing chat:", activeModel);
                 ui.showNotification("Invalid model selected. Please select a valid model.", 'error');
                 ui.showThinkingIndicator(false); // Hide indicator
@@ -517,59 +544,60 @@ api.sendMessage = async function() {
             });
 
             // --- UPDATED ERROR HANDLING for non-JSON responses ---
-             if (!response.ok) {
-                let errorDetail = `HTTP ${response.status}`;
+            if (!response.ok) {
+                let errorText = "Unknown error occurred";
                 try {
-                    const errorData = await response.json();
-                    errorDetail = errorData.detail || errorData.error || errorDetail;
-                } catch (jsonError) {
-                    console.warn("[API] Failed to parse error response as JSON, reading as text.");
-                    try {
-                        const errorText = await response.text();
-                        errorDetail = errorText || errorDetail;
-                    } catch (textError) {
-                        console.error("[API] Failed to read error response as text.");
-                    }
+                    errorText = await response.text(); // Get error text from server
+                } catch (parseError) {
+                    console.error('[API] Error parsing server error response:', parseError);
                 }
-                console.error(`[API] Error sending message (Status ${response.status}):`, errorDetail);
-                ui.displayChatError(currentChatId, errorDetail); // Display error in chat UI
-                 // Remove optimistic message
+                console.error(`[API] Error sending message to chat ${currentChatId}. Server returned:`, response.status, errorText);
+                ui.showNotification(`Error sending message: ${errorText}`, 'error');
+                // Remove optimistic message
                 const tempUserMsg = document.getElementById(tempId);
                 if (tempUserMsg) tempUserMsg.remove();
-                 ui.showThinkingIndicator(false); // Hide indicator
-                 return; // Stop processing
+                ui.showThinkingIndicator(false); // Hide indicator
+                return; // Stop processing
             }
             // --- END UPDATED ERROR HANDLING ---
 
             // If response IS ok, THEN parse JSON
-            const messageResponseData = await response.json(); // Expect user message object back
+            const messageData = await response.json(); // Expect user message object back
 
-            // Successfully sent message (202 Accepted usually)
-            console.log(`[API] Message POST successful (Status ${response.status}), response:`, messageResponseData);
-            // Update the temporary user message element with the real ID
+            // Successfully sent message to existing chat
+            console.log('[API] Message sent successfully to existing chat:', messageData);
+
+            // Update the temporary user message with the real ID
             const tempUserMsgElement = document.getElementById(tempId);
             if (tempUserMsgElement) {
-                tempUserMsgElement.id = `message-${messageResponseData.id}`; // Update element ID
-                tempUserMsgElement.dataset.rawContent = messageResponseData.content; // Update raw content
-                console.log(`[API] Updated temporary user message element ID to: ${messageResponseData.id}`);
+                tempUserMsgElement.id = `message-${messageData.id}`;
+                tempUserMsgElement.dataset.rawContent = messageData.content;
+                console.log(`[API] Updated user message element ID to: ${messageData.id}`);
             } else {
-                console.warn("[API] Couldn't find the temporary user message element to update its ID.");
+                console.warn("[API] Could not find temp user message element to update ID.")
             }
-            // WebSocket handles the assistant response
+
+            // Refresh the chat list to update "last message" timestamps if needed
+            await api.fetchChats();
         }
 
     } catch (error) {
-        // Catch any other unexpected errors (e.g., network issues)
-        console.error('[API] Unexpected Error in sendMessage:', error);
-        ui.showNotification(`Error: ${error.message}`, 'error');
+        console.error('[API] Unexpected error in sendMessage:', error);
+        ui.showNotification(`Unexpected error: ${error.message}`, 'error');
         ui.showThinkingIndicator(false); // Hide indicator on error
-
-        // Remove the optimistic message if the send/create failed
-        const tempUserMsg = document.getElementById(tempId);
-        if (tempUserMsg) {
-            tempUserMsg.remove();
-            console.log("[API] Removed optimistic user message due to unexpected error.");
+        // Try to remove optimistic message if possible
+        try {
+            const tempUserMsg = document.getElementById(tempId);
+            if (tempUserMsg) {
+                tempUserMsg.remove();
+                console.log("[API] Removed optimistic user message due to unexpected error.");
+            }
+        } catch (removeError) {
+            console.warn("[API] Could not remove optimistic message:", removeError);
         }
+    } finally {
+        // Always reset the flag
+        isSendingMessage = false;
     }
 };
 

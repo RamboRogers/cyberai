@@ -75,10 +75,20 @@ type CreateChatRequest struct {
 	FirstMessage *FirstMessagePayload `json:"first_message,omitempty"` // Optional first message
 }
 
+// ImageAttachment represents an uploaded image attachment
+type ImageAttachment struct {
+	ID       int64  `json:"id"`
+	Filename string `json:"filename"`
+	URL      string `json:"url"`
+	Type     string `json:"type"`
+	Size     int64  `json:"size"`
+}
+
 // FirstMessagePayload defines the structure for the optional first message
 type FirstMessagePayload struct {
-	Content string `json:"content"`  // Required if first_message is present
-	ModelID int64  `json:"model_id"` // Required if first_message is present
+	Content string            `json:"content"`          // Required if first_message is present
+	ModelID int64             `json:"model_id"`         // Required if first_message is present
+	Images  []ImageAttachment `json:"images,omitempty"` // Optional image attachments
 }
 
 // CreateChat handles POST /api/chats
@@ -132,6 +142,17 @@ func (h *ChatHandlers) CreateChat(w http.ResponseWriter, r *http.Request) {
 		userMessage := models.Message{
 			ChatID: newChat.ID, UserID: int64(userID), Role: "user", Content: req.FirstMessage.Content,
 		}
+
+		// Extract image IDs from FirstMessagePayload.Images (same logic as CreateMessage)
+		if len(req.FirstMessage.Images) > 0 {
+			imageIDs := make([]int64, len(req.FirstMessage.Images))
+			for i, img := range req.FirstMessage.Images {
+				imageIDs[i] = img.ID
+			}
+			userMessage.ImageIDs = imageIDs
+			log.Printf("CreateChat: Storing %d image IDs with first message: %v", len(imageIDs), imageIDs)
+		}
+
 		if err := h.ChatService.AddMessage(&userMessage); err != nil {
 			log.Printf("Error adding first user message for chat %d: %v", newChat.ID, err)
 			// Log error but continue
@@ -361,9 +382,10 @@ func (h *ChatHandlers) PurgeUserChats(w http.ResponseWriter, r *http.Request) {
 
 // CreateMessageRequest defines the structure for POST /api/chats/{id}/messages
 type CreateMessageRequest struct {
-	Content string `json:"content"`            // Required
-	ModelID int64  `json:"model_id"`           // Required: ID of model to use for response
-	AgentID *int64 `json:"agent_id,omitempty"` // Optional: Agent to use
+	Content string            `json:"content"`            // Required
+	ModelID int64             `json:"model_id"`           // Required: ID of model to use for response
+	AgentID *int64            `json:"agent_id,omitempty"` // Optional: Agent to use
+	Images  []ImageAttachment `json:"images,omitempty"`   // Optional image attachments
 }
 
 // CreateMessage handles POST /api/chats/{chat_id}/messages
@@ -388,6 +410,16 @@ func (h *ChatHandlers) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error decoding CreateMessage request for chat %d: %v", chatID, err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
+	}
+
+	// Debug logging for images
+	log.Printf("CreateMessage: Received %d images in request", len(req.Images))
+	if len(req.Images) > 0 {
+		for i, img := range req.Images {
+			log.Printf("CreateMessage: Image %d - ID: %d, Filename: %s, Type: %s, Size: %d", i, img.ID, img.Filename, img.Type, img.Size)
+		}
+	} else {
+		log.Printf("CreateMessage: No images in request body - req.Images is empty")
 	}
 
 	// Validate input
@@ -429,6 +461,16 @@ func (h *ChatHandlers) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		AgentID: req.AgentID,
 	}
 
+	// Extract image IDs from ImageAttachment objects
+	if len(req.Images) > 0 {
+		imageIDs := make([]int64, len(req.Images))
+		for i, img := range req.Images {
+			imageIDs[i] = img.ID
+		}
+		userMessage.ImageIDs = imageIDs
+		log.Printf("CreateMessage: Storing %d image IDs with user message: %v", len(imageIDs), imageIDs)
+	}
+
 	if err := h.ChatService.AddMessage(&userMessage); err != nil {
 		log.Printf("Error saving user message for chat %d: %v", chatID, err)
 		http.Error(w, "Internal Server Error: Failed to save message", http.StatusInternalServerError)
@@ -436,6 +478,23 @@ func (h *ChatHandlers) CreateMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("Saved user message ID %d for chat %d", userMessage.ID, chatID)
+
+	// Send WebSocket confirmation for user message with ImageIDs
+	userMsgPayload := ws.MessagePayload{
+		ID:        userMessage.ID,
+		ChatID:    chatID,
+		UserID:    int64(userID),
+		Role:      "user",
+		Content:   userMessage.Content,
+		ImageIDs:  userMessage.ImageIDs, // Include image IDs for frontend display
+		CreatedAt: userMessage.CreatedAt,
+	}
+	wsMsg := ws.Message{
+		Type:           ws.MsgTypeUserMessage,
+		MessagePayload: &userMsgPayload,
+	}
+	h.ConnectorService.SendWsMessage(userID, wsMsg)
+	log.Printf("Sent WebSocket user_message confirmation for message %d with %d images", userMessage.ID, len(userMessage.ImageIDs))
 
 	// Return the created user message object with 202 Accepted immediately
 	w.Header().Set("Content-Type", "application/json")

@@ -1020,6 +1020,14 @@ html[data-theme="business"] .chat-delete-btn:hover {
   bottom: 0px;
 }
 
+.-right-2 {
+  right: -0.5rem;
+}
+
+.-top-2 {
+  top: -0.5rem;
+}
+
 .bottom-4 {
   bottom: 1rem;
 }
@@ -1078,6 +1086,10 @@ html[data-theme="business"] .chat-delete-btn:hover {
 
 .-m-2\.5 {
   margin: -0.625rem;
+}
+
+.m-1 {
+  margin: 0.25rem;
 }
 
 .-mx-4 {
@@ -1232,6 +1244,14 @@ html[data-theme="business"] .chat-delete-btn:hover {
   height: 100vh;
 }
 
+.max-h-48 {
+  max-height: 12rem;
+}
+
+.max-h-full {
+  max-height: 100%;
+}
+
 .w-10 {
   width: 2.5rem;
 }
@@ -1286,6 +1306,14 @@ html[data-theme="business"] .chat-delete-btn:hover {
 
 .max-w-3xl {
   max-width: 48rem;
+}
+
+.max-w-4xl {
+  max-width: 56rem;
+}
+
+.max-w-full {
+  max-width: 100%;
 }
 
 .max-w-lg {
@@ -1605,6 +1633,10 @@ html[data-theme="business"] .chat-delete-btn:hover {
   background-color: rgb(0 0 0 / 0.6);
 }
 
+.bg-black\/80 {
+  background-color: rgb(0 0 0 / 0.8);
+}
+
 .bg-blue-600 {
   --tw-bg-opacity: 1;
   background-color: rgb(37 99 235 / var(--tw-bg-opacity, 1));
@@ -1689,6 +1721,11 @@ html[data-theme="business"] .chat-delete-btn:hover {
 
 .bg-opacity-80 {
   --tw-bg-opacity: 0.8;
+}
+
+.object-cover {
+  -o-object-fit: cover;
+     object-fit: cover;
 }
 
 .p-1 {
@@ -1944,6 +1981,10 @@ html[data-theme="business"] .chat-delete-btn:hover {
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
 }
 
+.underline {
+  text-decoration-line: underline;
+}
+
 .no-underline {
   text-decoration-line: none;
 }
@@ -2096,6 +2137,10 @@ html[data-theme="business"] .chat-delete-btn:hover {
 
 .\[a-zA-Z\:_\] {
   a-z-a--z: ;
+}
+
+.hover\:bg-black\/70:hover {
+  background-color: rgb(0 0 0 / 0.7);
 }
 
 .hover\:bg-blue-700:hover {

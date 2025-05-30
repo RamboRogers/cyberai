@@ -130,7 +130,23 @@ func (c *OpenAIConnector) GenerateChatCompletion(ctx context.Context, req ChatCo
 	for i, msg := range req.Messages {
 		switch strings.ToLower(msg.Role) {
 		case "user":
-			openaiMessages[i] = openai.UserMessage(msg.Content)
+			if len(msg.Images) > 0 {
+				// Create user message with images using correct vision API format
+				content := []openai.ChatCompletionContentPartUnionParam{
+					openai.TextContentPart(msg.Content),
+				}
+				// Add image parts using proper vision API format
+				for _, imageURL := range msg.Images {
+					imagePart := openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{
+						URL:    imageURL,
+						Detail: "auto", // auto, low, or high
+					})
+					content = append(content, imagePart)
+				}
+				openaiMessages[i] = openai.UserMessage(content)
+			} else {
+				openaiMessages[i] = openai.UserMessage(msg.Content)
+			}
 		case "assistant":
 			openaiMessages[i] = openai.AssistantMessage(msg.Content)
 		case "system":

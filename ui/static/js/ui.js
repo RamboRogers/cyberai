@@ -479,6 +479,31 @@ ui.renderMessage = function(message) {
     // --- ADDED: Preprocess mainContent for \\boxed{} --- (Keep this)
     mainContent = mainContent.replace(/\\boxed\{([^}]+)\}/g, '<span class="boxed-answer">$1</span>');
 
+    // --- Handle Image Display (NEW) ---
+    let imageHTML = '';
+    if (message.image_ids && Array.isArray(message.image_ids) && message.image_ids.length > 0) {
+        console.log(`[Render] Message ${message.id} has ${message.image_ids.length} images`);
+        console.log(`[Render] Image IDs:`, message.image_ids);
+        console.log(`[Render] Message role:`, message.role);
+        imageHTML = '<div class="message-images mb-3">';
+        message.image_ids.forEach(imageId => {
+            console.log(`[Render] Creating image HTML for image ID: ${imageId}`);
+            imageHTML += `
+                <div class="message-image-container inline-block mr-2 mb-2">
+                    <img src="/api/images/${imageId}"
+                         alt="Attached image"
+                         class="message-image max-w-sm max-h-48 rounded border border-outline/30 cursor-pointer hover:border-primary/50 transition-colors"
+                         onclick="ui.openImageModal(${imageId})"
+                         onerror="this.style.display='none'; console.error('Failed to load image ${imageId}');">
+                </div>
+            `;
+        });
+        imageHTML += '</div>';
+        console.log(`[Render] Generated image HTML:`, imageHTML.substring(0, 100) + '...');
+    } else {
+        console.log(`[Render] Message ${message.id} has NO images - image_ids:`, message.image_ids);
+    }
+
     // --- Render Persistent Think Block (if content exists) ---
     // Remove any previous persistent block first to avoid duplication on updates
     // messageWrapper.querySelector('.persistent-think-block')?.remove(); // REMOVED - Handled by ID check below
@@ -583,9 +608,19 @@ ui.renderMessage = function(message) {
             contentElement.innerHTML = `<div class="markdown-content text-danger">Error displaying search results.</div>`;
         }
     } else if (message.role === 'user') {
-        // Standard user message - add the ">" indicator and escape HTML
-        const displayContentString = `<span class="user-prompt-indicator">&gt;</span> ${mainContent.replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
-        contentElement.innerHTML = displayContentString;
+        // Standard user message - add images (if any) and text with ">" indicator
+        let userContent = '';
+
+        // Add images first (if any)
+        if (imageHTML) {
+            userContent += imageHTML;
+        }
+
+        // Add text content with ">" indicator
+        const textContent = `<span class="user-prompt-indicator">&gt;</span> ${mainContent.replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
+        userContent += textContent;
+
+        contentElement.innerHTML = userContent;
     } else {
          // Handle other roles like standard 'system' (basic rendering)
          contentElement.textContent = mainContent;
@@ -1061,7 +1096,7 @@ ui.addMessageToUI = function(type, content, tempId = null, messageType = 'chat')
                 const displayContentString = `<span class="user-prompt-indicator">&gt;</span> ${searchIcon}${content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
                 contentElement.innerHTML = displayContentString;
             } else {
-                // Standard user message
+                // Standard user message - add the ">" indicator and escape HTML
                 const displayContentString = `<span class="user-prompt-indicator">&gt;</span> ${content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
                 contentElement.innerHTML = displayContentString;
             }
@@ -1360,4 +1395,43 @@ ui.setLinksToOpenInNewTab = function(element) {
             link.setAttribute('rel', 'noopener noreferrer');
         }
     });
+};
+
+// --- Image Modal Function ---
+/**
+ * Opens a modal to view an image in full size
+ */
+ui.openImageModal = function(imageId) {
+    // Create modal HTML
+    const modalHTML = `
+        <div id="image-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onclick="ui.closeImageModal()">
+            <div class="relative max-w-4xl max-h-full">
+                <img src="/api/images/${imageId}"
+                     alt="Full size image"
+                     class="max-w-full max-h-full rounded shadow-lg"
+                     onclick="event.stopPropagation();">
+                <button onclick="ui.closeImageModal()"
+                        class="absolute top-4 right-4 bg-black/50 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/70">
+                    ×
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Add to body
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // Prevent body scrolling
+    document.body.style.overflow = 'hidden';
+};
+
+/**
+ * Closes the image modal
+ */
+ui.closeImageModal = function() {
+    const modal = document.getElementById('image-modal');
+    if (modal) {
+        modal.remove();
+        document.body.style.overflow = '';
+    }
 };

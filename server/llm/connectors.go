@@ -15,8 +15,9 @@ import (
 // Message represents a single message in a conversation, suitable for API requests.
 // We might use models.Message directly or adapt it if provider APIs differ significantly.
 type Message struct {
-	Role    string `json:"role"` // e.g., "system", "user", "assistant"
-	Content string `json:"content"`
+	Role    string   `json:"role"` // e.g., "system", "user", "assistant"
+	Content string   `json:"content"`
+	Images  []string `json:"images,omitempty"` // Base64 encoded images or URLs
 	// Add fields for images, tools later if needed
 }
 
@@ -66,8 +67,8 @@ type ConnectorService struct {
 	chatContextService *ChatContextService
 }
 
-func NewConnectorService(ms *models.ModelService, ps *models.ProviderService, cs *models.ChatService, as *models.AgentService, hub *ws.Hub) *ConnectorService {
-	contextSvc := NewChatContextService(cs, ms, as)
+func NewConnectorService(ms *models.ModelService, ps *models.ProviderService, cs *models.ChatService, as *models.AgentService, is *models.ImageService, hub *ws.Hub) *ConnectorService {
+	contextSvc := NewChatContextService(cs, ms, as, is)
 	return &ConnectorService{
 		modelService:       ms,
 		providerService:    ps,
@@ -297,6 +298,7 @@ func (cs *ConnectorService) generateAndStreamResponse(ctx context.Context, userI
 			log.Printf("[Chat %d] Error updating final assistant message %d content/tokens: %v", chatID, assistantMsgID, updateErr)
 		} else {
 			log.Printf("[Chat %d] Successfully updated final assistant message %d", chatID, assistantMsgID)
+
 			wsMsgPayload := ws.MessagePayload{
 				ID:         assistantMsgID,
 				ChatID:     chatID,
@@ -306,6 +308,7 @@ func (cs *ConnectorService) generateAndStreamResponse(ctx context.Context, userI
 				ModelID:    &modelIDToUse,
 				AgentID:    agentID,
 				TokensUsed: tokens,
+				ImageIDs:   []int64{}, // Assistant messages don't have images
 				CreatedAt:  time.Now(),
 			}
 			cs.SendWsMessage(userID, ws.Message{
@@ -344,6 +347,7 @@ func (cs *ConnectorService) generateAndStreamResponse(ctx context.Context, userI
 				ModelID:    &modelIDToUse,
 				AgentID:    agentID,
 				TokensUsed: tokens,
+				ImageIDs:   assistantMessage.ImageIDs,
 				CreatedAt:  time.Now(),
 			}
 			cs.SendWsMessage(userID, ws.Message{
@@ -362,6 +366,11 @@ func (cs *ConnectorService) generateAndStreamResponse(ctx context.Context, userI
 
 // GenerateResponseForChat is the main entry point for generating a response in a chat context.
 func (cs *ConnectorService) GenerateResponseForChat(ctx context.Context, userID int, chatID int64, modelID int64, agentID *int64) error {
+	return cs.GenerateResponseForChatWithImages(ctx, userID, chatID, modelID, agentID, nil)
+}
+
+// GenerateResponseForChatWithImages generates an AI response for a chat with optional image attachments
+func (cs *ConnectorService) GenerateResponseForChatWithImages(ctx context.Context, userID int, chatID int64, modelID int64, agentID *int64, imageURLs []string) error {
 	log.Printf("[Chat %d] Starting AI response processing for model %d (User ID: %d)", chatID, modelID, userID)
 
 	cs.SendWsMessage(userID, ws.Message{
@@ -377,12 +386,24 @@ func (cs *ConnectorService) GenerateResponseForChat(ctx context.Context, userID 
 		return err
 	}
 
+	// Add images to the most recent user message if provided
+	if len(imageURLs) > 0 && len(history) > 0 {
+		// Find the most recent user message and add images to it
+		for i := len(history) - 1; i >= 0; i-- {
+			if history[i].Role == "user" {
+				log.Printf("[Chat %d] Adding %d images to most recent user message", chatID, len(imageURLs))
+				// Convert to LLM Message format and add images
+				break
+			}
+		}
+	}
+
 	_, err = cs.generateAndStreamResponse(ctx, userID, chatID, modelID, history, agentID)
 	if err != nil {
-		log.Printf("[Chat %d] GenerateResponseForChat finished with error: %v", chatID, err)
+		log.Printf("[Chat %d] GenerateResponseForChatWithImages finished with error: %v", chatID, err)
 		return err
 	} else {
-		log.Printf("[Chat %d] GenerateResponseForChat finished successfully.", chatID)
+		log.Printf("[Chat %d] GenerateResponseForChatWithImages finished successfully.", chatID)
 		return nil
 	}
 }

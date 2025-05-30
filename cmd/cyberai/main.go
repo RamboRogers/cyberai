@@ -247,14 +247,15 @@ func main() {
 	// Initialize services
 	modelService := models.NewModelService(database)
 	agentService := models.NewAgentService(database)
-	chatService := models.NewChatService(database, hub)
+	imageService := models.NewImageService(database)
+	chatService := models.NewChatService(database, hub, imageService)
 	providerService := models.NewProviderService(database)
 	searchProviderSvc := models.NewSearchProviderService(database.DB)
 	userService := models.NewUserService(database)
 	roleSvc := models.NewRoleService(database.DB)
 
 	// Pass chatService, agentService, AND hub to ConnectorService constructor
-	connectorService := llm.NewConnectorService(modelService, providerService, chatService, agentService, hub)
+	connectorService := llm.NewConnectorService(modelService, providerService, chatService, agentService, imageService, hub)
 
 	// Create and start HTTP server
 	server := setupServer(hub, database, modelService, providerService, chatService, connectorService, searchProviderSvc, userService, roleSvc, cookieStore)
@@ -376,6 +377,9 @@ func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService
 	}
 	chatHandlers.SetSearchHandlersDelegate(searchHandlersAdapter)
 
+	// Create image handlers
+	imageHandlers := handlers.NewImageHandlers(database)
+
 	// Define Middleware
 	// For development, we use TempAdminAuthMiddleware for all user routes.
 	// In production, you'd have different middleware chains (e.g., requireAdmin, requireUser).
@@ -444,6 +448,12 @@ func setupServer(hub *ws.Hub, database *db.DB, modelService *models.ModelService
 	// Register search routes
 	mux.Handle("POST /api/search", sessionAuth(http.HandlerFunc(searchHandlers.Search)))
 	mux.Handle("POST /api/search/chat", sessionAuth(http.HandlerFunc(searchHandlers.SearchAndChat)))
+
+	// Register image routes
+	mux.Handle("POST /api/images/upload", sessionAuth(http.HandlerFunc(imageHandlers.UploadImage)))
+	mux.Handle("GET /api/images/list", sessionAuth(http.HandlerFunc(imageHandlers.ListUserImages)))
+	mux.Handle("/api/images/", http.HandlerFunc(imageHandlers.ServeImage)) // Public serving for images by ID
+	mux.Handle("DELETE /api/images/", sessionAuth(http.HandlerFunc(imageHandlers.DeleteImage)))
 
 	// Register the /api/user/me route directly and apply sessionAuth middleware
 	mux.Handle("GET /api/user/me", sessionAuth(http.HandlerFunc(userHandlers.GetCurrentUser)))
