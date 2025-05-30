@@ -112,11 +112,43 @@ func (db *DB) migrateFromVersion(fromVersion int) error {
 
 	// Apply incremental migrations
 	if fromVersion < 3 {
-		// Migration to version 3: Add image_ids column to messages table
-		log.Println("Applying migration to version 3: Adding image_ids column to messages table")
+		// Migration to version 3: Add image_ids column to messages table AND create images table
+		log.Println("Applying migration to version 3: Adding image_ids column to messages table and creating images table")
+
+		// Add image_ids column to messages table
 		_, err := db.Exec(`ALTER TABLE messages ADD COLUMN image_ids TEXT`)
 		if err != nil {
 			return fmt.Errorf("failed to add image_ids column to messages table: %w", err)
+		}
+
+		// Create images table if it doesn't exist
+		_, err = db.Exec(`
+			CREATE TABLE IF NOT EXISTS images (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				user_id INTEGER NOT NULL,
+				filename TEXT NOT NULL,
+				original_name TEXT NOT NULL,
+				file_path TEXT NOT NULL,
+				content_type TEXT NOT NULL,
+				size INTEGER NOT NULL,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (user_id) REFERENCES users(id)
+			)
+		`)
+		if err != nil {
+			return fmt.Errorf("failed to create images table: %w", err)
+		}
+
+		// Create index for images table
+		_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_images_user ON images(user_id)`)
+		if err != nil {
+			return fmt.Errorf("failed to create images index: %w", err)
+		}
+
+		_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_images_created ON images(created_at)`)
+		if err != nil {
+			return fmt.Errorf("failed to create images created_at index: %w", err)
 		}
 	}
 
