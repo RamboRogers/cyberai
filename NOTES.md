@@ -855,7 +855,7 @@ type ModelConnector interface {
 - **Frontend**: Vanilla JavaScript with cyberpunk theme, image upload with drag & drop
 - **Database**: SQLite with proper schema including images table
 
-## Image Upload Implementation Status: ✅ COMPLETE + BUG FIXED
+## Image Upload Implementation Status: ✅ COMPLETED + BUG FIXED
 
 ### ✅ Database Schema (server/db/db.go)
 - Added images table with user_id foreign key
@@ -943,7 +943,7 @@ type ModelConnector interface {
 ## Ready for Use
 The image upload system is now fully functional and ready for production use with both OpenAI vision models and Ollama vision models.
 
-## Current Status: Image Upload and AI Vision Support ✅ COMPLETED + CHAT IMAGE DISPLAY + IMAGE CLEANUP
+## Current Status: Image Upload and AI Vision Support ✅ COMPLETED + CHAT IMAGE DISPLAY + IMAGE CLEANUP + MIGRATION FIX
 
 ### Image Cleanup on Chat Deletion ✅ COMPLETED
 **Feature**: Both individual chat deletion and "Purge All Chats" now properly clean up orphaned images
@@ -975,3 +975,15 @@ The image upload system is now fully functional and ready for production use wit
 - No more orphaned image records in database
 - Protects shared images from accidental deletion
 - Graceful error handling (logs warnings, doesn't fail deletions)
+
+### Database Migration Issue Fixed ✅ SCHEMA VERSION 4
+**Issue**: Existing databases at schema version 3 were missing the `images` table, causing "no such table: images" errors
+**Root Cause**: Incomplete version 3 migration that only added `image_ids` column but didn't create `images` table for existing databases
+**Solution**:
+- Bumped schema version from 3 → 4
+- Added version 4 migration specifically to create missing `images` table
+- Handles databases stuck at version 3 without breaking new installations
+- Uses `CREATE TABLE IF NOT EXISTS` for safety
+
+**Files Modified**:
+- `server/db/db.go`: Updated SchemaVersion constant to 4, added version 4 migration
